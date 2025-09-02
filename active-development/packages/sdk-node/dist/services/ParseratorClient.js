@@ -1,0 +1,335 @@
+"use strict";
+/**
+ * Main Parserator SDK Client
+ * Implements the Architect-Extractor pattern for intelligent data parsing
+ */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ParseratorClient = void 0;
+const axios_1 = __importDefault(require("axios"));
+const validation_1 = require("../types/validation");
+const errors_1 = require("../errors");
+const retry_1 = require("../utils/retry");
+const rate_limiter_1 = require("../utils/rate-limiter");
+class ParseratorClient {
+    constructor(config) {
+        this.eventHandlers = [];
+        // Validate configuration
+        const { error } = (0, validation_1.validateConfig)(config);
+        if (error) {
+            throw new errors_1.ParseratorError('INVALID_CONFIG', (0, validation_1.getValidationErrorMessage)(error), { validationDetails: error.details });
+        }
+        this.config = {
+            baseUrl: 'https://app-5108296280.us-central1.run.app',
+            timeout: 30000,
+            retries: 3,
+            debug: false,
+            ...config
+        };
+        // Create axios instance with default configuration
+        this.axios = axios_1.default.create({
+            baseURL: this.config.baseUrl,
+            timeout: this.config.timeout,
+            headers: {
+                'Authorization': `Bearer ${this.config.apiKey}`,
+                'Content-Type': 'application/json',
+                'User-Agent': 'Parserator Node.js SDK v1.0.0'
+            }
+        });
+        // Rate limiter to prevent overwhelming the API
+        this.rateLimiter = new rate_limiter_1.RateLimiter({ requestsPerSecond: 10 });
+        // Setup request/response interceptors
+        this.setupInterceptors();
+    }
+    /**
+     * Parse unstructured data using the Architect-Extractor pattern
+     */
+    async parse(request) {
+        // Validate request
+        const { error } = (0, validation_1.validateParseRequest)(request);
+        if (error) {
+            throw new errors_1.ParseratorError('INVALID_INPUT', (0, validation_1.getValidationErrorMessage)(error), { validationDetails: error.details });
+        }
+        this.emitEvent({
+            type: 'start',
+            timestamp: new Date().toISOString(),
+            data: { requestSize: request.inputData.length }
+        });
+        try {
+            // Apply rate limiting
+            await this.rateLimiter.acquire();
+            // Merge with default options
+            const finalRequest = {
+                ...request,
+                options: {
+                    ...this.config.defaultOptions,
+                    ...request.options
+                }
+            };
+            // Make the API call with retry logic
+            const response = await (0, retry_1.retry)(() => this.axios.post('/v1/parse', finalRequest), this.getRetryConfig());
+            const result = response.data;
+            this.emitEvent({
+                type: 'complete',
+                timestamp: new Date().toISOString(),
+                data: {
+                    success: result.success,
+                    tokensUsed: result.metadata.tokensUsed,
+                    processingTime: result.metadata.processingTimeMs
+                }
+            });
+            if (!result.success) {
+                throw new errors_1.ParseratorError('PARSE_FAILED', result.error?.message || 'Parse operation failed', result.error?.details);
+            }
+            return result;
+        }
+        catch (error) {
+            this.emitEvent({
+                type: 'error',
+                timestamp: new Date().toISOString(),
+                data: { error: error instanceof Error ? error.message : 'Unknown error' }
+            });
+            if (error instanceof errors_1.ParseratorError) {
+                throw error;
+            }
+            if (axios_1.default.isAxiosError(error)) {
+                throw this.handleAxiosError(error);
+            }
+            throw new errors_1.ParseratorError('INTERNAL_ERROR', 'An unexpected error occurred', { originalError: error });
+        }
+    }
+    /**
+     * Parse multiple items in batch with concurrency control
+     */
+    async batchParse(request, progressCallback) {
+        const { items, options = {} } = request;
+        const { concurrency = 3, failFast = false, preserveOrder = true } = options;
+        if (items.length === 0) {
+            throw new errors_1.ParseratorError('INVALID_INPUT', 'Batch request must contain at least one item');
+        }
+        const results = new Array(items.length);
+        const startTime = Date.now();
+        let completed = 0;
+        let successful = 0;
+        let failed = 0;
+        let totalTokensUsed = 0;
+        // Create a semaphore for concurrency control
+        const semaphore = new Array(concurrency).fill(null);
+        let currentIndex = 0;
+        const processItem = async (index) => {
+            try {
+                const result = await this.parse(items[index]);
+                results[index] = result;
+                successful++;
+                totalTokensUsed += result.metadata.tokensUsed;
+            }
+            catch (error) {
+                const parseError = {
+                    code: error instanceof errors_1.ParseratorError ? error.code : 'INTERNAL_ERROR',
+                    message: error instanceof Error ? error.message : 'Unknown error',
+                    details: error instanceof errors_1.ParseratorError ? error.details : undefined
+                };
+                results[index] = parseError;
+                failed++;
+                if (failFast) {
+                    throw error;
+                }
+            }
+            finally {
+                completed++;
+                if (progressCallback) {
+                    const estimatedTimeRemaining = completed > 0
+                        ? ((Date.now() - startTime) / completed) * (items.length - completed)
+                        : undefined;
+                    progressCallback({
+                        completed,
+                        total: items.length,
+                        currentItem: `Item ${index + 1}`,
+                        estimatedTimeRemaining
+                    });
+                }
+            }
+        };
+        // Process items with controlled concurrency
+        const processNext = async () => {
+            while (currentIndex < items.length) {
+                const index = currentIndex++;
+                await processItem(index);
+            }
+        };
+        try {
+            // Start concurrent processing
+            await Promise.all(semaphore.map(() => processNext()));
+            return {
+                results: preserveOrder ? results : results.filter(r => r !== undefined),
+                summary: {
+                    total: items.length,
+                    successful,
+                    failed,
+                    totalTokensUsed,
+                    totalProcessingTimeMs: Date.now() - startTime
+                }
+            };
+        }
+        catch (error) {
+            if (failFast) {
+                throw error;
+            }
+            // This shouldn't happen since we catch errors in processItem
+            throw new errors_1.ParseratorError('INTERNAL_ERROR', 'Batch processing failed unexpectedly');
+        }
+    }
+    /**
+     * Test API connectivity and authentication
+     */
+    async testConnection() {
+        const startTime = Date.now();
+        try {
+            const response = await this.axios.get('/health');
+            const latency = Date.now() - startTime;
+            return {
+                success: true,
+                latency,
+                quotaRemaining: response.headers['x-quota-remaining'] ?
+                    parseInt(response.headers['x-quota-remaining']) : undefined
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                latency: Date.now() - startTime,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
+        }
+    }
+    /**
+     * Get account usage statistics
+     */
+    async getUsage() {
+        try {
+            const response = await this.axios.get('/v1/account/usage');
+            return response.data;
+        }
+        catch (error) {
+            if (axios_1.default.isAxiosError(error)) {
+                throw this.handleAxiosError(error);
+            }
+            throw error;
+        }
+    }
+    /**
+     * Add event handler for monitoring parse operations
+     */
+    addEventListener(handler) {
+        this.eventHandlers.push(handler);
+    }
+    /**
+     * Remove event handler
+     */
+    removeEventListener(handler) {
+        const index = this.eventHandlers.indexOf(handler);
+        if (index > -1) {
+            this.eventHandlers.splice(index, 1);
+        }
+    }
+    /**
+     * Update configuration
+     */
+    updateConfig(newConfig) {
+        Object.assign(this.config, newConfig);
+        // Update axios instance if needed
+        if (newConfig.apiKey) {
+            this.axios.defaults.headers['Authorization'] = `Bearer ${newConfig.apiKey}`;
+        }
+        if (newConfig.timeout) {
+            this.axios.defaults.timeout = newConfig.timeout;
+        }
+    }
+    // Private methods
+    setupInterceptors() {
+        // Request interceptor for debugging
+        this.axios.interceptors.request.use((config) => {
+            if (this.config.debug) {
+                console.log('Parserator API Request:', {
+                    url: config.url,
+                    method: config.method,
+                    headers: config.headers,
+                    dataSize: config.data ? JSON.stringify(config.data).length : 0
+                });
+            }
+            return config;
+        }, (error) => Promise.reject(error));
+        // Response interceptor for debugging and error handling
+        this.axios.interceptors.response.use((response) => {
+            if (this.config.debug) {
+                console.log('Parserator API Response:', {
+                    status: response.status,
+                    headers: response.headers,
+                    dataSize: response.data ? JSON.stringify(response.data).length : 0
+                });
+            }
+            return response;
+        }, (error) => {
+            if (this.config.debug) {
+                console.error('Parserator API Error:', {
+                    status: error.response?.status,
+                    message: error.message,
+                    data: error.response?.data
+                });
+            }
+            return Promise.reject(error);
+        });
+    }
+    emitEvent(event) {
+        for (const handler of this.eventHandlers) {
+            try {
+                handler(event);
+            }
+            catch (error) {
+                if (this.config.debug) {
+                    console.error('Error in event handler:', error);
+                }
+            }
+        }
+    }
+    handleAxiosError(error) {
+        const response = error.response;
+        if (!response) {
+            return new errors_1.ParseratorError('NETWORK_ERROR', 'Network error: Unable to reach Parserator API', { originalError: error.message });
+        }
+        const status = response.status;
+        const data = response.data;
+        switch (status) {
+            case 401:
+                return new errors_1.ParseratorError('INVALID_API_KEY', 'Invalid API key. Please check your credentials.', { status });
+            case 403:
+                return new errors_1.ParseratorError('QUOTA_EXCEEDED', 'API quota exceeded. Please upgrade your plan or wait for quota reset.', { status });
+            case 429:
+                return new errors_1.ParseratorError('RATE_LIMIT_EXCEEDED', 'Rate limit exceeded. Please slow down your requests.', {
+                    status,
+                    retryAfter: response.headers['retry-after']
+                });
+            case 400:
+                return new errors_1.ParseratorError('INVALID_INPUT', data?.message || 'Invalid request data', { status, details: data });
+            case 500:
+            case 502:
+            case 503:
+            case 504:
+                return new errors_1.ParseratorError('SERVICE_UNAVAILABLE', 'Parserator service is temporarily unavailable. Please try again later.', { status });
+            default:
+                return new errors_1.ParseratorError('INTERNAL_ERROR', data?.message || 'An unexpected error occurred', { status, details: data });
+        }
+    }
+    getRetryConfig() {
+        return {
+            maxRetries: this.config.retries || 3,
+            baseDelay: 1000,
+            maxDelay: 10000,
+            backoffFactor: 2
+        };
+    }
+}
+exports.ParseratorClient = ParseratorClient;
+//# sourceMappingURL=ParseratorClient.js.map

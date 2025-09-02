@@ -1,0 +1,33 @@
+{
+  "name": "parserator-chrome-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension for Parserator AI-powered text parsing",
+  "author": "Paul Phillips <phillips.paul.email@gmail.com>",
+  "license": "PRIVATE",
+  "scripts": {
+    "build": "echo 'Building Chrome extension...' && npm run copy-assets",
+    "copy-assets": "mkdir -p dist && cp -r src dist/ && cp -r assets dist/ && cp manifest.json dist/",
+    "package": "npm run build && cd dist && zip -r ../parserator-chrome-extension.zip .",
+    "dev": "echo 'Load the extension in Chrome from the root directory'",
+    "clean": "rm -rf dist parserator-chrome-extension.zip"
+  },
+  "dependencies": {
+    "parserator-sdk": "^1.0.0"
+  },
+  "keywords": [
+    "chrome-extension",
+    "parserator",
+    "ai",
+    "text-parsing",
+    "json",
+    "data-extraction"
+  ],
+  "homepage": "https://parserator.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/domusgpt/parserator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/domusgpt/parserator/issues"
+  }
+}

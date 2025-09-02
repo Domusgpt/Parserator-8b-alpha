@@ -1,0 +1,19 @@
+{
+  "name": "@parserator/email-parser",
+  "version": "1.0.0",
+  "description": "Email-to-schema parsing service - Send data via email, get structured JSON back",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "firebase deploy --only functions:emailToSchema",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "firebase-functions": "^4.5.0",
+    "nodemailer": "^6.9.7",
+    "@google/generative-ai": "^0.2.1",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": "18"
+  }
+}

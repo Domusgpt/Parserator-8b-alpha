@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parserator</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="popup-container">
+        <!-- Header -->
+        <header class="popup-header">
+            <div class="header-brand">
+                <img src="../../assets/icons/icon-32.png" alt="Parserator" class="brand-icon">
+                <h1 class="brand-title">Parserator</h1>
+            </div>
+            <div class="header-actions">
+                <button id="settingsBtn" class="btn-icon" title="Settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="popup-main">
+            <!-- Connection Status -->
+            <div id="connectionStatus" class="status-bar hidden">
+                <div class="status-indicator"></div>
+                <span class="status-text">Not configured</span>
+            </div>
+
+            <!-- Quick Actions -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>Quick Actions</h2>
+                </div>
+                <div class="action-grid">
+                    <button id="quickParseBtn" class="action-btn primary">
+                        <div class="action-icon">⚡</div>
+                        <div class="action-content">
+                            <div class="action-title">Quick Parse</div>
+                            <div class="action-subtitle">Parse with default schema</div>
+                        </div>
+                    </button>
+                    <button id="autoDetectBtn" class="action-btn secondary">
+                        <div class="action-icon">🔍</div>
+                        <div class="action-content">
+                            <div class="action-title">Auto-detect</div>
+                            <div class="action-subtitle">Smart content analysis</div>
+                        </div>
+                    </button>
+                    <button id="sidePanelBtn" class="action-btn tertiary">
+                        <div class="action-icon">📋</div>
+                        <div class="action-content">
+                            <div class="action-title">Open Panel</div>
+                            <div class="action-subtitle">View results</div>
+                        </div>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Text Input -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>Parse Text</h2>
+                    <button id="pasteBtn" class="btn-small">Paste</button>
+                </div>
+                <textarea 
+                    id="inputText" 
+                    placeholder="Enter text to parse or select text on the page..."
+                    rows="4"
+                ></textarea>
+            </section>
+
+            <!-- Schema Selection -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>Schema</h2>
+                    <div class="header-actions">
+                        <button id="newSchemaBtn" class="btn-small primary">New</button>
+                        <button id="editSchemaBtn" class="btn-small" disabled>Edit</button>
+                    </div>
+                </div>
+                <select id="schemaSelect">
+                    <option value="">Loading schemas...</option>
+                </select>
+                <div id="schemaPreview" class="schema-preview hidden">
+                    <pre></pre>
+                </div>
+            </section>
+
+            <!-- Parse Button -->
+            <section class="section">
+                <button id="parseBtn" class="btn-full primary" disabled>
+                    <span class="btn-text">Parse Text</span>
+                    <span class="btn-loader hidden">
+                        <svg class="spinner" width="16" height="16" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"></circle>
+                            <path d="M4 12a8 8 0 018-8v8z" fill="currentColor"></path>
+                        </svg>
+                    </span>
+                </button>
+            </section>
+
+            <!-- Recent Results -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>Recent Results</h2>
+                    <button id="clearResultsBtn" class="btn-small">Clear</button>
+                </div>
+                <div id="recentResults" class="results-list">
+                    <div class="empty-state">
+                        <div class="empty-icon">📄</div>
+                        <div class="empty-text">No recent results</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="popup-footer">
+            <div class="footer-info">
+                <span id="usageInfo" class="usage-info">-</span>
+            </div>
+            <div class="footer-actions">
+                <button id="refreshBtn" class="btn-icon" title="Refresh">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+                    </svg>
+                </button>
+            </div>
+        </footer>
+
+        <!-- Schema Modal -->
+        <div id="schemaModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modalTitle">New Schema</h3>
+                    <button id="closeModalBtn" class="btn-icon">×</button>
+                </div>
+                <div class="modal-body">
+                    <form id="schemaForm">
+                        <div class="form-group">
+                            <label for="schemaName">Schema Name</label>
+                            <input type="text" id="schemaName" placeholder="e.g., Contact Information" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="schemaDescription">Description</label>
+                            <input type="text" id="schemaDescription" placeholder="Brief description...">
+                        </div>
+                        <div class="form-group">
+                            <label for="schemaJson">Schema Definition</label>
+                            <textarea id="schemaJson" rows="8" placeholder='{\n  "name": "string",\n  "email": "string",\n  "phone": "string"\n}' required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="schemaInstructions">Instructions (Optional)</label>
+                            <textarea id="schemaInstructions" rows="3" placeholder="Additional instructions for parsing..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancelSchemaBtn" class="btn secondary">Cancel</button>
+                    <button id="saveSchemaBtn" class="btn primary">Save Schema</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

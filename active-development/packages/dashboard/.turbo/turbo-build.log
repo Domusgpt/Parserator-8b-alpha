@@ -1,0 +1,16 @@
+
+> @parserator/dashboard@3.0.0 build
+> next build
+
+ ⚠ You are using a non-standard "NODE_ENV" value in your environment. This creates inconsistencies in the project and is strongly advised against. Read more: https://nextjs.org/docs/messages/non-standard-node-env
+  ▲ Next.js 14.2.29
+
+   Creating an optimized production build ...
+Next.js build worker exited with code: null and signal: SIGBUS
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path /mnt/c/Users/millz/Parserator/packages/dashboard
+npm error workspace @parserator/dashboard@3.0.0
+npm error location /mnt/c/Users/millz/Parserator/packages/dashboard
+npm error command failed
+npm error command sh -c next build

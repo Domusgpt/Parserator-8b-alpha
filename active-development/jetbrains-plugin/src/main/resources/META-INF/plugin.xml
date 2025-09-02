@@ -1,0 +1,197 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>com.parserator.plugin</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
+    <name>Parserator</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor email="support@parserator.com" url="https://parserator.com">Parserator</vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Simple HTML elements (text formatting, paragraphs, and lists) can be added inside this element.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
+    <description><![CDATA[
+    AI-powered data parsing and structuring plugin for JetBrains IDEs.
+    
+    Parse JSON, CSV, XML, and unstructured text data with intelligent schemas,
+    generate code from parsed data, and seamlessly integrate with your development workflow.
+  ]]></description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
+    <depends optional="true" config-file="java-features.xml">com.intellij.modules.java</depends>
+    <depends optional="true" config-file="javascript-features.xml">com.intellij.modules.javascript</depends>
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Application Settings -->
+        <applicationConfigurable
+                parentId="tools"
+                instance="com.parserator.plugin.settings.ParseratorConfigurable"
+                id="com.parserator.plugin.settings.ParseratorConfigurable"
+                displayName="Parserator"/>
+        
+        <!-- Application Service -->
+        <applicationService
+                serviceImplementation="com.parserator.plugin.services.ParseratorService"/>
+        
+        <applicationService
+                serviceImplementation="com.parserator.plugin.services.SchemaService"/>
+                
+        <applicationService
+                serviceImplementation="com.parserator.plugin.services.ExportService"/>
+
+        <!-- Tool Window -->
+        <toolWindow
+                id="Parserator"
+                secondary="true"
+                icon="AllIcons.Toolwindows.ToolWindowStructure"
+                anchor="right"
+                factoryClass="com.parserator.plugin.toolwindow.ParseratorToolWindowFactory"/>
+
+        <!-- Actions -->
+        <action
+                id="com.parserator.plugin.actions.ParseSelectedTextAction"
+                class="com.parserator.plugin.actions.ParseSelectedTextAction"
+                text="Parse with Parserator"
+                description="Parse selected text using Parserator AI"
+                icon="AllIcons.Actions.Lightning">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <add-to-group group-id="EditMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift P"/>
+        </action>
+
+        <action
+                id="com.parserator.plugin.actions.ParseWithSchemaAction"
+                class="com.parserator.plugin.actions.ParseWithSchemaAction"
+                text="Parse with Schema..."
+                description="Parse selected text with a specific schema"
+                icon="AllIcons.Actions.Preview">
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="com.parserator.plugin.actions.ParseSelectedTextAction"/>
+        </action>
+
+        <action
+                id="com.parserator.plugin.actions.CreateSchemaAction"
+                class="com.parserator.plugin.actions.CreateSchemaAction"
+                text="Create Parserator Schema"
+                description="Create a new parsing schema"
+                icon="AllIcons.Actions.New">
+            <add-to-group group-id="NewGroup" anchor="after" relative-to-action="NewFile"/>
+        </action>
+
+        <action
+                id="com.parserator.plugin.actions.BulkParseAction"
+                class="com.parserator.plugin.actions.BulkParseAction"
+                text="Bulk Parse Files..."
+                description="Parse multiple files with Parserator"
+                icon="AllIcons.Actions.Execute">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+
+        <action
+                id="com.parserator.plugin.actions.ExportResultsAction"
+                class="com.parserator.plugin.actions.ExportResultsAction"
+                text="Export Parse Results..."
+                description="Export parsing results to various formats"
+                icon="AllIcons.ToolbarDecorator.Export">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+
+        <action
+                id="com.parserator.plugin.actions.GenerateCodeAction"
+                class="com.parserator.plugin.actions.GenerateCodeAction"
+                text="Generate Code from Schema"
+                description="Generate code classes from parsing schema"
+                icon="AllIcons.Actions.Compile">
+            <add-to-group group-id="GenerateGroup" anchor="last"/>
+        </action>
+
+        <!-- File Types -->
+        <fileType
+                name="Parserator Schema"
+                implementationClass="com.parserator.plugin.filetypes.ParseratorSchemaFileType"
+                fieldName="INSTANCE"
+                language="JSON"
+                extensions="pschema"/>
+
+        <!-- Code Folding -->
+        <lang.foldingBuilder
+                language="JSON"
+                implementationClass="com.parserator.plugin.folding.ParsedDataFoldingBuilder"/>
+                
+        <lang.foldingBuilder
+                language="XML"
+                implementationClass="com.parserator.plugin.folding.ParsedDataFoldingBuilder"/>
+
+        <!-- Inspections -->
+        <localInspection
+                language="JSON"
+                displayName="Parserator Schema Validation"
+                groupName="Parserator"
+                enabledByDefault="true"
+                implementationClass="com.parserator.plugin.inspections.SchemaValidationInspection"/>
+
+        <!-- Live Templates -->
+        <defaultLiveTemplatesProvider
+                implementation="com.parserator.plugin.templates.ParseratorTemplatesProvider"/>
+
+        <!-- Notifications -->
+        <notificationGroup
+                id="Parserator"
+                displayType="BALLOON"
+                key="parserator.notification.group"/>
+
+        <!-- Line Markers -->
+        <codeInsight.lineMarkerProvider
+                language="JSON"
+                implementationClass="com.parserator.plugin.markers.SchemaLineMarkerProvider"/>
+
+        <!-- Completion -->
+        <completion.contributor
+                language="JSON"
+                implementationClass="com.parserator.plugin.completion.SchemaCompletionContributor"/>
+
+        <!-- Error Reporting -->
+        <errorHandler implementation="com.parserator.plugin.errorReporting.ParseratorErrorReportSubmitter"/>
+
+        <!-- Project Service -->
+        <projectService serviceImplementation="com.parserator.plugin.services.ProjectParseratorService"/>
+
+        <!-- Startup Activity -->
+        <postStartupActivity implementation="com.parserator.plugin.startup.ParseratorStartupActivity"/>
+    </extensions>
+
+    <!-- Actions -->
+    <actions>
+        <group id="ParseratorActionGroup" text="Parserator" description="Parserator actions" popup="true">
+            <reference ref="com.parserator.plugin.actions.ParseSelectedTextAction"/>
+            <reference ref="com.parserator.plugin.actions.ParseWithSchemaAction"/>
+            <separator/>
+            <reference ref="com.parserator.plugin.actions.CreateSchemaAction"/>
+            <reference ref="com.parserator.plugin.actions.BulkParseAction"/>
+            <separator/>
+            <reference ref="com.parserator.plugin.actions.ExportResultsAction"/>
+            <reference ref="com.parserator.plugin.actions.GenerateCodeAction"/>
+            
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </group>
+    </actions>
+
+    <!-- Application listeners -->
+    <applicationListeners>
+        <listener class="com.parserator.plugin.listeners.ParseratorApplicationListener"
+                  topic="com.intellij.openapi.application.ApplicationActivationListener"/>
+    </applicationListeners>
+
+    <!-- Project listeners -->
+    <projectListeners>
+        <listener class="com.parserator.plugin.listeners.ParseratorProjectListener"
+                  topic="com.intellij.openapi.project.ProjectManagerListener"/>
+    </projectListeners>
+</idea-plugin>

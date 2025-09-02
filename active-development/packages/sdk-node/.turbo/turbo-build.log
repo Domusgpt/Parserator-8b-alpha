@@ -1,0 +1,8 @@
+
+> parserator-sdk@1.0.0 build
+> tsc && npm run build:types
+
+
+> parserator-sdk@1.0.0 build:types
+> tsc --emitDeclarationOnly
+

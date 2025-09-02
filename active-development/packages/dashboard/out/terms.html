@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - Parserator</title>
+    <meta name="description" content="Terms of Service for Parserator - EMA-compliant structured data parsing for AI agents">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --neon-teal: #00D9FF;
+            --neon-red: #FF004D;
+            --neon-orange: #FF6B35;
+            --neon-purple: #8B5CF6;
+            --vapor-pink: #FF10F0;
+            --vapor-blue: #1FB8CD;
+            --electric-purple: #9D4EDD;
+            --cyber-green: #39FF14;
+            --deep-purple: #0F0A1C;
+            --midnight: #1A1B3A;
+            --dark-void: #0A0511;
+            --glass: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --text-muted: #888888;
+            --gradient-cyber: linear-gradient(45deg, var(--electric-purple), var(--vapor-pink), var(--neon-teal), var(--cyber-green));
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: 400;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: linear-gradient(135deg, var(--dark-void) 0%, var(--deep-purple) 50%, var(--midnight) 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem 0;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1rem;
+            text-decoration: none;
+        }
+
+        .logo img {
+            height: 48px;
+            width: auto;
+            filter: drop-shadow(0 0 8px rgba(0, 217, 255, 0.4));
+        }
+
+        .logo-text {
+            font-family: 'Orbitron', monospace;
+            font-size: 2rem;
+            font-weight: 700;
+            background: var(--gradient-cyber);
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 8s ease-in-out infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            25% { background-position: 100% 50%; }
+            50% { background-position: 100% 100%; }
+            75% { background-position: 0% 100%; }
+        }
+
+        h1 {
+            font-family: 'Orbitron', monospace;
+            font-size: 2.5rem;
+            font-weight: 300;
+            margin-bottom: 1rem;
+            color: var(--neon-teal);
+        }
+
+        h2 {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 2rem 0 1rem 0;
+            color: var(--vapor-pink);
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 1.5rem 0 0.75rem 0;
+            color: var(--neon-orange);
+        }
+
+        .content {
+            background: rgba(26, 27, 58, 0.4);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 3rem;
+            backdrop-filter: blur(20px);
+            margin-bottom: 2rem;
+        }
+
+        .ema-highlight {
+            background: linear-gradient(135deg, rgba(0, 217, 255, 0.1), rgba(255, 16, 240, 0.1));
+            border: 1px solid var(--neon-teal);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .ema-highlight h3 {
+            color: var(--neon-teal);
+            margin-top: 0;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        ul, ol {
+            margin: 1rem 0 1rem 2rem;
+            color: var(--text-secondary);
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--neon-teal);
+            text-decoration: none;
+            font-weight: 500;
+            margin-top: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .back-link:hover {
+            color: var(--vapor-pink);
+            transform: translateX(-5px);
+        }
+
+        .effective-date {
+            text-align: center;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-bottom: 2rem;
+        }
+
+        strong {
+            color: var(--text-primary);
+        }
+
+        .contact-info {
+            background: rgba(15, 10, 28, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="index.html" class="logo">
+                <img src="parserator-logo.png" alt="Parserator Logo">
+                <span class="logo-text">PARSERATOR</span>
+            </a>
+            <h1>Terms of Service</h1>
+            <div class="effective-date">Effective Date: December 11, 2024</div>
+        </div>
+
+        <div class="content">
+            <div class="ema-highlight">
+                <h3>🏛️ EMA Compliance Statement</h3>
+                <p>These Terms of Service are designed according to <strong>Exoditical Moral Architecture (EMA)</strong> principles, prioritizing your digital sovereignty and freedom. We believe the ultimate expression of empowerment is the freedom to leave.</p>
+            </div>
+
+            <h2>1. Acceptance of Terms</h2>
+            <p>By accessing or using Parserator's services, you agree to these Terms of Service. If you disagree with any part of these terms, you may not access or use our services.</p>
+
+            <h2>2. Description of Service</h2>
+            <p>Parserator provides structured data parsing services for AI agents and developers. Our service transforms unstructured input into agent-ready JSON with high accuracy across multiple agent frameworks including Google ADK, MCP, LangChain, CrewAI, and AutoGPT.</p>
+
+            <h3>Key Features:</h3>
+            <ul>
+                <li>95% parsing accuracy using our Architect-Extractor pattern</li>
+                <li>Universal agent framework compatibility</li>
+                <li>Complete data export and migration capabilities</li>
+                <li>EMA-compliant architecture ensuring user sovereignty</li>
+            </ul>
+
+            <h2>3. EMA Principles Integration</h2>
+            
+            <div class="ema-highlight">
+                <h3>Digital Sovereignty</h3>
+                <p>Your data belongs to you. We provide complete transparency about data usage, processing, and storage. You maintain full ownership and control over your data at all times.</p>
+            </div>
+
+            <div class="ema-highlight">
+                <h3>Portability First</h3>
+                <p>We guarantee your right to export all data in portable, standard formats. Migration assistance is provided free of charge, including tools and guidance for switching to competitor platforms.</p>
+            </div>
+
+            <div class="ema-highlight">
+                <h3>Standards Agnostic</h3>
+                <p>Our service uses open standards and protocols wherever possible. No proprietary lock-in mechanisms are employed, and we actively support interoperability with competing services.</p>
+            </div>
+
+            <div class="ema-highlight">
+                <h3>Transparent Competition</h3>
+                <p>We maintain honest documentation about our capabilities relative to competitors and provide migration assistance when users choose alternative platforms.</p>
+            </div>
+
+            <h2>4. User Accounts and API Keys</h2>
+            <p>To use our service, you may need to create an account and obtain API keys. You are responsible for:</p>
+            <ul>
+                <li>Maintaining the confidentiality of your API keys</li>
+                <li>All activities that occur under your account</li>
+                <li>Notifying us immediately of any unauthorized access</li>
+                <li>Providing accurate and complete registration information</li>
+            </ul>
+
+            <h2>5. Data Usage and Privacy</h2>
+            <p>We process your data solely to provide parsing services. In accordance with EMA principles:</p>
+            <ul>
+                <li><strong>No Data Mining</strong>: We do not use your data to train our models or for any purpose other than providing the requested parsing service</li>
+                <li><strong>Complete Export</strong>: You can export all your data at any time in standard formats</li>
+                <li><strong>Data Deletion</strong>: We will permanently delete your data upon request</li>
+                <li><strong>Transparent Processing</strong>: We provide clear documentation about how your data is processed</li>
+            </ul>
+
+            <h2>6. Acceptable Use</h2>
+            <p>You agree not to use our service for:</p>
+            <ul>
+                <li>Any unlawful purpose or to solicit unlawful activity</li>
+                <li>Violating any international, federal, provincial, or state regulations, rules, laws, or local ordinances</li>
+                <li>Transmitting or procuring the sending of any advertising or promotional material without our prior written consent</li>
+                <li>Impersonating or attempting to impersonate Parserator, our employees, another user, or any other person or entity</li>
+                <li>Activities that could disable, overburden, or impair the service</li>
+            </ul>
+
+            <h2>7. Service Availability and Modifications</h2>
+            <p>We strive to maintain high service availability but cannot guarantee uninterrupted service. We may:</p>
+            <ul>
+                <li>Modify or discontinue the service with reasonable notice</li>
+                <li>Temporarily suspend service for maintenance</li>
+                <li>Update these terms with notice to users</li>
+            </ul>
+            <p><strong>EMA Commitment</strong>: Any service changes will include migration assistance and export capabilities to ensure user freedom.</p>
+
+            <h2>8. Billing and Payments</h2>
+            <p>Our billing practices follow EMA transparency principles:</p>
+            <ul>
+                <li><strong>Clear Pricing</strong>: No hidden fees or surprise charges</li>
+                <li><strong>Usage Transparency</strong>: Real-time usage tracking and clear billing statements</li>
+                <li><strong>Fair Billing</strong>: Prorated charges and refunds for unused services</li>
+                <li><strong>Export Rights</strong>: No billing-related restrictions on data export</li>
+            </ul>
+
+            <h2>9. Intellectual Property</h2>
+            <p>The service and its original content, features, and functionality are owned by Parserator and are protected by international copyright, trademark, patent, trade secret, and other intellectual property laws.</p>
+            <p><strong>Your Content</strong>: You retain all rights to the data you input into our service. We claim no ownership over your data or parsing results.</p>
+
+            <h2>10. Limitation of Liability</h2>
+            <p>In no event shall Parserator, its directors, employees, partners, agents, suppliers, or affiliates be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses, resulting from your use of the service.</p>
+
+            <h2>11. Termination</h2>
+            <p>We may terminate or suspend your account and access to the service immediately, without prior notice, for conduct that we believe violates these Terms or is harmful to other users, us, or third parties.</p>
+            
+            <p><strong>EMA Guarantee</strong>: Upon termination, we will provide:</p>
+            <ul>
+                <li>Complete data export in standard formats</li>
+                <li>30-day grace period for data retrieval</li>
+                <li>Migration assistance to alternative platforms</li>
+                <li>Prorated refunds for unused services</li>
+            </ul>
+
+            <h2>12. Governing Law</h2>
+            <p>These Terms shall be interpreted and governed by the laws of the United States, without regard to its conflict of law provisions. Any disputes shall be resolved through binding arbitration.</p>
+
+            <h2>13. Changes to Terms</h2>
+            <p>We reserve the right to modify these terms at any time. We will notify users of any changes by:</p>
+            <ul>
+                <li>Posting the new terms on this page</li>
+                <li>Sending email notifications to registered users</li>
+                <li>Providing 30-day notice for material changes</li>
+            </ul>
+
+            <h2>14. Contact Information</h2>
+            <div class="contact-info">
+                <p>If you have any questions about these Terms of Service, please contact us:</p>
+                <ul>
+                    <li><strong>Email</strong>: <span class="mono">legal@parserator.com</span></li>
+                    <li><strong>Website</strong>: <span class="mono">https://parserator.com</span></li>
+                    <li><strong>Mailing Address</strong>: Parserator Legal Department, [Your Business Address]</li>
+                </ul>
+            </div>
+
+            <div class="ema-highlight">
+                <h3>🌉 Migration Assistance</h3>
+                <p>Need to switch to a competitor? We're here to help! Contact <span class="mono">migration@parserator.com</span> for free assistance with data export and platform migration.</p>
+                <p><em>"The ultimate expression of empowerment is the freedom to leave."</em></p>
+            </div>
+
+            <a href="index.html" class="back-link">
+                ← Back to Parserator
+            </a>
+        </div>
+    </div>
+</body>
+</html>

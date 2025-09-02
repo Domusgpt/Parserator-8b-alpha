@@ -1,0 +1,44 @@
+{
+  "name": "@parserator/api",
+  "version": "1.0.0",
+  "description": "Parserator SaaS API - Intelligent data parsing using Architect-Extractor pattern",
+  "main": "lib/index.js",
+  "private": true,
+  "scripts": {
+    "dev": "firebase emulators:start --only functions",
+    "build": "tsc",
+    "deploy": "firebase deploy --only functions",
+    "test": "jest",
+    "test:integration": "jest --config=jest.integration.config.js",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rm -rf lib"
+  },
+  "dependencies": {
+    "firebase-functions": "^4.5.0",
+    "firebase-admin": "^11.11.1",
+    "@google/generative-ai": "^0.2.1",
+    "axios": "^1.6.2",
+    "zod": "^3.22.4",
+    "uuid": "^9.0.1",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "bcrypt": "^5.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.10",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/bcrypt": "^5.0.2",
+    "@types/uuid": "^9.0.7",
+    "@types/jest": "^29.5.8",
+    "typescript": "^5.2.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "@typescript-eslint/parser": "^6.9.0",
+    "@typescript-eslint/eslint-plugin": "^6.9.0",
+    "eslint": "^8.52.0"
+  },
+  "engines": {
+    "node": "20"
+  }
+}

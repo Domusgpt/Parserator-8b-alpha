@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parserator Settings</title>
+    <link rel="stylesheet" href="options.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-brand">
+                <img src="../../assets/icons/icon-48.png" alt="Parserator" class="brand-icon">
+                <div class="brand-info">
+                    <h1 class="brand-title">Parserator Settings</h1>
+                    <p class="brand-subtitle">Configure your AI-powered text parsing extension</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- API Configuration -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>API Configuration</h2>
+                    <div class="status-indicator" id="connectionStatus">
+                        <div class="status-dot"></div>
+                        <span class="status-text">Not configured</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="apiKey">API Key</label>
+                    <div class="input-group">
+                        <input type="password" id="apiKey" placeholder="pk_live_... or pk_test_..." autocomplete="off">
+                        <button type="button" id="toggleApiKey" class="btn-icon" title="Show/Hide API Key">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                        <button type="button" id="testConnection" class="btn secondary">Test</button>
+                    </div>
+                    <p class="help-text">
+                        Get your API key from <a href="https://parserator.com/api-keys" target="_blank">parserator.com/api-keys</a>
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label for="baseUrl">API Base URL</label>
+                    <input type="url" id="baseUrl" value="https://api.parserator.com" placeholder="https://api.parserator.com">
+                    <p class="help-text">Only change this if you're using a custom Parserator instance</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="timeout">Request Timeout (seconds)</label>
+                    <input type="number" id="timeout" min="5" max="120" value="30">
+                    <p class="help-text">Maximum time to wait for API responses</p>
+                </div>
+            </section>
+
+            <!-- Extension Settings -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>Extension Settings</h2>
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="autoDetect">
+                        <label for="autoDetect">Auto-detect structured data</label>
+                    </div>
+                    <p class="help-text">Automatically highlight potential structured data on web pages</p>
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="showNotifications">
+                        <label for="showNotifications">Show notifications</label>
+                    </div>
+                    <p class="help-text">Display success and error notifications</p>
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="autoOpenResults">
+                        <label for="autoOpenResults">Auto-open results panel</label>
+                    </div>
+                    <p class="help-text">Automatically open the side panel when parsing completes</p>
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="keyboardShortcuts">
+                        <label for="keyboardShortcuts">Enable keyboard shortcuts</label>
+                    </div>
+                    <p class="help-text">Allow keyboard shortcuts for quick parsing</p>
+                </div>
+            </section>
+
+            <!-- Default Schema -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>Default Schema</h2>
+                </div>
+
+                <div class="form-group">
+                    <label for="defaultSchemaSelect">Quick Parse Schema</label>
+                    <select id="defaultSchemaSelect">
+                        <option value="">Auto-detect schema</option>
+                    </select>
+                    <p class="help-text">Schema to use for quick parsing when no specific schema is selected</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="defaultSchemaJson">Custom Default Schema</label>
+                    <textarea id="defaultSchemaJson" rows="8" placeholder='{\n  "name": "string",\n  "value": "string"\n}'></textarea>
+                    <p class="help-text">JSON schema definition for custom default parsing</p>
+                </div>
+            </section>
+
+            <!-- Data Management -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>Data Management</h2>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="schemasCount">-</div>
+                        <div class="stat-label">Saved Schemas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="resultsCount">-</div>
+                        <div class="stat-label">Parsed Results</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="storageUsed">-</div>
+                        <div class="stat-label">Storage Used</div>
+                    </div>
+                </div>
+
+                <div class="action-grid">
+                    <button id="exportSchemas" class="btn secondary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Export Schemas
+                    </button>
+                    <button id="importSchemas" class="btn secondary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        Import Schemas
+                    </button>
+                    <button id="exportResults" class="btn secondary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                        Export Results
+                    </button>
+                    <button id="clearData" class="btn danger">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        Clear All Data
+                    </button>
+                </div>
+            </section>
+
+            <!-- Keyboard Shortcuts -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>Keyboard Shortcuts</h2>
+                </div>
+
+                <div class="shortcuts-list">
+                    <div class="shortcut-item">
+                        <div class="shortcut-keys">
+                            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>
+                        </div>
+                        <div class="shortcut-description">Parse selected text</div>
+                    </div>
+                    <div class="shortcut-item">
+                        <div class="shortcut-keys">
+                            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Q</kbd>
+                        </div>
+                        <div class="shortcut-description">Quick parse with default schema</div>
+                    </div>
+                    <div class="shortcut-item">
+                        <div class="shortcut-keys">
+                            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>
+                        </div>
+                        <div class="shortcut-description">Toggle side panel</div>
+                    </div>
+                    <div class="shortcut-item">
+                        <div class="shortcut-keys">
+                            <kbd>Alt</kbd> + <kbd>P</kbd>
+                        </div>
+                        <div class="shortcut-description">Open Parserator popup</div>
+                    </div>
+                </div>
+
+                <p class="help-text">
+                    <strong>Note:</strong> Use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd> on macOS. 
+                    You can customize these shortcuts in Chrome's Extensions settings.
+                </p>
+            </section>
+
+            <!-- About -->
+            <section class="section">
+                <div class="section-header">
+                    <h2>About</h2>
+                </div>
+
+                <div class="about-content">
+                    <div class="about-item">
+                        <strong>Version:</strong> 1.0.0
+                    </div>
+                    <div class="about-item">
+                        <strong>Author:</strong> Paul Phillips
+                    </div>
+                    <div class="about-item">
+                        <strong>Website:</strong> <a href="https://parserator.com" target="_blank">parserator.com</a>
+                    </div>
+                    <div class="about-item">
+                        <strong>Support:</strong> <a href="mailto:phillips.paul.email@gmail.com">phillips.paul.email@gmail.com</a>
+                    </div>
+                </div>
+
+                <div class="usage-info" id="usageDisplay">
+                    <h3>API Usage</h3>
+                    <div id="usageDetails">
+                        <p>Configure your API key to view usage statistics</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-actions">
+                <button id="resetSettings" class="btn secondary">Reset to Defaults</button>
+                <button id="saveSettings" class="btn primary">Save Settings</button>
+            </div>
+            <div class="footer-status" id="saveStatus"></div>
+        </footer>
+
+        <!-- Hidden file input for import -->
+        <input type="file" id="fileInput" accept=".json" style="display: none;">
+    </div>
+
+    <script src="options.js"></script>
+</body>
+</html>

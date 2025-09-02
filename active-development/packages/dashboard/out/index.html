@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parserator Dashboard - Intelligent Data Parsing</title>
+    <meta name="description" content="Manage your Parserator API keys and monitor usage. Two-stage AI parsing with 70% cost reduction.">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <style>
+        .text-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .card {
+            @apply bg-white rounded-lg shadow border border-gray-200;
+        }
+        .card-body {
+            @apply p-6;
+        }
+        .card-header {
+            @apply px-6 py-4 border-b border-gray-200;
+        }
+        .btn-primary {
+            @apply bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center;
+        }
+        .btn-secondary {
+            @apply bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium border border-gray-300 transition-colors;
+        }
+        .btn-sm {
+            @apply px-3 py-1 text-sm;
+        }
+        .input {
+            @apply mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500;
+        }
+        .badge {
+            @apply inline-flex px-2 py-1 text-xs font-medium rounded-full;
+        }
+        .badge-green {
+            @apply bg-green-100 text-green-800;
+        }
+        .badge-yellow {
+            @apply bg-yellow-100 text-yellow-800;
+        }
+        .badge-blue {
+            @apply bg-blue-100 text-blue-800;
+        }
+        .badge-red {
+            @apply bg-red-100 text-red-800;
+        }
+        .api-key-masked {
+            @apply font-mono text-sm bg-gray-100 px-2 py-1 rounded;
+        }
+        .api-key-revealed {
+            @apply font-mono text-sm bg-yellow-50 px-2 py-1 rounded border border-yellow-200;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 flex items-center">
+                        <img src="/parserator-logo.png" alt="Parserator" class="h-10 w-10 mr-3">
+                        <h1 class="text-2xl font-bold text-gradient">Parserator</h1>
+                    </div>
+                    <div class="ml-8">
+                        <nav class="flex space-x-8">
+                            <a href="/" class="text-primary-600 border-b-2 border-primary-600 py-2 px-1 text-sm font-medium">
+                                Dashboard
+                            </a>
+                            <a href="https://parserator-production.web.app/" class="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">
+                                Documentation
+                            </a>
+                            <a href="https://parserator-production.web.app/index-production-ready.html" class="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">
+                                Pricing
+                            </a>
+                            <a href="/privacy-policy.html" class="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">
+                                Privacy
+                            </a>
+                        </nav>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div class="text-right">
+                        <div class="text-sm text-gray-500">Signed in as</div>
+                        <div class="text-sm font-medium text-gray-900" id="userEmail">developer@example.com</div>
+                    </div>
+                    <div class="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
+                        <span class="text-white text-sm font-medium" id="userInitial">D</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Overview Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Usage Card -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i data-lucide="bar-chart-3" class="h-8 w-8 text-primary-600"></i>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <div class="text-sm font-medium text-gray-500">Monthly Usage</div>
+                            <div class="text-2xl font-semibold text-gray-900" id="usageCount">3,420</div>
+                            <div class="text-sm text-gray-500">of 10,000 requests</div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-500" id="usagePercent">34% used</span>
+                            <span class="text-gray-500" id="usageRemaining">6,580 remaining</span>
+                        </div>
+                        <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                            <div class="h-2 rounded-full bg-green-500" style="width: 34%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Subscription Card -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i data-lucide="zap" class="h-8 w-8 text-yellow-500"></i>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <div class="text-sm font-medium text-gray-500">Subscription</div>
+                            <div class="text-2xl font-semibold text-gray-900">Pro</div>
+                            <div class="text-sm text-gray-500">Resets Jan 1, 2025</div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <button class="btn-secondary btn-sm w-full">Upgrade Plan</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Keys Card -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i data-lucide="key" class="h-8 w-8 text-gray-600"></i>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <div class="text-sm font-medium text-gray-500">API Keys</div>
+                            <div class="text-2xl font-semibold text-gray-900" id="apiKeyCount">2</div>
+                            <div class="text-sm text-gray-500">2 active</div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <button onclick="showCreateKeyModal()" class="btn-primary btn-sm w-full">
+                            <i data-lucide="plus" class="h-4 w-4 mr-1"></i>
+                            Create Key
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Usage Chart -->
+        <div class="card mb-8">
+            <div class="card-header">
+                <h3 class="text-lg font-medium text-gray-900">Usage Trends</h3>
+                <p class="text-sm text-gray-500">Daily API requests over the past week</p>
+            </div>
+            <div class="card-body">
+                <div class="h-64 flex items-end space-x-2">
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-primary-500 rounded-t hover:bg-primary-600 transition-colors cursor-pointer" style="height: 120px; min-height: 20px" title="145 requests on Mon"></div>
+                        <div class="text-xs text-gray-500 mt-2">Mon</div>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-primary-500 rounded-t hover:bg-primary-600 transition-colors cursor-pointer" style="height: 168px; min-height: 20px" title="203 requests on Tue"></div>
+                        <div class="text-xs text-gray-500 mt-2">Tue</div>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-primary-500 rounded-t hover:bg-primary-600 transition-colors cursor-pointer" style="height: 147px; min-height: 20px" title="178 requests on Wed"></div>
+                        <div class="text-xs text-gray-500 mt-2">Wed</div>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-primary-500 rounded-t hover:bg-primary-600 transition-colors cursor-pointer" style="height: 200px; min-height: 20px" title="267 requests on Thu"></div>
+                        <div class="text-xs text-gray-500 mt-2">Thu</div>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-primary-500 rounded-t hover:bg-primary-600 transition-colors cursor-pointer" style="height: 163px; min-height: 20px" title="198 requests on Fri"></div>
+                        <div class="text-xs text-gray-500 mt-2">Fri</div>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-primary-500 rounded-t hover:bg-primary-600 transition-colors cursor-pointer" style="height: 190px; min-height: 20px" title="324 requests on Sat"></div>
+                        <div class="text-xs text-gray-500 mt-2">Sat</div>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-primary-500 rounded-t hover:bg-primary-600 transition-colors cursor-pointer" style="height: 179px; min-height: 20px" title="289 requests on Sun"></div>
+                        <div class="text-xs text-gray-500 mt-2">Sun</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Keys Section -->
+        <div class="card">
+            <div class="card-header">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900">API Keys</h3>
+                        <p class="text-sm text-gray-500">Manage your API keys for accessing Parserator</p>
+                    </div>
+                    <button onclick="showCreateKeyModal()" class="btn-primary">
+                        <i data-lucide="plus" class="h-4 w-4 mr-2"></i>
+                        Create New Key
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name & Key</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Used</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="apiKeysTable">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4">
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900 mb-1">Production API</div>
+                                        <div class="flex items-center space-x-2">
+                                            <code class="api-key-masked">pk_live_a1b2...o5p6</code>
+                                            <button onclick="toggleKeyVisibility('key1')" class="text-gray-400 hover:text-gray-600">
+                                                <i data-lucide="eye" class="h-4 w-4"></i>
+                                            </button>
+                                            <button onclick="copyToClipboard('pk_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6')" class="text-gray-400 hover:text-gray-600">
+                                                <i data-lucide="copy" class="h-4 w-4"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="badge badge-blue">Live</span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500">
+                                    <div class="flex items-center">
+                                        <i data-lucide="clock" class="h-4 w-4 mr-1"></i>
+                                        2024-01-28
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="badge badge-green">Active</span>
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <button onclick="deleteApiKey('key1')" class="text-red-600 hover:text-red-900">
+                                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4">
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900 mb-1">Development API</div>
+                                        <div class="flex items-center space-x-2">
+                                            <code class="api-key-masked">pk_test_x1y2...l5m6</code>
+                                            <button onclick="toggleKeyVisibility('key2')" class="text-gray-400 hover:text-gray-600">
+                                                <i data-lucide="eye" class="h-4 w-4"></i>
+                                            </button>
+                                            <button onclick="copyToClipboard('pk_test_x1y2z3a4b5c6d7e8f9g0h1i2j3k4l5m6')" class="text-gray-400 hover:text-gray-600">
+                                                <i data-lucide="copy" class="h-4 w-4"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="badge badge-yellow">Test</span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500">
+                                    <div class="flex items-center">
+                                        <i data-lucide="clock" class="h-4 w-4 mr-1"></i>
+                                        2024-01-27
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="badge badge-green">Active</span>
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <button onclick="deleteApiKey('key2')" class="text-red-600 hover:text-red-900">
+                                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Start Guide -->
+        <div class="mt-8 card">
+            <div class="card-header">
+                <h3 class="text-lg font-medium text-gray-900">Quick Start</h3>
+                <p class="text-sm text-gray-500">Get started with Parserator in minutes</p>
+            </div>
+            <div class="card-body">
+                <div class="space-y-4">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0 w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-xs font-medium">1</div>
+                        <div class="ml-3">
+                            <h4 class="text-sm font-medium text-gray-900">Install the SDK</h4>
+                            <pre class="mt-1 text-xs bg-gray-900 text-gray-100 p-2 rounded">npm install parserator-sdk</pre>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0 w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-xs font-medium">2</div>
+                        <div class="ml-3">
+                            <h4 class="text-sm font-medium text-gray-900">Use your API key</h4>
+                            <pre class="mt-1 text-xs bg-gray-900 text-gray-100 p-2 rounded">const parser = new Parserator('pk_live_a1b2c3d4e5f6...');</pre>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0 w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-xs font-medium">3</div>
+                        <div class="ml-3">
+                            <h4 class="text-sm font-medium text-gray-900">Start parsing</h4>
+                            <pre class="mt-1 text-xs bg-gray-900 text-gray-100 p-2 rounded">const result = await parser.parse({
+  inputData: "messy data...",
+  outputSchema: { name: "string", email: "string" }
+});</pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex space-x-3">
+                    <a href="https://parserator-production.web.app/" class="btn-primary">
+                        <i data-lucide="external-link" class="h-4 w-4 mr-2"></i>
+                        View Documentation
+                    </a>
+                    <a href="https://www.npmjs.com/package/parserator-mcp-server" class="btn-secondary">NPM Package</a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Create API Key Modal -->
+    <div id="createKeyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <form id="createKeyForm">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Create API Key</h3>
+                </div>
+                
+                <div class="px-6 py-4 space-y-4">
+                    <div>
+                        <label for="keyName" class="block text-sm font-medium text-gray-700 mb-2">Key Name</label>
+                        <input type="text" id="keyName" placeholder="e.g., Production API, Development Key" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500" required>
+                    </div>
+                    
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="isTestKey" class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded">
+                            <span class="ml-2 text-sm text-gray-700">Test key (for development)</span>
+                        </label>
+                        <p class="mt-1 text-xs text-gray-500">Test keys have the same functionality but are clearly marked for development use.</p>
+                    </div>
+                </div>
+                
+                <div class="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                    <button type="button" onclick="hideCreateKeyModal()" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Create Key</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Configuration
+        const API_BASE_URL = 'https://app-5108296280.us-central1.run.app';
+        
+        // Authentication state
+        let currentUser = null;
+        let userApiKeys = [];
+        
+        // Mock data and functionality
+        let revealedKeys = new Set();
+        
+        function showCreateKeyModal() {
+            document.getElementById('createKeyModal').classList.remove('hidden');
+        }
+        
+        function hideCreateKeyModal() {
+            document.getElementById('createKeyModal').classList.add('hidden');
+            document.getElementById('createKeyForm').reset();
+        }
+        
+        function toggleKeyVisibility(keyId) {
+            const row = event.target.closest('tr');
+            const codeElement = row.querySelector('code');
+            const icon = event.target.closest('button').querySelector('i');
+            
+            if (revealedKeys.has(keyId)) {
+                revealedKeys.delete(keyId);
+                codeElement.textContent = codeElement.textContent.includes('live') ? 'pk_live_a1b2...o5p6' : 'pk_test_x1y2...l5m6';
+                codeElement.className = 'api-key-masked';
+                icon.setAttribute('data-lucide', 'eye');
+            } else {
+                revealedKeys.add(keyId);
+                codeElement.textContent = codeElement.textContent.includes('live') ? 'pk_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6' : 'pk_test_x1y2z3a4b5c6d7e8f9g0h1i2j3k4l5m6';
+                codeElement.className = 'api-key-revealed';
+                icon.setAttribute('data-lucide', 'eye-off');
+            }
+            lucide.createIcons();
+        }
+        
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Simple toast notification
+                const toast = document.createElement('div');
+                toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50';
+                toast.textContent = 'API key copied to clipboard';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            }).catch(() => {
+                alert('Failed to copy to clipboard');
+            });
+        }
+        
+        function deleteApiKey(keyId) {
+            if (confirm('Are you sure you want to delete this API key? This action cannot be undone.')) {
+                event.target.closest('tr').remove();
+                const toast = document.createElement('div');
+                toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-md shadow-lg z-50';
+                toast.textContent = 'API key deleted successfully';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            }
+        }
+        
+        // API Integration Functions
+        async function makeAuthenticatedRequest(endpoint, options = {}) {
+            // For demo purposes, we'll use a placeholder API key
+            // In production, this would come from user authentication
+            const apiKey = localStorage.getItem('parserator_demo_key') || 'pk_demo_key_for_dashboard';
+            
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                    ...options.headers
+                }
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    ...options,
+                    headers: defaultOptions.headers
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API request failed:', error);
+                showToast('API request failed. Using demo data.', 'error');
+                return null;
+            }
+        }
+        
+        async function loadUserData() {
+            const userData = await makeAuthenticatedRequest('/user/profile');
+            if (userData && userData.success) {
+                updateDashboardWithUserData(userData.data);
+            }
+        }
+        
+        async function loadApiKeys() {
+            const keysData = await makeAuthenticatedRequest('/user/api-keys');
+            if (keysData && keysData.success) {
+                userApiKeys = keysData.data.apiKeys;
+                updateApiKeysTable();
+            }
+        }
+        
+        function updateDashboardWithUserData(userData) {
+            // Update user email and initial
+            document.getElementById('userEmail').textContent = userData.email;
+            document.getElementById('userInitial').textContent = userData.email.charAt(0).toUpperCase();
+            
+            // Update usage statistics
+            document.getElementById('usageCount').textContent = userData.usage.usage.toLocaleString();
+            document.getElementById('usagePercent').textContent = `${userData.usage.percentage}% used`;
+            document.getElementById('usageRemaining').textContent = `${userData.usage.limit - userData.usage.usage} remaining`;
+            
+            // Update progress bar
+            const progressBar = document.querySelector('.h-2.rounded-full');
+            progressBar.style.width = `${userData.usage.percentage}%`;
+            progressBar.className = `h-2 rounded-full ${
+                userData.usage.percentage > 90 ? 'bg-red-500' : 
+                userData.usage.percentage > 75 ? 'bg-yellow-500' : 'bg-green-500'
+            }`;
+            
+            // Update API key count
+            document.getElementById('apiKeyCount').textContent = userData.apiKeysCount;
+        }
+        
+        function updateApiKeysTable() {
+            const tableBody = document.getElementById('apiKeysTable');
+            
+            if (userApiKeys.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                            No API keys found. Create your first key to get started!
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tableBody.innerHTML = userApiKeys.map(key => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4">
+                        <div>
+                            <div class="text-sm font-medium text-gray-900 mb-1">${key.name}</div>
+                            <div class="flex items-center space-x-2">
+                                <code class="api-key-masked" id="key-${key.keyId}">${key.keyPreview}</code>
+                                <button onclick="toggleKeyVisibility('${key.keyId}')" class="text-gray-400 hover:text-gray-600">
+                                    <i data-lucide="eye" class="h-4 w-4"></i>
+                                </button>
+                                <button onclick="copyKeyPreview('${key.keyId}', '${key.keyPreview}')" class="text-gray-400 hover:text-gray-600">
+                                    <i data-lucide="copy" class="h-4 w-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="badge ${key.isTestKey ? 'badge-yellow' : 'badge-blue'}">
+                            ${key.isTestKey ? 'Test' : 'Live'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">
+                        ${key.lastUsed ? `
+                            <div class="flex items-center">
+                                <i data-lucide="clock" class="h-4 w-4 mr-1"></i>
+                                ${new Date(key.lastUsed).toLocaleDateString()}
+                            </div>
+                        ` : '<span class="text-gray-400">Never</span>'}
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="badge ${key.isActive ? 'badge-green' : 'badge-red'}">
+                            ${key.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <button onclick="deleteApiKey('${key.keyId}')" class="text-red-600 hover:text-red-900">
+                            <i data-lucide="trash-2" class="h-4 w-4"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            // Reinitialize Lucide icons for new content
+            lucide.createIcons();
+        }
+        
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-red-500' : 'bg-green-500';
+            toast.className = `fixed top-4 right-4 ${bgColor} text-white px-4 py-2 rounded-md shadow-lg z-50`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        function copyKeyPreview(keyId, preview) {
+            navigator.clipboard.writeText(preview).then(() => {
+                showToast('Key preview copied to clipboard');
+            }).catch(() => {
+                showToast('Failed to copy to clipboard', 'error');
+            });
+        }
+
+        document.getElementById('createKeyForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const name = document.getElementById('keyName').value;
+            const isTest = document.getElementById('isTestKey').checked;
+            
+            const result = await makeAuthenticatedRequest('/user/api-keys', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: name,
+                    isTestKey: isTest
+                })
+            });
+            
+            if (result && result.success) {
+                showToast('API key created successfully');
+                await loadApiKeys(); // Refresh the list
+                hideCreateKeyModal();
+            } else {
+                showToast('Failed to create API key', 'error');
+            }
+        });
+        
+        // Initialize dashboard on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we're in demo mode or have real authentication
+            const isDemoMode = !localStorage.getItem('parserator_demo_key');
+            
+            if (isDemoMode) {
+                // Show demo banner
+                const demoBanner = document.createElement('div');
+                demoBanner.className = 'bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4';
+                demoBanner.innerHTML = `
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i data-lucide="alert-triangle" class="h-5 w-5 text-yellow-400"></i>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700">
+                                <strong>Demo Mode:</strong> This dashboard shows example data. 
+                                <a href="/docs" class="underline">View API docs</a> to integrate with real data.
+                            </p>
+                        </div>
+                    </div>
+                `;
+                document.querySelector('main').insertBefore(demoBanner, document.querySelector('main').firstChild);
+                lucide.createIcons();
+            } else {
+                // Load real user data
+                loadUserData();
+                loadApiKeys();
+            }
+        });
+        
+        // Close modal when clicking outside
+        document.getElementById('createKeyModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideCreateKeyModal();
+            }
+        });
+    </script>
+</body>
+</html>

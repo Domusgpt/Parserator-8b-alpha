@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation - Parserator</title>
+    <meta name="description" content="Complete API documentation for Parserator - Intelligent data parsing with the Architect-Extractor pattern">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Prism.js for syntax highlighting -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="/" class="text-2xl font-bold text-primary-600">Parserator</a>
+                    <div class="ml-8">
+                        <nav class="flex space-x-8">
+                            <a href="/" class="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">Dashboard</a>
+                            <a href="/docs" class="text-primary-600 border-b-2 border-primary-600 py-2 px-1 text-sm font-medium">Documentation</a>
+                            <a href="/pricing" class="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">Pricing</a>
+                            <a href="/privacy" class="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">Privacy</a>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex">
+            <!-- Sidebar -->
+            <div class="w-64 flex-shrink-0">
+                <nav class="bg-white rounded-lg shadow-sm border p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Documentation</h3>
+                    <ul class="space-y-2">
+                        <li><a href="#getting-started" class="text-primary-600 hover:text-primary-700">Getting Started</a></li>
+                        <li><a href="#api-reference" class="text-gray-600 hover:text-gray-900">API Reference</a></li>
+                        <li><a href="#authentication" class="text-gray-600 hover:text-gray-900">Authentication</a></li>
+                        <li><a href="#sdks" class="text-gray-600 hover:text-gray-900">SDKs</a></li>
+                        <li><a href="#examples" class="text-gray-600 hover:text-gray-900">Examples</a></li>
+                        <li><a href="#mcp-integration" class="text-gray-600 hover:text-gray-900">MCP Integration</a></li>
+                        <li><a href="#rate-limits" class="text-gray-600 hover:text-gray-900">Rate Limits</a></li>
+                    </ul>
+                </nav>
+            </div>
+
+            <!-- Main Content -->
+            <div class="flex-1 ml-8">
+                <div class="bg-white rounded-lg shadow-sm border p-8">
+                    <!-- Header -->
+                    <div class="mb-8">
+                        <h1 class="text-4xl font-bold text-gray-900 mb-4">API Documentation</h1>
+                        <p class="text-lg text-gray-600">
+                            Complete guide to Parserator's intelligent data parsing API using the revolutionary Architect-Extractor pattern.
+                        </p>
+                    </div>
+
+                    <!-- Getting Started -->
+                    <section id="getting-started" class="mb-12">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Getting Started</h2>
+                        
+                        <div class="bg-primary-50 border border-primary-200 rounded-lg p-6 mb-6">
+                            <h3 class="text-lg font-semibold text-primary-900 mb-3">The Architect-Extractor Pattern</h3>
+                            <p class="text-primary-800 mb-3">
+                                Parserator uses a revolutionary two-stage AI process that achieves 95% accuracy while reducing token costs by 70%:
+                            </p>
+                            <ol class="list-decimal list-inside text-primary-800 space-y-2">
+                                <li><strong>Architect LLM</strong>: Analyzes a sample and creates a detailed parsing plan</li>
+                                <li><strong>Extractor LLM</strong>: Executes the plan on your full dataset</li>
+                            </ol>
+                        </div>
+
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Start</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-2">1. Install the SDK</h4>
+                                <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto"><code class="language-bash">npm install parserator-sdk</code></pre>
+                            </div>
+                            
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-2">2. Get your API key</h4>
+                                <p class="text-gray-600 mb-2">Visit the <a href="/" class="text-primary-600 hover:text-primary-700">Dashboard</a> to create your API key.</p>
+                            </div>
+                            
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-2">3. Make your first request</h4>
+                                <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto"><code class="language-javascript">import { Parserator } from 'parserator-sdk';
+
+const parser = new Parserator('your-api-key');
+
+const result = await parser.parse({
+  inputData: `
+    John Smith
+    Email: john@example.com
+    Phone: (555) 123-4567
+    Address: 123 Main St, Boston, MA
+  `,
+  outputSchema: {
+    name: "string",
+    email: "string", 
+    phone: "string",
+    address: "string"
+  }
+});
+
+console.log(result.parsedData);
+// {
+//   name: "John Smith",
+//   email: "john@example.com",
+//   phone: "(555) 123-4567", 
+//   address: "123 Main St, Boston, MA"
+// }</code></pre>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- API Reference -->
+                    <section id="api-reference" class="mb-12">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">API Reference</h2>
+                        
+                        <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-3">Base URL</h3>
+                            <code class="text-sm bg-white px-3 py-1 rounded border">https://app-5108296280.us-central1.run.app</code>
+                        </div>
+
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">POST /v1/parse</h3>
+                        <p class="text-gray-600 mb-4">Parse unstructured data into structured JSON using AI.</p>
+
+                        <h4 class="font-medium text-gray-900 mb-3">Request Body</h4>
+                        <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto mb-4"><code class="language-json">{
+  "inputData": "string",      // Raw unstructured data to parse
+  "outputSchema": "object",   // Desired JSON structure
+  "instructions": "string"    // Optional: Additional parsing context
+}</code></pre>
+
+                        <h4 class="font-medium text-gray-900 mb-3">Response</h4>
+                        <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto mb-6"><code class="language-json">{
+  "success": true,
+  "parsedData": {
+    // Your structured data
+  },
+  "metadata": {
+    "architectPlan": {
+      // The parsing plan created by the Architect LLM
+    },
+    "confidence": 0.95,
+    "tokensUsed": 1250,
+    "processingTimeMs": 800
+  }
+}</code></pre>
+
+                        <h4 class="font-medium text-gray-900 mb-3">Error Response</h4>
+                        <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto"><code class="language-json">{
+  "success": false,
+  "error": {
+    "code": "INVALID_SCHEMA",
+    "message": "Output schema is invalid",
+    "details": "Additional error information"
+  }
+}</code></pre>
+                    </section>
+
+                    <!-- Authentication -->
+                    <section id="authentication" class="mb-12">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Authentication</h2>
+                        
+                        <p class="text-gray-600 mb-4">
+                            All API requests require an API key. Include your key in the Authorization header:
+                        </p>
+                        
+                        <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto mb-4"><code class="language-bash">curl -X POST https://app-5108296280.us-central1.run.app/v1/parse \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inputData": "...",
+    "outputSchema": {...}
+  }'</code></pre>
+
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <p class="text-yellow-800">
+                                <strong>Keep your API key secure!</strong> Never expose it in client-side code or public repositories.
+                            </p>
+                        </div>
+                    </section>
+
+                    <!-- SDKs -->
+                    <section id="sdks" class="mb-12">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Official SDKs</h2>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="border rounded-lg p-6">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-3">Node.js/TypeScript</h3>
+                                <pre class="bg-gray-900 text-gray-100 p-3 rounded text-sm mb-3"><code class="language-bash">npm install parserator-sdk</code></pre>
+                                <pre class="bg-gray-900 text-gray-100 p-3 rounded text-sm"><code class="language-javascript">import { Parserator } from 'parserator-sdk';
+const parser = new Parserator('your-key');</code></pre>
+                            </div>
+                            
+                            <div class="border rounded-lg p-6">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-3">Python</h3>
+                                <pre class="bg-gray-900 text-gray-100 p-3 rounded text-sm mb-3"><code class="language-bash">pip install parserator-python</code></pre>
+                                <pre class="bg-gray-900 text-gray-100 p-3 rounded text-sm"><code class="language-python">from parserator import Parserator
+parser = Parserator('your-key')</code></pre>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- MCP Integration -->
+                    <section id="mcp-integration" class="mb-12">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Model Context Protocol (MCP)</h2>
+                        
+                        <p class="text-gray-600 mb-4">
+                            Parserator provides first-class MCP integration for AI agents and Claude Desktop.
+                        </p>
+                        
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Installation</h3>
+                        <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto mb-4"><code class="language-bash">npm install parserator-mcp-server</code></pre>
+
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Claude Desktop Configuration</h3>
+                        <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto"><code class="language-json">{
+  "mcpServers": {
+    "parserator": {
+      "command": "npx",
+      "args": ["parserator-mcp-server"],
+      "env": {
+        "PARSERATOR_API_KEY": "your-api-key"
+      }
+    }
+  }
+}</code></pre>
+                    </section>
+
+                    <!-- Examples -->
+                    <section id="examples" class="mb-12">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Common Examples</h2>
+                        
+                        <div class="space-y-8">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">Email Contact Extraction</h3>
+                                <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto"><code class="language-javascript">const result = await parser.parse({
+  inputData: `
+    From: Sarah Johnson <sarah.johnson@acme.com>
+    Subject: Project Update
+    
+    Hi team, the Q4 project is on track. 
+    Contact me at (555) 987-6543 for updates.
+    
+    Best regards,
+    Sarah Johnson
+    Senior Manager, ACME Corp
+  `,
+  outputSchema: {
+    from_name: "string",
+    from_email: "string", 
+    phone: "string",
+    company: "string",
+    title: "string",
+    subject: "string"
+  }
+});</code></pre>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">Invoice Processing</h3>
+                                <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto"><code class="language-javascript">const result = await parser.parse({
+  inputData: invoiceText,
+  outputSchema: {
+    vendor_name: "string",
+    invoice_number: "string",
+    date: "string",
+    total_amount: "number",
+    line_items: [{
+      description: "string",
+      quantity: "number", 
+      unit_price: "number"
+    }]
+  }
+});</code></pre>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">Resume Parsing</h3>
+                                <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto"><code class="language-javascript">const result = await parser.parse({
+  inputData: resumeText,
+  outputSchema: {
+    name: "string",
+    email: "string",
+    phone: "string",
+    skills: ["string"],
+    experience: [{
+      company: "string",
+      position: "string",
+      start_date: "string",
+      end_date: "string",
+      description: "string"
+    }],
+    education: [{
+      school: "string",
+      degree: "string",
+      year: "string"
+    }]
+  }
+});</code></pre>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Rate Limits -->
+                    <section id="rate-limits" class="mb-12">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Rate Limits & Pricing</h2>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="border rounded-lg p-6">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-3">Free Tier</h3>
+                                <ul class="text-gray-600 space-y-2">
+                                    <li>1,000 requests/month</li>
+                                    <li>Standard accuracy</li>
+                                    <li>Community support</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="border rounded-lg p-6 border-primary-200">
+                                <h3 class="text-lg font-semibold text-primary-900 mb-3">Pro ($25/month)</h3>
+                                <ul class="text-gray-600 space-y-2">
+                                    <li>10,000 requests/month</li>
+                                    <li>95% accuracy guarantee</li>
+                                    <li>Priority support</li>
+                                    <li>Advanced analytics</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="border rounded-lg p-6">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-3">Enterprise</h3>
+                                <ul class="text-gray-600 space-y-2">
+                                    <li>Unlimited requests</li>
+                                    <li>99.9% SLA</li>
+                                    <li>Dedicated support</li>
+                                    <li>Custom models</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Support -->
+                    <section class="mb-12">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Support</h2>
+                        
+                        <div class="bg-gray-50 rounded-lg p-6">
+                            <p class="text-gray-700 mb-4">
+                                Need help? We're here to support your integration:
+                            </p>
+                            <ul class="text-gray-700 space-y-2">
+                                <li><strong>Email</strong>: support@parserator.com</li>
+                                <li><strong>Documentation</strong>: This page and GitHub examples</li>
+                                <li><strong>Community</strong>: GitHub Discussions</li>
+                                <li><strong>Status</strong>: status.parserator.com</li>
+                            </ul>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="text-center">
+                <p class="text-gray-500">© 2025 Parserator. All rights reserved.</p>
+                <div class="mt-4 space-x-6">
+                    <a href="/privacy" class="text-primary-600 hover:text-primary-700">Privacy Policy</a>
+                    <a href="/terms" class="text-primary-600 hover:text-primary-700">Terms of Service</a>
+                    <a href="/contact" class="text-primary-600 hover:text-primary-700">Contact</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
