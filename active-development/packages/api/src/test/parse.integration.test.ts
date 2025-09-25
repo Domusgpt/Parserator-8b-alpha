@@ -5,6 +5,11 @@
 
 import { GeminiService } from '../services/llm.service';
 import { ParseService, IParseRequest } from '../services/parse.service';
+import {
+  InMemoryParseMetricsRecorder,
+  ParseStageEvent,
+  ParseFailureEvent
+} from '../services/metrics.service';
 
 // Mock Gemini service for testing
 class MockGeminiService extends GeminiService {
@@ -80,10 +85,12 @@ class MockGeminiService extends GeminiService {
 
 describe('ParseService Integration Tests', () => {
   let parseService: ParseService;
+  let metricsRecorder: InMemoryParseMetricsRecorder;
 
   beforeEach(() => {
     const mockGeminiService = new MockGeminiService();
-    parseService = new ParseService(mockGeminiService, undefined, console);
+    metricsRecorder = new InMemoryParseMetricsRecorder();
+    parseService = new ParseService(mockGeminiService, undefined, console, metricsRecorder);
   });
 
   describe('parse', () => {
@@ -105,7 +112,23 @@ describe('ParseService Integration Tests', () => {
       expect(result.metadata.confidence).toBeGreaterThan(0.8);
       expect(result.metadata.tokensUsed).toBeGreaterThan(0);
       expect(result.metadata.architectPlan.steps).toHaveLength(2);
-    });
+      expect(result.metadata.systemContext.type).toBe('crm');
+      expect(result.metadata.systemContext.confidence).toBeGreaterThanOrEqual(0.2);
+
+      const events = metricsRecorder.getEvents();
+      expect(events[0].eventType).toBe('parse_start');
+      const stageEvents = events.filter(
+        (event): event is ParseStageEvent => event.eventType === 'parse_stage'
+      );
+      expect(stageEvents).toHaveLength(2);
+      const architectEvent = stageEvents.find(event => event.stage === 'architect');
+      const extractorEvent = stageEvents.find(event => event.stage === 'extractor');
+      expect(architectEvent?.success).toBe(true);
+      expect(extractorEvent?.success).toBe(true);
+      const completeEvent = events.find(event => event.eventType === 'parse_complete');
+      expect(completeEvent?.success).toBe(true);
+      expect(completeEvent?.processingTimeMs).toBeGreaterThan(0);
+  });
 
     it('should handle validation errors gracefully', async () => {
       const request: IParseRequest = {
@@ -121,7 +144,15 @@ describe('ParseService Integration Tests', () => {
       expect(result.error).toBeDefined();
       expect(result.error!.code).toBe('EMPTY_INPUT_DATA');
       expect(result.error!.stage).toBe('validation');
-    });
+
+      const events = metricsRecorder.getEvents();
+      const failureEvent = events.find(
+        (event): event is ParseFailureEvent => event.eventType === 'parse_failure'
+      );
+      expect(failureEvent).toBeDefined();
+      expect(failureEvent?.stage).toBe('validation');
+      expect(failureEvent?.errorCode).toBe('EMPTY_INPUT_DATA');
+  });
 
     it('should provide detailed metadata', async () => {
       const request: IParseRequest = {
@@ -140,6 +171,7 @@ describe('ParseService Integration Tests', () => {
       expect(result.metadata.stageBreakdown.extractor.tokens).toBeGreaterThan(0);
       expect(result.metadata.architectTokens + result.metadata.extractorTokens)
         .toBe(result.metadata.tokensUsed);
+      expect(result.metadata.systemContext.summary).toContain('General-purpose');
     });
   });
 
@@ -159,7 +191,8 @@ describe('Real-world parsing scenarios', () => {
 
   beforeEach(() => {
     const mockGeminiService = new MockGeminiService();
-    parseService = new ParseService(mockGeminiService, undefined, console);
+    const metricsRecorder = new InMemoryParseMetricsRecorder();
+    parseService = new ParseService(mockGeminiService, undefined, console, metricsRecorder);
   });
 
   it('should handle messy email data', async () => {
