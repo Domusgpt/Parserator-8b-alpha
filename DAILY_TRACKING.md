@@ -4,6 +4,37 @@
 
 ---
 
+## 📅 SESSION: June 14, 2025
+
+### **Working on**
+- Wiring the production dashboard to the authenticated API so live usage, profile, and key management data replace the placeholder mocks.
+- Building client-side helpers for storing API credentials securely in-browser and handling key lifecycle operations.
+
+### **Status check**
+- API: ✅
+- Dashboard: ✅ (now fetches live profile, usage, and API key data when an API key is connected)
+- Domain: 🔴
+- Extension: 🔴
+- Email: 🔴
+
+### **Accomplished**
+- Replaced all dashboard mock data with real API calls for profile, usage insights, key listing, creation, and revocation.
+- Added local storage-backed helpers so developers can connect their API key once, safely cache freshly created secrets, and refresh data on demand.
+- Introduced guided onboarding (recommendations, quick start, and usage trend visuals) that react to real account metrics.
+- Documented connection state and error handling pathways so future work on auth or rate limiting has a clear baseline.
+
+### **Next priority**
+- Human: finalize Firebase custom domain routing fix (still the top blocker for launch readiness).
+- Wire the dashboard to Firestore-backed usage history once available so the “Usage Trends” chart reflects actual telemetry instead of estimated bars.
+- Evaluate adding authenticated session support (beyond API key) if email onboarding requires persistent accounts.
+
+### **Notes**
+- Local storage keys: `parserator_dashboard_auth_key` holds the dashboard connection key, and `parserator_dashboard_key_cache_v1` stores any plaintext keys generated during this session for reveal/copy purposes.
+- When the active API key is revoked, the dashboard now automatically prompts for a new key to avoid silent auth failures.
+- Manual refresh button exercises `/user/profile`, `/user/usage`, and `/user/api-keys` simultaneously to keep the UI consistent after any mutation.
+
+---
+
 ## 📅 SESSION: June 13, 2025
 
 ### **Working on**
