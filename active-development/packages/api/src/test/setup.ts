@@ -74,7 +74,10 @@ expect.extend({
       metadata.tokensUsed >= 0 &&
       typeof metadata.processingTimeMs === 'number' &&
       metadata.processingTimeMs >= 0 &&
-      typeof metadata.architectPlan === 'object'
+      typeof metadata.architectPlan === 'object' &&
+      typeof metadata.systemContext === 'object' &&
+      typeof metadata.systemContext.type === 'string' &&
+      typeof metadata.systemContext.confidence === 'number'
     );
 
     if (pass) {
@@ -118,7 +121,13 @@ export const createMockSearchPlan = (overrides = {}) => ({
   metadata: {
     createdAt: new Date().toISOString(),
     architectVersion: 'v2.1',
-    sampleLength: 100
+    sampleLength: 100,
+    systemContext: {
+      type: 'generic',
+      confidence: 0.1,
+      signals: [],
+      summary: 'General-purpose parsing without downstream system specialization.'
+    }
   },
   ...overrides
 });

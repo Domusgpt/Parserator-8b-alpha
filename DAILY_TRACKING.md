@@ -4,6 +4,37 @@
 
 ---
 
+## 📅 SESSION: June 13, 2025
+
+### **Working on**
+- Upgrading the Architect/Extractor pipeline to become system-aware.
+- Documenting progress toward the launch blockers (domain redirect, Chrome extension, support email).
+
+### **Status check**
+- API: ✅
+- Dashboard: ✅ (still mock data, now ready to receive live context metadata once wired)
+- Domain: 🔴 (Firebase custom-domain fix still pending human access)
+- Extension: 🔴 (assets ready, submission blocked on Chrome Web Store access)
+- Email: 🔴 (parse@parserator.com forwarding still unconfigured)
+
+### **Accomplished**
+- Added automatic downstream-system detection (CRM, e-commerce, finance, etc.) in `ParseService` with contextual prompts for both Architect and Extractor stages.
+- Extended API schema so clients can optionally pass explicit context hints or domain keywords.
+- Ensured every parse response now returns structured `systemContext` metadata with confidence, signals, and narrative summary.
+- Hardened validation and updated integration tests to assert the new behavior.
+
+### **Next priority**
+- Human: finish Firebase domain remap following `DOMAIN_REDIRECT_FIX.md` so marketing assets can go live.
+- Human: submit Chrome extension package (`parserator-chrome-extension-v1.0.1.zip`) via the Dev Console.
+- Human: finalize parse@parserator.com forwarding/alias configuration.
+
+### **Notes**
+- The detection map currently covers CRM, e-commerce, finance, healthcare, legal, logistics, marketing, and real-estate; expand with additional signals as new verticals come online.
+- Dashboard still relies on mock data—after the API context work, next step is wiring `/v1/usage` into the Next.js app once authentication flow is settled.
+- No environment access to Firebase/Google Workspace, so infrastructure fixes remain documented but unexecuted here.
+
+---
+
 ## 📅 SESSION: June 12, 2025
 
 ### **Major Accomplishment**

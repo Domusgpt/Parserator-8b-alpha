@@ -4,11 +4,13 @@
  * Provides the primary parsing interface for the SaaS API
  */
 
-import { 
-  IParseResult, 
+import {
+  IParseResult,
   ISearchPlan,
   IArchitectResult,
-  IExtractorResult
+  IExtractorResult,
+  ISystemContext,
+  SystemContextType
 } from '../interfaces/search-plan.interface';
 import { GeminiService } from './llm.service';
 import { ArchitectService, ArchitectError } from './architect.service';
@@ -43,13 +45,19 @@ export interface IParseConfig {
 export interface IParseRequest {
   /** Raw unstructured input data */
   inputData: string;
-  
+
   /** Desired output schema structure */
   outputSchema: Record<string, any>;
-  
+
   /** Optional user instructions for parsing */
   instructions?: string;
-  
+
+  /** Optional hint for the downstream system context */
+  systemContextHint?: SystemContextType;
+
+  /** Additional domain-specific keywords to bias context detection */
+  domainHints?: string[];
+
   /** Request ID for tracking */
   requestId?: string;
   
@@ -90,6 +98,30 @@ export class ParseService {
     enableFallbacks: true,
     architectSampleSize: 1000,
     minOverallConfidence: 0.5
+  };
+
+  private static readonly CONTEXT_KEYWORDS: Record<SystemContextType, string[]> = {
+    generic: [],
+    crm: ['crm', 'customer', 'lead', 'contact', 'account', 'opportunity', 'pipeline', 'salesforce', 'hubspot'],
+    ecommerce: ['order', 'cart', 'sku', 'product', 'inventory', 'shipment', 'checkout', 'purchase', 'shopify'],
+    finance: ['invoice', 'amount', 'transaction', 'accounting', 'balance', 'payment', 'tax', 'ledger', 'bank'],
+    healthcare: ['patient', 'diagnosis', 'medical', 'appointment', 'clinic', 'provider', 'medication', 'record', 'health'],
+    legal: ['case', 'court', 'contract', 'legal', 'compliance', 'evidence', 'claim', 'statute', 'attorney'],
+    logistics: ['shipment', 'tracking', 'warehouse', 'delivery', 'carrier', 'freight', 'logistics', 'route', 'bill of lading'],
+    marketing: ['campaign', 'utm', 'conversion', 'click', 'impression', 'ad', 'marketing', 'funnel', 'segment'],
+    real_estate: ['property', 'listing', 'mls', 'agent', 'tenant', 'lease', 'square footage', 'closing', 'escrow']
+  };
+
+  private static readonly CONTEXT_SUMMARIES: Record<SystemContextType, string> = {
+    generic: 'General-purpose parsing without downstream system specialization.',
+    crm: 'Optimized for CRM and customer-data systems focused on contacts, leads, and account lifecycle.',
+    ecommerce: 'Optimized for e-commerce flows involving products, orders, fulfillment, and post-purchase data.',
+    finance: 'Optimized for financial documents, invoices, and transaction records that require numeric precision.',
+    healthcare: 'Optimized for healthcare records where patient safety, compliance, and terminology accuracy matter.',
+    legal: 'Optimized for legal documents that emphasize case details, compliance, and contractual obligations.',
+    logistics: 'Optimized for logistics and supply-chain workflows involving shipments, tracking, and routing events.',
+    marketing: 'Optimized for marketing analytics where campaign attribution and engagement metrics are critical.',
+    real_estate: 'Optimized for real-estate operations managing properties, listings, and transaction timelines.'
   };
 
   constructor(
@@ -134,6 +166,8 @@ export class ParseService {
   async parse(request: IParseRequest): Promise<IParseResult> {
     const startTime = Date.now();
     const operationId = request.requestId || this.generateOperationId();
+    let systemContext = this.createDefaultSystemContext();
+    let dataSample = '';
 
     this.logger.info('Starting parse operation', {
       requestId: operationId,
@@ -148,12 +182,24 @@ export class ParseService {
       // Validate inputs
       this.validateParseRequest(request);
 
+      // Prepare data sample once for downstream stages
+      dataSample = this.createOptimizedSample(request.inputData);
+      systemContext = this.detectSystemContext(request, dataSample);
+
+      this.logger.info('Detected system context for parse request', {
+        requestId: operationId,
+        systemContext: systemContext.type,
+        confidence: systemContext.confidence,
+        signals: systemContext.signals.slice(0, 5)
+      });
+
       // Stage 1: Generate SearchPlan with the Architect
       const architectResult = await this.executeArchitectStage(
         request.outputSchema,
-        request.inputData,
+        dataSample,
         request.instructions,
-        operationId
+        operationId,
+        systemContext
       );
 
       if (!architectResult.success) {
@@ -162,15 +208,25 @@ export class ParseService {
           'architect',
           operationId,
           Date.now() - startTime,
-          architectResult.tokensUsed
+          architectResult.tokensUsed,
+          architectResult.searchPlan,
+          systemContext
         );
+      }
+
+      // Prefer any refined context returned by the Architect
+      if (architectResult.searchPlan.metadata.systemContext) {
+        systemContext = architectResult.searchPlan.metadata.systemContext;
+      } else {
+        architectResult.searchPlan.metadata.systemContext = systemContext;
       }
 
       // Stage 2: Execute SearchPlan with the Extractor
       const extractorResult = await this.executeExtractorStage(
         request.inputData,
         architectResult.searchPlan,
-        operationId
+        operationId,
+        systemContext
       );
 
       if (!extractorResult.success) {
@@ -180,7 +236,8 @@ export class ParseService {
           operationId,
           Date.now() - startTime,
           architectResult.tokensUsed + extractorResult.tokensUsed,
-          architectResult.searchPlan
+          architectResult.searchPlan,
+          systemContext
         );
       }
 
@@ -189,7 +246,8 @@ export class ParseService {
         architectResult,
         extractorResult,
         Date.now() - startTime,
-        operationId
+        operationId,
+        systemContext
       );
 
       // Apply fallback strategies if confidence is too low
@@ -236,7 +294,10 @@ export class ParseService {
           },
           error.stage,
           operationId,
-          processingTimeMs
+          processingTimeMs,
+          0,
+          undefined,
+          systemContext
         );
       }
 
@@ -249,7 +310,10 @@ export class ParseService {
         },
         'orchestration',
         operationId,
-        processingTimeMs
+        processingTimeMs,
+        0,
+        undefined,
+        systemContext
       );
     }
   }
@@ -259,25 +323,25 @@ export class ParseService {
    */
   private async executeArchitectStage(
     outputSchema: Record<string, any>,
-    inputData: string,
+    dataSample: string,
     instructions: string | undefined,
-    requestId: string
+    requestId: string,
+    systemContext: ISystemContext
   ): Promise<IArchitectResult> {
     this.logger.info('Executing Architect stage', {
       requestId,
+      systemContext: systemContext.type,
       stage: 'architect',
       operation: 'executeArchitectStage'
     });
 
     try {
-      // Create optimized sample for the Architect
-      const dataSample = this.createOptimizedSample(inputData);
-
       const result = await this.architectService.generateSearchPlan(
         outputSchema,
         dataSample,
         instructions,
-        requestId
+        requestId,
+        systemContext
       );
 
       this.logger.info('Architect stage completed', {
@@ -307,12 +371,14 @@ export class ParseService {
   private async executeExtractorStage(
     inputData: string,
     searchPlan: ISearchPlan,
-    requestId: string
+    requestId: string,
+    systemContext: ISystemContext
   ): Promise<IExtractorResult> {
     this.logger.info('Executing Extractor stage', {
       requestId,
       stepsToExecute: searchPlan.steps.length,
       planComplexity: searchPlan.estimatedComplexity,
+      systemContext: systemContext.type,
       stage: 'extractor',
       operation: 'executeExtractorStage'
     });
@@ -321,7 +387,8 @@ export class ParseService {
       const result = await this.extractorService.executeSearchPlan(
         inputData,
         searchPlan,
-        requestId
+        requestId,
+        systemContext
       );
 
       this.logger.info('Extractor stage completed', {
@@ -353,10 +420,11 @@ export class ParseService {
     architectResult: IArchitectResult,
     extractorResult: IExtractorResult,
     totalProcessingTimeMs: number,
-    requestId: string
+    requestId: string,
+    systemContext: ISystemContext
   ): IParseResult {
     const totalTokens = architectResult.tokensUsed + extractorResult.tokensUsed;
-    
+
     // Calculate weighted confidence score
     const architectWeight = 0.3;
     const extractorWeight = 0.7;
@@ -371,6 +439,7 @@ export class ParseService {
       metadata: {
         architectPlan: architectResult.searchPlan,
         confidence: overallConfidence,
+        systemContext,
         tokensUsed: totalTokens,
         processingTimeMs: totalProcessingTimeMs,
         architectTokens: architectResult.tokensUsed,
@@ -400,7 +469,8 @@ export class ParseService {
     requestId: string,
     processingTimeMs: number,
     tokensUsed: number = 0,
-    architectPlan?: ISearchPlan
+    architectPlan?: ISearchPlan,
+    systemContext: ISystemContext = this.createDefaultSystemContext()
   ): IParseResult {
     return {
       success: false,
@@ -415,10 +485,12 @@ export class ParseService {
           metadata: {
             createdAt: new Date().toISOString(),
             architectVersion: 'unknown',
-            sampleLength: 0
+            sampleLength: 0,
+            systemContext
           }
         },
         confidence: 0.0,
+        systemContext,
         tokensUsed,
         processingTimeMs,
         architectTokens: stage === 'architect' ? tokensUsed : 0,
@@ -446,6 +518,147 @@ export class ParseService {
         }
       }
     };
+  }
+
+  /**
+   * Create the default generic system context or override pieces of it
+   */
+  private createDefaultSystemContext(overrides: Partial<ISystemContext> = {}): ISystemContext {
+    return {
+      type: overrides.type ?? 'generic',
+      confidence: overrides.confidence ?? 0.1,
+      signals: overrides.signals ?? [],
+      summary:
+        overrides.summary ??
+        ParseService.CONTEXT_SUMMARIES[overrides.type ?? 'generic'] ??
+        ParseService.CONTEXT_SUMMARIES.generic
+    };
+  }
+
+  /**
+   * Detect downstream system context using schema, hints, and sample data
+   */
+  private detectSystemContext(request: IParseRequest, dataSample: string): ISystemContext {
+    const keywordSignals = new Map<SystemContextType, Set<string>>();
+    const contexts = Object.keys(ParseService.CONTEXT_KEYWORDS) as SystemContextType[];
+
+    contexts.forEach(context => {
+      keywordSignals.set(context, new Set<string>());
+    });
+
+    const schemaFields = this.extractSchemaFieldNames(request.outputSchema);
+    const combinedSources = [
+      schemaFields.join(' '),
+      request.instructions ?? '',
+      dataSample,
+      ...(request.domainHints ?? [])
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    contexts.forEach(context => {
+      if (context === 'generic') {
+        return;
+      }
+
+      ParseService.CONTEXT_KEYWORDS[context].forEach(keyword => {
+        if (combinedSources.includes(keyword.toLowerCase())) {
+          keywordSignals.get(context)!.add(keyword);
+        }
+      });
+    });
+
+    if (request.domainHints && request.domainHints.length > 0) {
+      request.domainHints.forEach(hint => {
+        const normalizedHint = hint.toLowerCase();
+        contexts.forEach(context => {
+          if (context === 'generic') {
+            return;
+          }
+
+          const contextName = context.replace('_', ' ');
+          const matchesContext = normalizedHint.includes(contextName);
+          const matchesKeyword = ParseService.CONTEXT_KEYWORDS[context].some(keyword =>
+            normalizedHint.includes(keyword.toLowerCase())
+          );
+
+          if (matchesContext || matchesKeyword) {
+            keywordSignals.get(context)!.add(`hint:${hint}`);
+          }
+        });
+      });
+    }
+
+    let bestContext: SystemContextType = 'generic';
+    let bestScore = 0;
+
+    contexts.forEach(context => {
+      if (context === 'generic') {
+        return;
+      }
+
+      const score = keywordSignals.get(context)!.size;
+      if (score > bestScore) {
+        bestContext = context;
+        bestScore = score;
+      }
+    });
+
+    if (request.systemContextHint && request.systemContextHint !== 'generic') {
+      const hintedScore = keywordSignals.get(request.systemContextHint)?.size ?? 0;
+      if (bestContext === 'generic' || hintedScore >= bestScore - 1) {
+        bestContext = request.systemContextHint;
+        bestScore = Math.max(bestScore, hintedScore);
+      }
+    }
+
+    const signals = Array.from(keywordSignals.get(bestContext) ?? new Set<string>());
+
+    if (!signals.length && request.systemContextHint && request.systemContextHint !== 'generic') {
+      signals.push(`hint:${request.systemContextHint}`);
+    }
+
+    const signalCount = signals.length;
+    let confidence = 0.1;
+
+    if (bestContext !== 'generic' || signalCount > 0) {
+      confidence = Math.min(0.95, 0.2 + signalCount * 0.15);
+      if (request.systemContextHint === bestContext && confidence < 0.6) {
+        confidence = 0.6;
+      }
+    }
+
+    const summaryBase =
+      ParseService.CONTEXT_SUMMARIES[bestContext] ?? ParseService.CONTEXT_SUMMARIES.generic;
+    const summarySignals = signals.length
+      ? `Signals: ${signals.slice(0, 5).join(', ')}.`
+      : 'No strong signals detected.';
+
+    return {
+      type: bestContext,
+      confidence: Number(confidence.toFixed(2)),
+      signals: signals.slice(0, 20),
+      summary: `${summaryBase} ${summarySignals}`.trim()
+    };
+  }
+
+  /**
+   * Recursively extract schema field names for context analysis
+   */
+  private extractSchemaFieldNames(schema: Record<string, any>, prefix = ''): string[] {
+    const fields: string[] = [];
+
+    Object.entries(schema).forEach(([key, value]) => {
+      const normalizedKey = prefix ? `${prefix}.${key}` : key;
+      fields.push(normalizedKey);
+
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        fields.push(...this.extractSchemaFieldNames(value as Record<string, any>, normalizedKey));
+      }
+    });
+
+    return fields;
   }
 
   /**
@@ -482,9 +695,17 @@ export class ParseService {
    */
   private validateParseRequest(request: IParseRequest): void {
     // Validate input data
-    if (!request.inputData || typeof request.inputData !== 'string') {
+    if (request.inputData === undefined || request.inputData === null) {
       throw new ParseError(
-        'Input data must be a non-empty string',
+        'Input data must be provided',
+        'INVALID_INPUT_DATA',
+        'validation'
+      );
+    }
+
+    if (typeof request.inputData !== 'string') {
+      throw new ParseError(
+        'Input data must be a string',
         'INVALID_INPUT_DATA',
         'validation'
       );
@@ -541,6 +762,50 @@ export class ParseService {
         'INVALID_INSTRUCTIONS',
         'validation'
       );
+    }
+
+    if (request.systemContextHint && !(request.systemContextHint in ParseService.CONTEXT_KEYWORDS)) {
+      throw new ParseError(
+        `Unknown system context hint: ${request.systemContextHint}`,
+        'INVALID_CONTEXT_HINT',
+        'validation'
+      );
+    }
+
+    if (request.domainHints) {
+      if (!Array.isArray(request.domainHints)) {
+        throw new ParseError(
+          'Domain hints must be provided as an array of strings',
+          'INVALID_DOMAIN_HINTS',
+          'validation'
+        );
+      }
+
+      if (request.domainHints.length > 10) {
+        throw new ParseError(
+          'Provide no more than 10 domain hints',
+          'TOO_MANY_DOMAIN_HINTS',
+          'validation'
+        );
+      }
+
+      request.domainHints.forEach((hint, index) => {
+        if (typeof hint !== 'string' || hint.trim().length === 0) {
+          throw new ParseError(
+            `Domain hint at position ${index} must be a non-empty string`,
+            'INVALID_DOMAIN_HINT',
+            'validation'
+          );
+        }
+
+        if (hint.length > 64) {
+          throw new ParseError(
+            `Domain hint at position ${index} exceeds maximum length of 64 characters`,
+            'DOMAIN_HINT_TOO_LONG',
+            'validation'
+          );
+        }
+      });
     }
   }
 

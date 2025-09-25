@@ -194,6 +194,12 @@ Respond ONLY with valid JSON data:`;
         metadata: {
           architectPlan: searchPlan,
           confidence: searchPlan.confidence || 0.85,
+          systemContext: searchPlan.metadata?.systemContext || {
+            type: 'generic',
+            confidence: 0.1,
+            signals: [],
+            summary: 'General-purpose parsing without downstream system specialization.'
+          },
           tokensUsed: Math.floor((architectPrompt.length + extractorPrompt.length) / 4), // Rough estimate
           processingTimeMs: processingTime,
           requestId: `req_${Date.now()}`,

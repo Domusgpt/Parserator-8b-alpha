@@ -4,11 +4,12 @@
  * Creates detailed SearchPlans from output schemas and data samples
  */
 
-import { 
-  ISearchPlan, 
-  IArchitectResult, 
-  ISearchStep, 
-  ValidationTypeEnum 
+import {
+  ISearchPlan,
+  IArchitectResult,
+  ISearchStep,
+  ValidationTypeEnum,
+  ISystemContext
 } from '../interfaces/search-plan.interface';
 import { GeminiService, ILLMOptions, LLMError } from './llm.service';
 
@@ -85,7 +86,8 @@ export class ArchitectService {
     outputSchema: Record<string, any>,
     dataSample: string,
     userInstructions?: string,
-    requestId?: string
+    requestId?: string,
+    systemContext?: ISystemContext
   ): Promise<IArchitectResult> {
     const startTime = Date.now();
     const operationId = requestId || this.generateOperationId();
@@ -107,9 +109,10 @@ export class ArchitectService {
 
       // Build the architect prompt
       const prompt = this.buildArchitectPrompt(
-        outputSchema, 
-        optimizedSample, 
-        userInstructions
+        outputSchema,
+        optimizedSample,
+        userInstructions,
+        systemContext
       );
 
       // Call Gemini with architect-specific options
@@ -125,6 +128,17 @@ export class ArchitectService {
 
       // Parse and validate the response
       const searchPlan = this.parseArchitectResponse(llmResponse.content, operationId);
+
+      if (systemContext) {
+        searchPlan.metadata.systemContext = systemContext;
+      } else if (!searchPlan.metadata.systemContext) {
+        searchPlan.metadata.systemContext = {
+          type: 'generic',
+          confidence: 0.1,
+          signals: [],
+          summary: 'General-purpose parsing without downstream system specialization.'
+        };
+      }
 
       // Validate the generated plan
       this.validateSearchPlan(searchPlan, outputSchema);
@@ -196,15 +210,19 @@ export class ArchitectService {
   private buildArchitectPrompt(
     outputSchema: Record<string, any>,
     dataSample: string,
-    userInstructions?: string
+    userInstructions?: string,
+    systemContext?: ISystemContext
   ): string {
     const schemaJson = JSON.stringify(outputSchema, null, 2);
     const fieldCount = Object.keys(outputSchema).length;
+    const contextGuidance = this.buildContextualGuidance(systemContext);
 
     return `You are the Architect in a two-stage data parsing system. Your job is to analyze the user's desired output schema and a sample of their input data, then create a detailed SearchPlan for the Extractor to follow.
 
 ## YOUR TASK
 Create a JSON SearchPlan that tells the Extractor exactly how to find each piece of data in the full input.
+
+${contextGuidance}
 
 ## OUTPUT SCHEMA (what the user wants)
 \`\`\`json
@@ -285,6 +303,93 @@ You must respond with ONLY a valid JSON object matching this exact structure:
 Remember: The Extractor will follow your plan exactly. Make your instructions clear, specific, and actionable. Your searchInstructions are the key to accurate extraction.
 
 RESPOND WITH ONLY THE JSON - NO EXPLANATIONS OR MARKDOWN FORMATTING.`;
+  }
+
+  /**
+   * Create contextual guidance block for the Architect prompt
+   */
+  private buildContextualGuidance(systemContext?: ISystemContext): string {
+    const context: ISystemContext = systemContext || {
+      type: 'generic',
+      confidence: 0.1,
+      signals: [],
+      summary: 'General-purpose parsing without downstream system specialization.'
+    };
+
+    const signalList = (context.signals || []).slice(0, 5).join(', ') || 'n/a';
+    const confidencePercent = Math.round((context.confidence || 0) * 100);
+
+    let guidanceLines: string[];
+
+    switch (context.type) {
+      case 'crm':
+        guidanceLines = [
+          '- Prioritize entity resolution for people and accounts.',
+          '- Validate contact channels (email, phone) carefully.',
+          '- Capture lifecycle cues such as lead status or opportunity stage.'
+        ];
+        break;
+      case 'ecommerce':
+        guidanceLines = [
+          '- Emphasize product identifiers, quantities, and pricing totals.',
+          '- Note fulfillment signals (shipping address, tracking numbers).',
+          '- Guard against currency/decimal hallucinations.'
+        ];
+        break;
+      case 'finance':
+        guidanceLines = [
+          '- Maintain high precision for monetary amounts.',
+          '- Track document references (invoice numbers, account IDs).',
+          '- Highlight compliance-sensitive fields such as tax IDs.'
+        ];
+        break;
+      case 'healthcare':
+        guidanceLines = [
+          '- Preserve medical terminology exactly as written.',
+          '- Surface patient identifiers and encounter timestamps.',
+          '- Flag any potential PHI handling considerations in extractorInstructions.'
+        ];
+        break;
+      case 'legal':
+        guidanceLines = [
+          '- Capture parties, case identifiers, and contractual dates.',
+          '- Maintain verbatim clauses where precision matters.',
+          '- Note jurisdiction or governing law cues when present.'
+        ];
+        break;
+      case 'logistics':
+        guidanceLines = [
+          '- Focus on shipment milestones, carrier data, and tracking numbers.',
+          '- Include warehouse locations and delivery windows.',
+          '- Pay attention to quantities, weights, and packaging units.'
+        ];
+        break;
+      case 'marketing':
+        guidanceLines = [
+          '- Extract campaign identifiers, channels, and attribution metrics.',
+          '- Note performance measures (CTR, conversions, spend).',
+          '- Maintain UTM parameters and audience segment names.'
+        ];
+        break;
+      case 'real_estate':
+        guidanceLines = [
+          '- Capture property descriptors (address, MLS, square footage).',
+          '- Note transaction stage, offer prices, and agent details.',
+          '- Record lease or closing timelines explicitly.'
+        ];
+        break;
+      default:
+        guidanceLines = ['- Apply general structured-data best practices.'];
+        break;
+    }
+
+    return `## DOWNSTREAM SYSTEM CONTEXT
+Target system: ${context.type.toUpperCase()}
+Confidence: ${confidencePercent}%
+Primary signals: ${signalList}
+Summary: ${context.summary}
+Guidance:
+${guidanceLines.join('\n')}`;
   }
 
   /**

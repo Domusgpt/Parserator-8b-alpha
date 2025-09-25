@@ -105,6 +105,8 @@ describe('ParseService Integration Tests', () => {
       expect(result.metadata.confidence).toBeGreaterThan(0.8);
       expect(result.metadata.tokensUsed).toBeGreaterThan(0);
       expect(result.metadata.architectPlan.steps).toHaveLength(2);
+      expect(result.metadata.systemContext.type).toBe('crm');
+      expect(result.metadata.systemContext.confidence).toBeGreaterThanOrEqual(0.2);
     });
 
     it('should handle validation errors gracefully', async () => {
@@ -140,6 +142,7 @@ describe('ParseService Integration Tests', () => {
       expect(result.metadata.stageBreakdown.extractor.tokens).toBeGreaterThan(0);
       expect(result.metadata.architectTokens + result.metadata.extractorTokens)
         .toBe(result.metadata.tokensUsed);
+      expect(result.metadata.systemContext.summary).toContain('General-purpose');
     });
   });
 
