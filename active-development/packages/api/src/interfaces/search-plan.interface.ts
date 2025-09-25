@@ -46,6 +46,12 @@ export interface ISystemContext {
 
   /** Human-readable explanation of the context */
   summary: string;
+
+  /** Optional ranked list of secondary context candidates */
+  alternatives?: Array<{
+    type: SystemContextType;
+    confidence: number;
+  }>;
 }
 
 /**

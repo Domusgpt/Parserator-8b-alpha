@@ -4,6 +4,30 @@
 
 ---
 
+## 📅 SESSION: June 15, 2025
+
+### **Working on**
+- Hardening the system-context detection so Architect/Extractor prompts receive reliable downstream signals.
+- Breaking the detection heuristics into a reusable service with coverage to guard against regressions.
+
+### **Status check**
+- API: ✅ (system context detector extracted into dedicated service)
+- Dashboard: ✅
+- Domain: 🔴
+- Extension: 🔴
+- Email: 🔴
+
+### **Accomplished**
+- Implemented a `SystemContextDetector` service with weighted keyword, hint, and schema analysis plus alternative rankings.
+- Updated `ParseService` orchestration to consume the detector, expose candidate contexts, and log richer context telemetry.
+- Added targeted Jest coverage for the detector and refreshed integration tests; `npm test --workspace @parserator/api` now passes locally.
+
+### **Follow-ups**
+- Pipe the detector’s alternative rankings into the dashboard once the live data wiring lands so operators can see competing domains.
+- Feed structured detection metrics (top score, delta, hint usage) into observability once the logging destination is finalized.
+
+---
+
 ## 📅 SESSION: June 14, 2025
 
 ### **Working on**
