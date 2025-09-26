@@ -34,6 +34,47 @@ export type SystemContextType =
 /**
  * Structured description of the detected downstream system context
  */
+export interface ISystemContextMetrics {
+  /** Raw weighted score for the top-ranked context before converting to confidence */
+  rawScore: number;
+
+  /** Raw weighted score for the second-ranked context (0 if none) */
+  secondBestScore: number;
+
+  /** Difference between the top two scores to monitor ambiguity */
+  scoreDelta: number;
+
+  /** Whether an explicit systemContextHint was provided */
+  explicitHintProvided: boolean;
+
+  /** Whether the explicit hint matched the final context selection */
+  explicitHintMatchedFinalContext: boolean;
+
+  /** Whether the top candidate received the explicit hint boost */
+  topCandidateHintBoosted: boolean;
+
+  /** Count of domainHints provided with the request */
+  domainHintsProvided: number;
+
+  /** Number of domainHints that contributed to the top candidate */
+  domainHintMatches: number;
+
+  /** Total number of distinct signals recorded for the top candidate */
+  signalCount: number;
+
+  /** Aggregate score contribution per signal source */
+  sourceBreakdown: Record<'schema' | 'instructions' | 'sample' | 'hint', number>;
+
+  /** Top-ranked candidate type before applying ambiguity/threshold guards */
+  topCandidateType?: SystemContextType;
+
+  /** Whether ambiguity handling forced a fallback */
+  ambiguous: boolean;
+
+  /** Whether scores were below the minimum confidence threshold */
+  lowConfidenceFallback: boolean;
+}
+
 export interface ISystemContext {
   /** The inferred downstream system */
   type: SystemContextType;
@@ -52,6 +93,9 @@ export interface ISystemContext {
     type: SystemContextType;
     confidence: number;
   }>;
+
+  /** Structured metrics that describe how the selection was made */
+  metrics: ISystemContextMetrics;
 }
 
 /**

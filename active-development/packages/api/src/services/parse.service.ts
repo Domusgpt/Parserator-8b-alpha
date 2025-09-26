@@ -171,6 +171,7 @@ export class ParseService {
         systemContext: systemContext.type,
         confidence: systemContext.confidence,
         signals: systemContext.signals.slice(0, 5),
+        metrics: systemContext.metrics,
         alternatives: systemContext.alternatives?.slice(0, 3).map(option => ({
           type: option.type,
           confidence: option.confidence
@@ -270,6 +271,20 @@ export class ParseService {
       });
 
       if (error instanceof ParseError) {
+        if (error.stage === 'validation') {
+          systemContext = this.contextDetector.createDefaultContext({
+            metrics: {
+              ...systemContext.metrics,
+              lowConfidenceFallback: true,
+              domainHintsProvided: request.domainHints?.length ?? 0,
+              explicitHintProvided:
+                !!request.systemContextHint && request.systemContextHint !== 'generic',
+              explicitHintMatchedFinalContext:
+                !!request.systemContextHint && request.systemContextHint === 'generic'
+            }
+          });
+        }
+
         return this.createFailureResult(
           {
             code: error.code,

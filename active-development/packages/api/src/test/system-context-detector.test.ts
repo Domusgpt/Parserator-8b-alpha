@@ -19,7 +19,7 @@ describe('SystemContextDetector', () => {
       schemaFields: ['orderId', 'sku', 'shipping.carrier'],
       instructions: 'Extract the order details for the customer invoice',
       sample: sampleEcommerceEmail,
-      domainHints: ['fulfillment workflow'],
+      domainHints: ['Shopify fulfillment workflow'],
       systemContextHint: undefined
     });
 
@@ -27,6 +27,11 @@ describe('SystemContextDetector', () => {
     expect(result.confidence).toBeGreaterThan(0.5);
     expect(result.summary).toContain('e-commerce');
     expect(result.signals.some(signal => signal.startsWith('schema:sku'))).toBe(true);
+    expect(result.metrics.rawScore).toBeGreaterThan(0);
+    expect(result.metrics.domainHintMatches).toBeGreaterThan(0);
+    expect(result.metrics.domainHintsProvided).toBe(1);
+    expect(result.metrics.sourceBreakdown.schema).toBeGreaterThan(0);
+    expect(result.metrics.explicitHintProvided).toBe(false);
   });
 
   it('falls back to generic when evidence is ambiguous', () => {
@@ -45,6 +50,9 @@ describe('SystemContextDetector', () => {
 
     expect(result.type).toBe('generic');
     expect(result.summary).toContain('Signals were too evenly');
+    expect(result.metrics.ambiguous).toBe(true);
+    expect(result.metrics.lowConfidenceFallback).toBe(false);
+    expect(result.metrics.topCandidateType).toBeDefined();
   });
 
   it('respects provided hints when keywords are absent', () => {
@@ -61,5 +69,9 @@ describe('SystemContextDetector', () => {
     expect(result.signals.some(signal => signal.includes('hint'))).toBe(true);
     expect(result.alternatives).toBeDefined();
     expect(Array.isArray(result.alternatives)).toBe(true);
+    expect(result.metrics.explicitHintProvided).toBe(true);
+    expect(result.metrics.explicitHintMatchedFinalContext).toBe(true);
+    expect(result.metrics.topCandidateHintBoosted).toBe(true);
+    expect(result.metrics.domainHintMatches).toBeGreaterThan(0);
   });
 });

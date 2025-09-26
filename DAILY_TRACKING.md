@@ -4,6 +4,34 @@
 
 ---
 
+## 📅 SESSION: June 16, 2025
+
+### **Working on**
+- Capturing richer system-context detector telemetry so downstream dashboards and observability can compare raw scores, hint usage, and ambiguity fallbacks.
+- Propagating the new metrics through ParseService responses and failure flows so validation errors still surface structured insight.
+
+### **Status check**
+- API: ✅ (metrics emitted with every parse response)
+- Dashboard: ✅ (ready to ingest new telemetry once wired)
+- Domain: 🔴
+- Extension: 🔴
+- Email: 🔴
+
+### **Accomplished**
+- Extended the detector to compute per-source score breakdowns, hint utilization flags, and ambiguity markers, surfacing them in the `ISystemContext.metrics` payload.
+- Updated ParseService logging and failure handling so low-confidence/validation exits still record hint usage, domain hint counts, and fallback reasons.
+- Expanded Jest coverage to assert the new metrics in both unit and integration scenarios.
+
+### **Next priority**
+- Pipe the structured metrics into centralized logging/analytics once the destination is finalized so we can visualize ambiguity rates and hint effectiveness.
+- Surface the metrics in the dashboard context inspector to help operators triage edge cases.
+
+### **Notes**
+- Validation failures now mark `lowConfidenceFallback` with provided hint counts so support can distinguish user input issues from detector ambiguity.
+- Source breakdowns aggregate to two-decimal precision to keep telemetry payloads compact while remaining human-readable.
+
+---
+
 ## 📅 SESSION: June 15, 2025
 
 ### **Working on**

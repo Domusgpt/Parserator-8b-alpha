@@ -12,6 +12,7 @@ import {
   ISystemContext
 } from '../interfaces/search-plan.interface';
 import { GeminiService, ILLMOptions, LLMError } from './llm.service';
+import { SystemContextDetector } from './system-context-detector';
 
 /**
  * Configuration for Architect operations
@@ -54,6 +55,7 @@ export class ArchitectError extends Error {
 export class ArchitectService {
   private config: IArchitectConfig;
   private logger: Console;
+  private contextDetector: SystemContextDetector;
 
   // Default configuration optimized for planning efficiency
   private static readonly DEFAULT_CONFIG: IArchitectConfig = {
@@ -71,6 +73,7 @@ export class ArchitectService {
   ) {
     this.config = { ...ArchitectService.DEFAULT_CONFIG, ...config };
     this.logger = logger || console;
+    this.contextDetector = new SystemContextDetector({ logger: this.logger });
 
     this.logger.info('ArchitectService initialized', {
       promptVersion: this.config.promptVersion,
@@ -129,16 +132,10 @@ export class ArchitectService {
       // Parse and validate the response
       const searchPlan = this.parseArchitectResponse(llmResponse.content, operationId);
 
-      if (systemContext) {
-        searchPlan.metadata.systemContext = systemContext;
-      } else if (!searchPlan.metadata.systemContext) {
-        searchPlan.metadata.systemContext = {
-          type: 'generic',
-          confidence: 0.1,
-          signals: [],
-          summary: 'General-purpose parsing without downstream system specialization.'
-        };
-      }
+      const normalizedContext = this.contextDetector.createDefaultContext(
+        systemContext || searchPlan.metadata.systemContext || {}
+      );
+      searchPlan.metadata.systemContext = normalizedContext;
 
       // Validate the generated plan
       this.validateSearchPlan(searchPlan, outputSchema);
@@ -309,12 +306,7 @@ RESPOND WITH ONLY THE JSON - NO EXPLANATIONS OR MARKDOWN FORMATTING.`;
    * Create contextual guidance block for the Architect prompt
    */
   private buildContextualGuidance(systemContext?: ISystemContext): string {
-    const context: ISystemContext = systemContext || {
-      type: 'generic',
-      confidence: 0.1,
-      signals: [],
-      summary: 'General-purpose parsing without downstream system specialization.'
-    };
+    const context: ISystemContext = this.contextDetector.createDefaultContext(systemContext || {});
 
     const signalList = (context.signals || []).slice(0, 5).join(', ') || 'n/a';
     const confidencePercent = Math.round((context.confidence || 0) * 100);

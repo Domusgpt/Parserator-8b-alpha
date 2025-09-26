@@ -12,6 +12,7 @@ import {
   ISystemContext
 } from '../interfaces/search-plan.interface';
 import { GeminiService, ILLMOptions, LLMError } from './llm.service';
+import { SystemContextDetector } from './system-context-detector';
 
 /**
  * Configuration for Extractor operations
@@ -54,6 +55,7 @@ export class ExtractorError extends Error {
 export class ExtractorService {
   private config: IExtractorConfig;
   private logger: Console;
+  private contextDetector: SystemContextDetector;
 
   // Default configuration optimized for extraction efficiency
   private static readonly DEFAULT_CONFIG: IExtractorConfig = {
@@ -71,6 +73,7 @@ export class ExtractorService {
   ) {
     this.config = { ...ExtractorService.DEFAULT_CONFIG, ...config };
     this.logger = logger || console;
+    this.contextDetector = new SystemContextDetector({ logger: this.logger });
 
     this.logger.info('ExtractorService initialized', {
       maxInputLength: this.config.maxInputLength,
@@ -103,8 +106,13 @@ export class ExtractorService {
       // Validate inputs
       this.validateInputs(inputData, searchPlan);
 
+      // Normalize context information for downstream prompt guidance
+      const normalizedContext = this.contextDetector.createDefaultContext(
+        systemContext || searchPlan.metadata.systemContext || {}
+      );
+
       // Build the extractor prompt
-      const prompt = this.buildExtractorPrompt(inputData, searchPlan, systemContext);
+      const prompt = this.buildExtractorPrompt(inputData, searchPlan, normalizedContext);
 
       // Call Gemini with extractor-specific options
       const llmOptions: ILLMOptions = {
@@ -312,12 +320,7 @@ RESPOND WITH ONLY THE JSON - NO OTHER TEXT.`;
    * Provide context-aware hints for the Extractor prompt
    */
   private buildExtractorContextGuidance(systemContext?: ISystemContext): string {
-    const context: ISystemContext = systemContext || {
-      type: 'generic',
-      confidence: 0.1,
-      signals: [],
-      summary: 'General-purpose parsing without downstream system specialization.'
-    };
+    const context: ISystemContext = this.contextDetector.createDefaultContext(systemContext || {});
 
     const focusLines: string[] = [];
 

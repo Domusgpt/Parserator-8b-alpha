@@ -1,4 +1,4 @@
-import { ISystemContext, SystemContextType } from '../interfaces/search-plan.interface';
+import { ISystemContext, ISystemContextMetrics, SystemContextType } from '../interfaces/search-plan.interface';
 
 export interface SystemContextDefinition {
   keywords: string[];
@@ -18,10 +18,14 @@ export interface SystemContextDetectorOptions {
   logger?: Pick<Console, 'debug'>;
 }
 
+type SourceKey = keyof typeof SOURCE_WEIGHTS;
+
 interface ContextScore {
   score: number;
   signals: Map<string, number>;
 }
+
+const SOURCE_KEYS: SourceKey[] = ['schema', 'instructions', 'sample', 'hint'];
 
 interface DetectionInput {
   schemaFields: string[];
@@ -206,12 +210,40 @@ export class SystemContextDetector {
 
   createDefaultContext(overrides: Partial<ISystemContext> = {}): ISystemContext {
     const type = overrides.type ?? 'generic';
+    const defaultMetrics: ISystemContextMetrics = {
+      rawScore: 0,
+      secondBestScore: 0,
+      scoreDelta: 0,
+      explicitHintProvided: false,
+      explicitHintMatchedFinalContext: false,
+      topCandidateHintBoosted: false,
+      domainHintsProvided: 0,
+      domainHintMatches: 0,
+      signalCount: overrides.signals?.length ?? 0,
+      sourceBreakdown: this.createEmptyBreakdown(),
+      topCandidateType: undefined,
+      ambiguous: false,
+      lowConfidenceFallback: false
+    };
+
+    const metrics = overrides.metrics
+      ? {
+          ...defaultMetrics,
+          ...overrides.metrics,
+          sourceBreakdown: {
+            ...this.createEmptyBreakdown(),
+            ...overrides.metrics.sourceBreakdown
+          }
+        }
+      : defaultMetrics;
+
     return {
       type,
       confidence: overrides.confidence ?? 0.1,
       signals: overrides.signals ?? [],
       summary: overrides.summary ?? this.getSummary(type),
-      alternatives: overrides.alternatives ?? []
+      alternatives: overrides.alternatives ?? [],
+      metrics
     };
   }
 
@@ -225,15 +257,20 @@ export class SystemContextDetector {
     const normalizedSchema = normalize(input.schemaFields.join(' '));
 
     const contextScores = new Map<SystemContextType, ContextScore>();
+    const domainHintMatches = new Map<SystemContextType, number>();
+    const hintBoostedContexts = new Set<SystemContextType>();
+    const domainHintsProvided = input.domainHints?.length ?? 0;
+    const explicitHintProvided = Boolean(input.systemContextHint && input.systemContextHint !== 'generic');
     (Object.keys(this.definitions) as SystemContextType[]).forEach(context => {
       contextScores.set(context, { score: 0, signals: new Map<string, number>() });
+      domainHintMatches.set(context, 0);
     });
 
     const updateContextScore = (
       context: SystemContextType,
       amount: number,
       signal: string,
-      source: keyof typeof SOURCE_WEIGHTS
+      source: SourceKey
     ): void => {
       const contextScore = contextScores.get(context);
       if (!contextScore || amount <= 0) {
@@ -289,6 +326,8 @@ export class SystemContextDetector {
           );
 
           if (matchesContextName || matchesKeyword) {
+            const existingMatches = domainHintMatches.get(context) ?? 0;
+            domainHintMatches.set(context, existingMatches + 1);
             updateContextScore(context, SOURCE_WEIGHTS.hint, hint, 'hint');
           }
         });
@@ -302,6 +341,7 @@ export class SystemContextDetector {
         input.systemContextHint,
         'hint'
       );
+      hintBoostedContexts.add(input.systemContextHint);
     }
 
     const rankedContexts = Array.from(contextScores.entries())
@@ -316,9 +356,33 @@ export class SystemContextDetector {
     const best = rankedContexts[0];
     const second = rankedContexts[1];
 
+    const signals = best
+      ? Array.from(best.signals.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([signal]) => signal)
+      : [];
+
+    const baseMetrics = this.createMetrics({
+      best,
+      second,
+      domainHintsProvided,
+      domainHintMatches,
+      hintBoostedContexts,
+      explicitHintProvided,
+      finalContext: best?.context ?? 'generic',
+      explicitHint: input.systemContextHint
+    });
+
     if (!best || best.score < this.minimumScore) {
       return this.createDefaultContext({
-        summary: `${this.getSummary('generic')} No strong signals detected.`
+        summary: `${this.getSummary('generic')} No strong signals detected.`,
+        metrics: {
+          ...baseMetrics,
+          explicitHintMatchedFinalContext:
+            explicitHintProvided && input.systemContextHint === 'generic',
+          lowConfidenceFallback: true,
+          topCandidateType: best?.context
+        }
       });
     }
 
@@ -328,13 +392,16 @@ export class SystemContextDetector {
         second
       });
       return this.createDefaultContext({
-        summary: `${this.getSummary('generic')} Signals were too evenly distributed across contexts.`
+        summary: `${this.getSummary('generic')} Signals were too evenly distributed across contexts.`,
+        metrics: {
+          ...baseMetrics,
+          explicitHintMatchedFinalContext:
+            explicitHintProvided && input.systemContextHint === 'generic',
+          ambiguous: true,
+          topCandidateType: best.context
+        }
       });
     }
-
-    const signals = Array.from(best.signals.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([signal]) => signal);
 
     const alternatives = rankedContexts
       .slice(1, 4)
@@ -353,7 +420,13 @@ export class SystemContextDetector {
       confidence: this.toConfidence(best.score),
       signals: signals.slice(0, 20),
       summary: `${this.getSummary(best.context)} ${summarySignals}`.trim(),
-      alternatives
+      alternatives,
+      metrics: {
+        ...baseMetrics,
+        explicitHintMatchedFinalContext:
+          explicitHintProvided && input.systemContextHint === best.context,
+        topCandidateType: best.context
+      }
     };
   }
 
@@ -364,6 +437,81 @@ export class SystemContextDetector {
 
     const confidence = Math.min(0.95, 0.35 + Math.log2(1 + score));
     return Number(confidence.toFixed(2));
+  }
+
+  private createEmptyBreakdown(): Record<SourceKey, number> {
+    return SOURCE_KEYS.reduce(
+      (acc, key) => ({
+        ...acc,
+        [key]: 0
+      }),
+      {} as Record<SourceKey, number>
+    );
+  }
+
+  private formatScore(value: number): number {
+    return Number(value.toFixed(2));
+  }
+
+  private calculateSourceBreakdown(signals: Map<string, number>): Record<SourceKey, number> {
+    const totals: Record<SourceKey, number> = this.createEmptyBreakdown();
+
+    signals.forEach((value, key) => {
+      const [source] = key.split(':');
+      if (SOURCE_KEYS.includes(source as SourceKey)) {
+        const typedSource = source as SourceKey;
+        totals[typedSource] += value;
+      }
+    });
+
+    return SOURCE_KEYS.reduce((acc, key) => {
+      acc[key] = this.formatScore(totals[key]);
+      return acc;
+    }, this.createEmptyBreakdown());
+  }
+
+  private createMetrics({
+    best,
+    second,
+    domainHintsProvided,
+    domainHintMatches,
+    hintBoostedContexts,
+    explicitHintProvided,
+    finalContext,
+    explicitHint
+  }: {
+    best?: { context: SystemContextType; score: number; signals: Map<string, number> };
+    second?: { context: SystemContextType; score: number };
+    domainHintsProvided: number;
+    domainHintMatches: Map<SystemContextType, number>;
+    hintBoostedContexts: Set<SystemContextType>;
+    explicitHintProvided: boolean;
+    finalContext: SystemContextType;
+    explicitHint?: SystemContextType;
+  }): ISystemContextMetrics {
+    const rawScore = this.formatScore(best?.score ?? 0);
+    const secondBestScore = this.formatScore(second?.score ?? 0);
+    const scoreDelta = this.formatScore((best?.score ?? 0) - (second?.score ?? 0));
+    const topCandidateType = best?.context;
+    const sourceBreakdown = best ? this.calculateSourceBreakdown(best.signals) : this.createEmptyBreakdown();
+    const domainMatchCount = topCandidateType ? domainHintMatches.get(topCandidateType) ?? 0 : 0;
+
+    return {
+      rawScore,
+      secondBestScore,
+      scoreDelta,
+      explicitHintProvided,
+      explicitHintMatchedFinalContext:
+        explicitHintProvided && !!explicitHint && explicitHint === finalContext,
+      topCandidateHintBoosted: topCandidateType ? hintBoostedContexts.has(topCandidateType) : false,
+      domainHintsProvided,
+      domainHintMatches: domainMatchCount,
+      signalCount: best ? Math.min(20, best.signals.size) : 0,
+      sourceBreakdown,
+      topCandidateType,
+      ambiguous: false,
+      lowConfidenceFallback: false
+    };
   }
 }
 
