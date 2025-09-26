@@ -4,6 +4,31 @@
 
 ---
 
+## 📅 SESSION: June 18, 2025
+
+### **Working on**
+- Fixing metrics regressions uncovered after expanding system-context detection, especially around validation failures that occur before detection runs.
+- Ensuring hint telemetry and domain-hint counts remain accurate in error flows so observability dashboards aren't skewed.
+
+### **Status check**
+- API: ✅ (hint telemetry preserved through validation errors)
+- Dashboard: ✅ (no changes this session)
+- Domain: 🔴
+- Extension: 🔴
+- Email: 🔴
+
+### **Accomplished**
+- Patched `ParseService` to keep user-provided hints attached to fallback contexts, using the hinted domain summary when validation halts early.
+- Normalized telemetry fields so `explicitHintProvided`, `explicitHintMatchedFinalContext`, and `domainHintsProvided` stay truthful even without running the detector.
+- Added integration coverage to lock the regression fix and confirm CRM hints remain visible to downstream analytics when parsing fails fast.
+
+### **Still blocked / needs human follow-up**
+- Parserator.com redirect + SSL remains unresolved.
+- Chrome extension submission and branding refresh still pending the domain fix.
+- parse@parserator.com forwarding untouched; launch checklists still call this out.
+
+---
+
 ## 📅 SESSION: June 17, 2025
 
 ### **Working on**

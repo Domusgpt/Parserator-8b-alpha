@@ -130,6 +130,27 @@ describe('ParseService Integration Tests', () => {
       expect(result.metadata.systemContext.metrics.lowConfidenceFallback).toBe(true);
     });
 
+    it('preserves hint telemetry when validation fails before detection', async () => {
+      const request: IParseRequest = {
+        inputData: '',
+        outputSchema: {
+          name: 'string'
+        },
+        systemContextHint: 'crm',
+        domainHints: ['Salesforce sync']
+      };
+
+      const result = await parseService.parse(request);
+
+      expect(result.success).toBe(false);
+      expect(result.error?.stage).toBe('validation');
+      expect(result.metadata.systemContext.type).toBe('crm');
+      expect(result.metadata.systemContext.summary.toLowerCase()).toContain('crm');
+      expect(result.metadata.systemContext.metrics.explicitHintProvided).toBe(true);
+      expect(result.metadata.systemContext.metrics.explicitHintMatchedFinalContext).toBe(true);
+      expect(result.metadata.systemContext.metrics.domainHintsProvided).toBe(1);
+    });
+
     it('should provide detailed metadata', async () => {
       const request: IParseRequest = {
         inputData: 'Name: Jane Smith\nEmail: jane@test.com',

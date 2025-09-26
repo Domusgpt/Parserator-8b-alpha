@@ -282,15 +282,30 @@ export class ParseService {
 
       if (error instanceof ParseError) {
         if (error.stage === 'validation') {
+          const explicitHintProvided = typeof request.systemContextHint === 'string';
+          const fallbackType =
+            explicitHintProvided && request.systemContextHint
+              ? request.systemContextHint
+              : systemContext.type;
+
           systemContext = this.contextDetector.createDefaultContext({
+            type: fallbackType,
+            summary:
+              fallbackType === systemContext.type
+                ? systemContext.summary
+                : this.contextDetector.getSummary(fallbackType),
+            signals: systemContext.signals,
             metrics: {
               ...systemContext.metrics,
               lowConfidenceFallback: true,
-              domainHintsProvided: request.domainHints?.length ?? 0,
-              explicitHintProvided:
-                !!request.systemContextHint && request.systemContextHint !== 'generic',
+              domainHintsProvided: Array.isArray(request.domainHints)
+                ? request.domainHints.length
+                : 0,
+              explicitHintProvided,
               explicitHintMatchedFinalContext:
-                !!request.systemContextHint && request.systemContextHint === 'generic'
+                explicitHintProvided && request.systemContextHint === fallbackType,
+              topCandidateType:
+                systemContext.metrics.topCandidateType ?? fallbackType
             }
           });
         }
