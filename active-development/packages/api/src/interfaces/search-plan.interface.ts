@@ -6,16 +6,97 @@
 /**
  * Validation types supported by the parsing engine
  */
-export type ValidationTypeEnum = 
-  | 'string' 
-  | 'email' 
-  | 'number' 
-  | 'iso_date' 
-  | 'string_array' 
+export type ValidationTypeEnum =
+  | 'string'
+  | 'email'
+  | 'number'
+  | 'iso_date'
+  | 'string_array'
   | 'boolean'
   | 'url'
   | 'phone'
   | 'json_object';
+
+/**
+ * Downstream systems the parser can optimize for
+ */
+export type SystemContextType =
+  | 'generic'
+  | 'crm'
+  | 'ecommerce'
+  | 'finance'
+  | 'healthcare'
+  | 'legal'
+  | 'logistics'
+  | 'marketing'
+  | 'real_estate';
+
+/**
+ * Structured description of the detected downstream system context
+ */
+export interface ISystemContextMetrics {
+  /** Raw weighted score for the top-ranked context before converting to confidence */
+  rawScore: number;
+
+  /** Raw weighted score for the second-ranked context (0 if none) */
+  secondBestScore: number;
+
+  /** Difference between the top two scores to monitor ambiguity */
+  scoreDelta: number;
+
+  /** Whether an explicit systemContextHint was provided */
+  explicitHintProvided: boolean;
+
+  /** Whether the explicit hint matched the final context selection */
+  explicitHintMatchedFinalContext: boolean;
+
+  /** Whether the top candidate received the explicit hint boost */
+  topCandidateHintBoosted: boolean;
+
+  /** Count of domainHints provided with the request */
+  domainHintsProvided: number;
+
+  /** Number of domainHints that contributed to the top candidate */
+  domainHintMatches: number;
+
+  /** Total number of distinct signals recorded for the top candidate */
+  signalCount: number;
+
+  /** Aggregate score contribution per signal source */
+  sourceBreakdown: Record<'schema' | 'instructions' | 'sample' | 'hint', number>;
+
+  /** Top-ranked candidate type before applying ambiguity/threshold guards */
+  topCandidateType?: SystemContextType;
+
+  /** Whether ambiguity handling forced a fallback */
+  ambiguous: boolean;
+
+  /** Whether scores were below the minimum confidence threshold */
+  lowConfidenceFallback: boolean;
+}
+
+export interface ISystemContext {
+  /** The inferred downstream system */
+  type: SystemContextType;
+
+  /** Confidence score for the chosen context (0.0 – 1.0) */
+  confidence: number;
+
+  /** Signals/keywords that influenced the classification */
+  signals: string[];
+
+  /** Human-readable explanation of the context */
+  summary: string;
+
+  /** Optional ranked list of secondary context candidates */
+  alternatives?: Array<{
+    type: SystemContextType;
+    confidence: number;
+  }>;
+
+  /** Structured metrics that describe how the selection was made */
+  metrics: ISystemContextMetrics;
+}
 
 /**
  * Individual step in a SearchPlan
@@ -83,6 +164,9 @@ export interface ISearchPlan {
     
     /** User-provided instructions that influenced the plan */
     userInstructions?: string;
+
+    /** Optional downstream system context guidance */
+    systemContext?: ISystemContext;
   };
 }
 
@@ -166,10 +250,13 @@ export interface IParseResult {
   metadata: {
     /** The SearchPlan that was generated and used */
     architectPlan: ISearchPlan;
-    
+
     /** Overall confidence score (0.0 to 1.0) */
     confidence: number;
-    
+
+    /** Detected downstream system context */
+    systemContext: ISystemContext;
+
     /** Total tokens used across both stages */
     tokensUsed: number;
     

@@ -1,0 +1,525 @@
+import { ISystemContext, ISystemContextMetrics, SystemContextType } from '../interfaces/search-plan.interface';
+
+export interface SystemContextDefinition {
+  keywords: string[];
+  summary: string;
+}
+
+const DEFAULT_SOURCE_WEIGHTS = {
+  schema: 1.25,
+  instructions: 1.5,
+  sample: 1,
+  hint: 2.5
+} as const;
+
+type SourceKey = keyof typeof DEFAULT_SOURCE_WEIGHTS;
+
+export interface SystemContextDetectorOptions {
+  /** Allow callers to override the built-in context definitions */
+  definitions?: Partial<Record<SystemContextType, SystemContextDefinition>>;
+  /** Minimum score required before a non-generic context is considered valid */
+  minimumScore?: number;
+  /** How much to boost the hinted context score when provided */
+  hintBoost?: number;
+  /** Minimum delta between the top two contexts to be considered unambiguous */
+  ambiguityDelta?: number;
+  /** Override the relative weights assigned to signal sources */
+  weights?: Partial<Record<SourceKey, number>>;
+  /** Optional logger for debug output */
+  logger?: Pick<Console, 'debug'>;
+}
+
+interface ContextScore {
+  score: number;
+  signals: Map<string, number>;
+}
+
+const SOURCE_KEYS: SourceKey[] = Object.keys(DEFAULT_SOURCE_WEIGHTS) as SourceKey[];
+
+interface DetectionInput {
+  schemaFields: string[];
+  instructions?: string;
+  sample: string;
+  domainHints?: string[];
+  systemContextHint?: SystemContextType;
+}
+
+const DEFAULT_CONTEXT_DEFINITIONS: Record<SystemContextType, SystemContextDefinition> = {
+  generic: {
+    keywords: [],
+    summary: 'General-purpose parsing without downstream system specialization.'
+  },
+  crm: {
+    keywords: [
+      'crm',
+      'customer',
+      'lead',
+      'contact',
+      'account',
+      'opportunity',
+      'pipeline',
+      'salesforce',
+      'hubspot'
+    ],
+    summary: 'Optimized for CRM and customer-data systems focused on contacts, leads, and account lifecycle.'
+  },
+  ecommerce: {
+    keywords: [
+      'order',
+      'cart',
+      'sku',
+      'product',
+      'inventory',
+      'shipment',
+      'checkout',
+      'purchase',
+      'shopify'
+    ],
+    summary: 'Optimized for e-commerce flows involving products, orders, fulfillment, and post-purchase data.'
+  },
+  finance: {
+    keywords: [
+      'invoice',
+      'amount',
+      'transaction',
+      'accounting',
+      'balance',
+      'payment',
+      'tax',
+      'ledger',
+      'bank'
+    ],
+    summary: 'Optimized for financial documents, invoices, and transaction records that require numeric precision.'
+  },
+  healthcare: {
+    keywords: [
+      'patient',
+      'diagnosis',
+      'medical',
+      'appointment',
+      'clinic',
+      'provider',
+      'medication',
+      'record',
+      'health'
+    ],
+    summary: 'Optimized for healthcare records where patient safety, compliance, and terminology accuracy matter.'
+  },
+  legal: {
+    keywords: [
+      'case',
+      'court',
+      'contract',
+      'legal',
+      'compliance',
+      'evidence',
+      'claim',
+      'statute',
+      'attorney'
+    ],
+    summary: 'Optimized for legal documents that emphasize case details, compliance, and contractual obligations.'
+  },
+  logistics: {
+    keywords: [
+      'shipment',
+      'tracking',
+      'warehouse',
+      'delivery',
+      'carrier',
+      'freight',
+      'logistics',
+      'route',
+      'bill of lading'
+    ],
+    summary: 'Optimized for logistics and supply-chain workflows involving shipments, tracking, and routing events.'
+  },
+  marketing: {
+    keywords: [
+      'campaign',
+      'utm',
+      'conversion',
+      'click',
+      'impression',
+      'ad',
+      'marketing',
+      'funnel',
+      'segment'
+    ],
+    summary: 'Optimized for marketing analytics where campaign attribution and engagement metrics are critical.'
+  },
+  real_estate: {
+    keywords: [
+      'property',
+      'listing',
+      'mls',
+      'agent',
+      'tenant',
+      'lease',
+      'square footage',
+      'closing',
+      'escrow'
+    ],
+    summary: 'Optimized for real-estate operations managing properties, listings, and transaction timelines.'
+  }
+};
+
+const DEFAULT_MINIMUM_SCORE = 1;
+const DEFAULT_HINT_BOOST = 1.25;
+const DEFAULT_AMBIGUITY_DELTA = 1;
+
+const SIGNAL_SOURCE_PREFIX: Record<SourceKey, string> = {
+  schema: 'schema',
+  instructions: 'instructions',
+  sample: 'sample',
+  hint: 'hint'
+};
+
+function normalize(text: string): string {
+  return text.toLowerCase();
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) {
+    return 0;
+  }
+
+  const pattern = new RegExp(`\\b${escapeRegExp(needle.toLowerCase())}\\b`, 'g');
+  return (haystack.match(pattern) || []).length;
+}
+
+export class SystemContextDetector {
+  private readonly definitions: Record<SystemContextType, SystemContextDefinition>;
+  private readonly minimumScore: number;
+  private readonly hintBoost: number;
+  private readonly ambiguityDelta: number;
+  private readonly sourceWeights: Record<SourceKey, number>;
+  private readonly logger?: Pick<Console, 'debug'>;
+
+  constructor(options: SystemContextDetectorOptions = {}) {
+    this.definitions = {
+      ...DEFAULT_CONTEXT_DEFINITIONS,
+      ...options.definitions
+    } as Record<SystemContextType, SystemContextDefinition>;
+
+    this.minimumScore = options.minimumScore ?? DEFAULT_MINIMUM_SCORE;
+    this.hintBoost = options.hintBoost ?? DEFAULT_HINT_BOOST;
+    this.ambiguityDelta = options.ambiguityDelta ?? DEFAULT_AMBIGUITY_DELTA;
+    this.sourceWeights = {
+      ...DEFAULT_SOURCE_WEIGHTS,
+      ...options.weights
+    };
+    this.logger = options.logger;
+  }
+
+  createDefaultContext(overrides: Partial<ISystemContext> = {}): ISystemContext {
+    const type = overrides.type ?? 'generic';
+    const defaultMetrics: ISystemContextMetrics = {
+      rawScore: 0,
+      secondBestScore: 0,
+      scoreDelta: 0,
+      explicitHintProvided: false,
+      explicitHintMatchedFinalContext: false,
+      topCandidateHintBoosted: false,
+      domainHintsProvided: 0,
+      domainHintMatches: 0,
+      signalCount: overrides.signals?.length ?? 0,
+      sourceBreakdown: this.createEmptyBreakdown(),
+      topCandidateType: undefined,
+      ambiguous: false,
+      lowConfidenceFallback: false
+    };
+
+    const metrics = overrides.metrics
+      ? {
+          ...defaultMetrics,
+          ...overrides.metrics,
+          sourceBreakdown: {
+            ...this.createEmptyBreakdown(),
+            ...overrides.metrics.sourceBreakdown
+          }
+        }
+      : defaultMetrics;
+
+    return {
+      type,
+      confidence: overrides.confidence ?? 0.1,
+      signals: overrides.signals ?? [],
+      summary: overrides.summary ?? this.getSummary(type),
+      alternatives: overrides.alternatives ?? [],
+      metrics
+    };
+  }
+
+  getSummary(context: SystemContextType): string {
+    return this.definitions[context]?.summary ?? this.definitions.generic.summary;
+  }
+
+  detect(input: DetectionInput): ISystemContext {
+    const normalizedSample = normalize(input.sample);
+    const normalizedInstructions = normalize(input.instructions ?? '');
+    const normalizedSchema = normalize(input.schemaFields.join(' '));
+
+    const contextScores = new Map<SystemContextType, ContextScore>();
+    const domainHintMatches = new Map<SystemContextType, number>();
+    const hintBoostedContexts = new Set<SystemContextType>();
+    const domainHintsProvided = input.domainHints?.length ?? 0;
+    const explicitHintProvided = Boolean(input.systemContextHint && input.systemContextHint !== 'generic');
+    (Object.keys(this.definitions) as SystemContextType[]).forEach(context => {
+      contextScores.set(context, { score: 0, signals: new Map<string, number>() });
+      domainHintMatches.set(context, 0);
+    });
+
+    const updateContextScore = (
+      context: SystemContextType,
+      amount: number,
+      signal: string,
+      source: SourceKey
+    ): void => {
+      const contextScore = contextScores.get(context);
+      if (!contextScore || amount <= 0) {
+        return;
+      }
+
+      contextScore.score += amount;
+      const prefixedSignal = `${SIGNAL_SOURCE_PREFIX[source]}:${signal}`;
+      const existing = contextScore.signals.get(prefixedSignal) ?? 0;
+      contextScore.signals.set(prefixedSignal, existing + amount);
+    };
+
+    const evaluateTextSource = (
+      context: SystemContextType,
+      text: string,
+      weight: number,
+      source: SourceKey
+    ): void => {
+      if (!text.trim()) {
+        return;
+      }
+
+      const normalizedText = normalize(text);
+      this.definitions[context].keywords.forEach(keyword => {
+        const occurrences = countOccurrences(normalizedText, keyword);
+        if (occurrences > 0) {
+          updateContextScore(context, occurrences * weight, keyword, source);
+        }
+      });
+    };
+
+    (Object.keys(this.definitions) as SystemContextType[]).forEach(context => {
+      if (context === 'generic') {
+        return;
+      }
+
+      evaluateTextSource(context, normalizedSchema, this.sourceWeights.schema, 'schema');
+      evaluateTextSource(context, normalizedInstructions, this.sourceWeights.instructions, 'instructions');
+      evaluateTextSource(context, normalizedSample, this.sourceWeights.sample, 'sample');
+    });
+
+    if (input.domainHints?.length) {
+      input.domainHints.forEach(hint => {
+        const normalizedHint = normalize(hint);
+        (Object.keys(this.definitions) as SystemContextType[]).forEach(context => {
+          if (context === 'generic') {
+            return;
+          }
+
+          const matchesContextName = normalizedHint.includes(context.replace('_', ' '));
+          const matchesKeyword = this.definitions[context].keywords.some(keyword =>
+            normalizedHint.includes(keyword)
+          );
+
+          if (matchesContextName || matchesKeyword) {
+            const existingMatches = domainHintMatches.get(context) ?? 0;
+            domainHintMatches.set(context, existingMatches + 1);
+            updateContextScore(context, this.sourceWeights.hint, hint, 'hint');
+          }
+        });
+      });
+    }
+
+    if (input.systemContextHint && input.systemContextHint !== 'generic') {
+      updateContextScore(
+        input.systemContextHint,
+        this.hintBoost,
+        input.systemContextHint,
+        'hint'
+      );
+      hintBoostedContexts.add(input.systemContextHint);
+    }
+
+    const rankedContexts = Array.from(contextScores.entries())
+      .filter(([context]) => context !== 'generic')
+      .map(([context, data]) => ({
+        context,
+        score: Number(data.score.toFixed(2)),
+        signals: data.signals
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    const best = rankedContexts[0];
+    const second = rankedContexts[1];
+
+    const signals = best
+      ? Array.from(best.signals.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([signal]) => signal)
+      : [];
+
+    const baseMetrics = this.createMetrics({
+      best,
+      second,
+      domainHintsProvided,
+      domainHintMatches,
+      hintBoostedContexts,
+      explicitHintProvided,
+      finalContext: best?.context ?? 'generic',
+      explicitHint: input.systemContextHint
+    });
+
+    if (!best || best.score < this.minimumScore) {
+      return this.createDefaultContext({
+        summary: `${this.getSummary('generic')} No strong signals detected.`,
+        metrics: {
+          ...baseMetrics,
+          explicitHintMatchedFinalContext:
+            explicitHintProvided && input.systemContextHint === 'generic',
+          lowConfidenceFallback: true,
+          topCandidateType: best?.context
+        }
+      });
+    }
+
+    if (second && best.score - second.score < this.ambiguityDelta) {
+      this.logger?.debug?.('System context ambiguous', {
+        best,
+        second
+      });
+      return this.createDefaultContext({
+        summary: `${this.getSummary('generic')} Signals were too evenly distributed across contexts.`,
+        metrics: {
+          ...baseMetrics,
+          explicitHintMatchedFinalContext:
+            explicitHintProvided && input.systemContextHint === 'generic',
+          ambiguous: true,
+          topCandidateType: best.context
+        }
+      });
+    }
+
+    const alternatives = rankedContexts
+      .slice(1, 4)
+      .filter(candidate => candidate.score > 0)
+      .map(candidate => ({
+        type: candidate.context,
+        confidence: this.toConfidence(candidate.score)
+      }));
+
+    const summarySignals = signals.length
+      ? `Signals: ${signals.slice(0, 5).join(', ')}.`
+      : 'Signals were sparse but pointed to this domain.';
+
+    return {
+      type: best.context,
+      confidence: this.toConfidence(best.score),
+      signals: signals.slice(0, 20),
+      summary: `${this.getSummary(best.context)} ${summarySignals}`.trim(),
+      alternatives,
+      metrics: {
+        ...baseMetrics,
+        explicitHintMatchedFinalContext:
+          explicitHintProvided && input.systemContextHint === best.context,
+        topCandidateType: best.context
+      }
+    };
+  }
+
+  private toConfidence(score: number): number {
+    if (score <= 0) {
+      return 0.1;
+    }
+
+    const confidence = Math.min(0.95, 0.35 + Math.log2(1 + score));
+    return Number(confidence.toFixed(2));
+  }
+
+  private createEmptyBreakdown(): Record<SourceKey, number> {
+    return SOURCE_KEYS.reduce(
+      (acc, key) => ({
+        ...acc,
+        [key]: 0
+      }),
+      {} as Record<SourceKey, number>
+    );
+  }
+
+  private formatScore(value: number): number {
+    return Number(value.toFixed(2));
+  }
+
+  private calculateSourceBreakdown(signals: Map<string, number>): Record<SourceKey, number> {
+    const totals: Record<SourceKey, number> = this.createEmptyBreakdown();
+
+    signals.forEach((value, key) => {
+      const [source] = key.split(':');
+      if (SOURCE_KEYS.includes(source as SourceKey)) {
+        const typedSource = source as SourceKey;
+        totals[typedSource] += value;
+      }
+    });
+
+    return SOURCE_KEYS.reduce((acc, key) => {
+      acc[key] = this.formatScore(totals[key]);
+      return acc;
+    }, this.createEmptyBreakdown());
+  }
+
+  private createMetrics({
+    best,
+    second,
+    domainHintsProvided,
+    domainHintMatches,
+    hintBoostedContexts,
+    explicitHintProvided,
+    finalContext,
+    explicitHint
+  }: {
+    best?: { context: SystemContextType; score: number; signals: Map<string, number> };
+    second?: { context: SystemContextType; score: number };
+    domainHintsProvided: number;
+    domainHintMatches: Map<SystemContextType, number>;
+    hintBoostedContexts: Set<SystemContextType>;
+    explicitHintProvided: boolean;
+    finalContext: SystemContextType;
+    explicitHint?: SystemContextType;
+  }): ISystemContextMetrics {
+    const rawScore = this.formatScore(best?.score ?? 0);
+    const secondBestScore = this.formatScore(second?.score ?? 0);
+    const scoreDelta = this.formatScore((best?.score ?? 0) - (second?.score ?? 0));
+    const topCandidateType = best?.context;
+    const sourceBreakdown = best ? this.calculateSourceBreakdown(best.signals) : this.createEmptyBreakdown();
+    const domainMatchCount = topCandidateType ? domainHintMatches.get(topCandidateType) ?? 0 : 0;
+
+    return {
+      rawScore,
+      secondBestScore,
+      scoreDelta,
+      explicitHintProvided,
+      explicitHintMatchedFinalContext:
+        explicitHintProvided && !!explicitHint && explicitHint === finalContext,
+      topCandidateHintBoosted: topCandidateType ? hintBoostedContexts.has(topCandidateType) : false,
+      domainHintsProvided,
+      domainHintMatches: domainMatchCount,
+      signalCount: best ? Math.min(20, best.signals.size) : 0,
+      sourceBreakdown,
+      topCandidateType,
+      ambiguous: false,
+      lowConfidenceFallback: false
+    };
+  }
+}
+
+export const SYSTEM_CONTEXT_DEFINITIONS = DEFAULT_CONTEXT_DEFINITIONS;

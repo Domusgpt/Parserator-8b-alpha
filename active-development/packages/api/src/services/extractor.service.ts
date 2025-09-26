@@ -4,13 +4,15 @@
  * Executes SearchPlans to extract structured data from unstructured input
  */
 
-import { 
-  ISearchPlan, 
-  IExtractorResult, 
-  ISearchStep, 
-  ValidationTypeEnum 
+import {
+  ISearchPlan,
+  IExtractorResult,
+  ISearchStep,
+  ValidationTypeEnum,
+  ISystemContext
 } from '../interfaces/search-plan.interface';
 import { GeminiService, ILLMOptions, LLMError } from './llm.service';
+import { SystemContextDetector } from './system-context-detector';
 
 /**
  * Configuration for Extractor operations
@@ -53,6 +55,7 @@ export class ExtractorError extends Error {
 export class ExtractorService {
   private config: IExtractorConfig;
   private logger: Console;
+  private contextDetector: SystemContextDetector;
 
   // Default configuration optimized for extraction efficiency
   private static readonly DEFAULT_CONFIG: IExtractorConfig = {
@@ -66,10 +69,12 @@ export class ExtractorService {
   constructor(
     private geminiService: GeminiService,
     config?: Partial<IExtractorConfig>,
-    logger?: Console
+    logger?: Console,
+    contextDetector?: SystemContextDetector
   ) {
     this.config = { ...ExtractorService.DEFAULT_CONFIG, ...config };
     this.logger = logger || console;
+    this.contextDetector = contextDetector || new SystemContextDetector({ logger: this.logger });
 
     this.logger.info('ExtractorService initialized', {
       maxInputLength: this.config.maxInputLength,
@@ -84,7 +89,8 @@ export class ExtractorService {
   async executeSearchPlan(
     inputData: string,
     searchPlan: ISearchPlan,
-    requestId?: string
+    requestId?: string,
+    systemContext?: ISystemContext
   ): Promise<IExtractorResult> {
     const startTime = Date.now();
     const operationId = requestId || this.generateOperationId();
@@ -101,8 +107,13 @@ export class ExtractorService {
       // Validate inputs
       this.validateInputs(inputData, searchPlan);
 
+      // Normalize context information for downstream prompt guidance
+      const normalizedContext = this.contextDetector.createDefaultContext(
+        systemContext || searchPlan.metadata.systemContext || {}
+      );
+
       // Build the extractor prompt
-      const prompt = this.buildExtractorPrompt(inputData, searchPlan);
+      const prompt = this.buildExtractorPrompt(inputData, searchPlan, normalizedContext);
 
       // Call Gemini with extractor-specific options
       const llmOptions: ILLMOptions = {
@@ -207,13 +218,20 @@ export class ExtractorService {
   /**
    * Build the optimized prompt for the Extractor LLM
    */
-  private buildExtractorPrompt(inputData: string, searchPlan: ISearchPlan): string {
+  private buildExtractorPrompt(
+    inputData: string,
+    searchPlan: ISearchPlan,
+    systemContext?: ISystemContext
+  ): string {
     const stepsJson = JSON.stringify(searchPlan.steps, null, 2);
+    const contextGuidance = this.buildExtractorContextGuidance(systemContext);
 
     return `You are the Extractor in a two-stage data parsing system. The Architect has analyzed the data and created a SearchPlan for you to follow. Your job is to execute this plan precisely and extract the requested data.
 
 ## YOUR TASK
 Follow the SearchPlan exactly to extract data from the input. Return a JSON object with the extracted values.
+
+${contextGuidance}
 
 ## INPUT DATA
 \`\`\`
@@ -297,6 +315,87 @@ Example response:
 \`\`\`
 
 RESPOND WITH ONLY THE JSON - NO OTHER TEXT.`;
+  }
+
+  /**
+   * Provide context-aware hints for the Extractor prompt
+   */
+  private buildExtractorContextGuidance(systemContext?: ISystemContext): string {
+    const context: ISystemContext = this.contextDetector.createDefaultContext(systemContext || {});
+
+    const focusLines: string[] = [];
+
+    switch (context.type) {
+      case 'crm':
+        focusLines.push(
+          '- Return clean contact details suitable for CRM storage.',
+          '- Normalize names (first/last) when possible without inventing data.',
+          '- Preserve identifiers that help merge with existing accounts.'
+        );
+        break;
+      case 'ecommerce':
+        focusLines.push(
+          '- Ensure numeric accuracy for prices, totals, and quantities.',
+          '- Extract SKU/product codes exactly as written.',
+          '- Include fulfillment details (shipping methods, tracking IDs) when available.'
+        );
+        break;
+      case 'finance':
+        focusLines.push(
+          '- Preserve currency symbols and decimal precision.',
+          '- Include reference numbers that support reconciliation.',
+          '- Reflect negative/positive amounts exactly as shown.'
+        );
+        break;
+      case 'healthcare':
+        focusLines.push(
+          '- Maintain medical terminology and abbreviations verbatim.',
+          '- Include patient identifiers and visit timestamps if present.',
+          '- Avoid inferring PHI—only output what is explicitly provided.'
+        );
+        break;
+      case 'legal':
+        focusLines.push(
+          '- Quote clauses or obligations precisely.',
+          '- Capture parties, dates, and jurisdictions without alteration.',
+          '- Maintain citation formatting for statutes or case references.'
+        );
+        break;
+      case 'logistics':
+        focusLines.push(
+          '- Report shipment statuses, locations, and timing milestones.',
+          '- Include package identifiers such as PRO/booking numbers.',
+          '- Keep units of measure (lbs, kg, pallets) intact.'
+        );
+        break;
+      case 'marketing':
+        focusLines.push(
+          '- Extract metrics with their associated time frames.',
+          '- Keep UTM parameters and campaign IDs exact.',
+          '- Surface audience or segment names without abbreviation unless already present.'
+        );
+        break;
+      case 'real_estate':
+        focusLines.push(
+          '- Include property addresses, MLS IDs, and listing prices.',
+          '- Preserve square footage and lot size units.',
+          '- Capture agent/broker contact information accurately.'
+        );
+        break;
+      default:
+        focusLines.push('- Apply general best practices for faithful extraction.');
+        break;
+    }
+
+    const signalInfo = (context.signals || []).slice(0, 5).join(', ') || 'n/a';
+    const confidencePercent = Math.round((context.confidence || 0) * 100);
+
+    return `## CONTEXT-AWARE EXTRACTION NOTES
+Target system: ${context.type.toUpperCase()}
+Confidence: ${confidencePercent}%
+Primary signals: ${signalInfo}
+Focus on:
+${focusLines.join('\n')}`;
   }
 
   /**

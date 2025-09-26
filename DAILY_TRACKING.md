@@ -4,6 +4,170 @@
 
 ---
 
+## 📅 SESSION: June 18, 2025
+
+### **Working on**
+- Fixing metrics regressions uncovered after expanding system-context detection, especially around validation failures that occur before detection runs.
+- Ensuring hint telemetry and domain-hint counts remain accurate in error flows so observability dashboards aren't skewed.
+
+### **Status check**
+- API: ✅ (hint telemetry preserved through validation errors)
+- Dashboard: ✅ (no changes this session)
+- Domain: 🔴
+- Extension: 🔴
+- Email: 🔴
+
+### **Accomplished**
+- Patched `ParseService` to keep user-provided hints attached to fallback contexts, using the hinted domain summary when validation halts early.
+- Normalized telemetry fields so `explicitHintProvided`, `explicitHintMatchedFinalContext`, and `domainHintsProvided` stay truthful even without running the detector.
+- Added integration coverage to lock the regression fix and confirm CRM hints remain visible to downstream analytics when parsing fails fast.
+
+### **Still blocked / needs human follow-up**
+- Parserator.com redirect + SSL remains unresolved.
+- Chrome extension submission and branding refresh still pending the domain fix.
+- parse@parserator.com forwarding untouched; launch checklists still call this out.
+
+---
+
+## 📅 SESSION: June 17, 2025
+
+### **Working on**
+- Sharing the upgraded system-context detector across the Parse, Architect, and Extractor flows so tuning happens once and propagates everywhere.
+- Exercising configurable signal weights/keywords with fresh coverage to validate marketing and other niche domains before launch.
+
+### **Status check**
+- API: ✅ (shared detector config + weight overrides covered by tests)
+- Dashboard: ✅ (awaiting data wiring; no regression from API work)
+- Domain: 🔴
+- Extension: 🔴
+- Email: 🔴
+
+### **Accomplished**
+- Added optional detector options to ParseService and reused the instance inside the Architect/Extractor services to keep context telemetry consistent.
+- Introduced customizable signal source weights in `SystemContextDetector` plus marketing keyword overrides with unit/integration coverage.
+- Captured how to bias detection for newsletter/marketing flows so near-term launch checks can validate the niche datasets quickly.
+
+### **Still blocked / needs human follow-up**
+- Parserator.com redirect + SSL remains unresolved.
+- Chrome extension submission and branding refresh still pending the domain fix.
+- parse@parserator.com forwarding untouched; launch checklists still call this out.
+
+---
+
+## 📅 SESSION: June 16, 2025
+
+### **Working on**
+- Capturing richer system-context detector telemetry so downstream dashboards and observability can compare raw scores, hint usage, and ambiguity fallbacks.
+- Propagating the new metrics through ParseService responses and failure flows so validation errors still surface structured insight.
+
+### **Status check**
+- API: ✅ (metrics emitted with every parse response)
+- Dashboard: ✅ (ready to ingest new telemetry once wired)
+- Domain: 🔴
+- Extension: 🔴
+- Email: 🔴
+
+### **Accomplished**
+- Extended the detector to compute per-source score breakdowns, hint utilization flags, and ambiguity markers, surfacing them in the `ISystemContext.metrics` payload.
+- Updated ParseService logging and failure handling so low-confidence/validation exits still record hint usage, domain hint counts, and fallback reasons.
+- Expanded Jest coverage to assert the new metrics in both unit and integration scenarios.
+
+### **Next priority**
+- Pipe the structured metrics into centralized logging/analytics once the destination is finalized so we can visualize ambiguity rates and hint effectiveness.
+- Surface the metrics in the dashboard context inspector to help operators triage edge cases.
+
+### **Notes**
+- Validation failures now mark `lowConfidenceFallback` with provided hint counts so support can distinguish user input issues from detector ambiguity.
+- Source breakdowns aggregate to two-decimal precision to keep telemetry payloads compact while remaining human-readable.
+
+---
+
+## 📅 SESSION: June 15, 2025
+
+### **Working on**
+- Hardening the system-context detection so Architect/Extractor prompts receive reliable downstream signals.
+- Breaking the detection heuristics into a reusable service with coverage to guard against regressions.
+
+### **Status check**
+- API: ✅ (system context detector extracted into dedicated service)
+- Dashboard: ✅
+- Domain: 🔴
+- Extension: 🔴
+- Email: 🔴
+
+### **Accomplished**
+- Implemented a `SystemContextDetector` service with weighted keyword, hint, and schema analysis plus alternative rankings.
+- Updated `ParseService` orchestration to consume the detector, expose candidate contexts, and log richer context telemetry.
+- Added targeted Jest coverage for the detector and refreshed integration tests; `npm test --workspace @parserator/api` now passes locally.
+
+### **Follow-ups**
+- Pipe the detector’s alternative rankings into the dashboard once the live data wiring lands so operators can see competing domains.
+- Feed structured detection metrics (top score, delta, hint usage) into observability once the logging destination is finalized.
+
+---
+
+## 📅 SESSION: June 14, 2025
+
+### **Working on**
+- Wiring the production dashboard to the authenticated API so live usage, profile, and key management data replace the placeholder mocks.
+- Building client-side helpers for storing API credentials securely in-browser and handling key lifecycle operations.
+
+### **Status check**
+- API: ✅
+- Dashboard: ✅ (now fetches live profile, usage, and API key data when an API key is connected)
+- Domain: 🔴
+- Extension: 🔴
+- Email: 🔴
+
+### **Accomplished**
+- Replaced all dashboard mock data with real API calls for profile, usage insights, key listing, creation, and revocation.
+- Added local storage-backed helpers so developers can connect their API key once, safely cache freshly created secrets, and refresh data on demand.
+- Introduced guided onboarding (recommendations, quick start, and usage trend visuals) that react to real account metrics.
+- Documented connection state and error handling pathways so future work on auth or rate limiting has a clear baseline.
+
+### **Next priority**
+- Human: finalize Firebase custom domain routing fix (still the top blocker for launch readiness).
+- Wire the dashboard to Firestore-backed usage history once available so the “Usage Trends” chart reflects actual telemetry instead of estimated bars.
+- Evaluate adding authenticated session support (beyond API key) if email onboarding requires persistent accounts.
+
+### **Notes**
+- Local storage keys: `parserator_dashboard_auth_key` holds the dashboard connection key, and `parserator_dashboard_key_cache_v1` stores any plaintext keys generated during this session for reveal/copy purposes.
+- When the active API key is revoked, the dashboard now automatically prompts for a new key to avoid silent auth failures.
+- Manual refresh button exercises `/user/profile`, `/user/usage`, and `/user/api-keys` simultaneously to keep the UI consistent after any mutation.
+
+---
+
+## 📅 SESSION: June 13, 2025
+
+### **Working on**
+- Upgrading the Architect/Extractor pipeline to become system-aware.
+- Documenting progress toward the launch blockers (domain redirect, Chrome extension, support email).
+
+### **Status check**
+- API: ✅
+- Dashboard: ✅ (still mock data, now ready to receive live context metadata once wired)
+- Domain: 🔴 (Firebase custom-domain fix still pending human access)
+- Extension: 🔴 (assets ready, submission blocked on Chrome Web Store access)
+- Email: 🔴 (parse@parserator.com forwarding still unconfigured)
+
+### **Accomplished**
+- Added automatic downstream-system detection (CRM, e-commerce, finance, etc.) in `ParseService` with contextual prompts for both Architect and Extractor stages.
+- Extended API schema so clients can optionally pass explicit context hints or domain keywords.
+- Ensured every parse response now returns structured `systemContext` metadata with confidence, signals, and narrative summary.
+- Hardened validation and updated integration tests to assert the new behavior.
+
+### **Next priority**
+- Human: finish Firebase domain remap following `DOMAIN_REDIRECT_FIX.md` so marketing assets can go live.
+- Human: submit Chrome extension package (`parserator-chrome-extension-v1.0.1.zip`) via the Dev Console.
+- Human: finalize parse@parserator.com forwarding/alias configuration.
+
+### **Notes**
+- The detection map currently covers CRM, e-commerce, finance, healthcare, legal, logistics, marketing, and real-estate; expand with additional signals as new verticals come online.
+- Dashboard still relies on mock data—after the API context work, next step is wiring `/v1/usage` into the Next.js app once authentication flow is settled.
+- No environment access to Firebase/Google Workspace, so infrastructure fixes remain documented but unexecuted here.
+
+---
+
 ## 📅 SESSION: June 12, 2025
 
 ### **Major Accomplishment**
