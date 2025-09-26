@@ -69,11 +69,12 @@ export class ExtractorService {
   constructor(
     private geminiService: GeminiService,
     config?: Partial<IExtractorConfig>,
-    logger?: Console
+    logger?: Console,
+    contextDetector?: SystemContextDetector
   ) {
     this.config = { ...ExtractorService.DEFAULT_CONFIG, ...config };
     this.logger = logger || console;
-    this.contextDetector = new SystemContextDetector({ logger: this.logger });
+    this.contextDetector = contextDetector || new SystemContextDetector({ logger: this.logger });
 
     this.logger.info('ExtractorService initialized', {
       maxInputLength: this.config.maxInputLength,

@@ -15,7 +15,11 @@ import {
 import { GeminiService } from './llm.service';
 import { ArchitectService, ArchitectError } from './architect.service';
 import { ExtractorService, ExtractorError } from './extractor.service';
-import { SystemContextDetector, SYSTEM_CONTEXT_DEFINITIONS } from './system-context-detector';
+import {
+  SystemContextDetector,
+  SYSTEM_CONTEXT_DEFINITIONS,
+  SystemContextDetectorOptions
+} from './system-context-detector';
 
 /**
  * Configuration for Parse operations
@@ -105,10 +109,16 @@ export class ParseService {
   constructor(
     private geminiService: GeminiService,
     config?: Partial<IParseConfig>,
-    logger?: Console
+    logger?: Console,
+    contextDetectorOptions?: SystemContextDetectorOptions
   ) {
     this.config = { ...ParseService.DEFAULT_CONFIG, ...config };
     this.logger = logger || console;
+
+    this.contextDetector = new SystemContextDetector({
+      ...contextDetectorOptions,
+      logger: contextDetectorOptions?.logger ?? this.logger
+    });
 
     // Initialize sub-services
     this.architectService = new ArchitectService(
@@ -118,7 +128,8 @@ export class ParseService {
         maxFieldCount: this.config.maxSchemaFields,
         timeoutMs: Math.floor(this.config.timeoutMs * 0.4) // 40% of total time
       },
-      this.logger
+      this.logger,
+      this.contextDetector
     );
 
     this.extractorService = new ExtractorService(
@@ -127,10 +138,9 @@ export class ParseService {
         maxInputLength: this.config.maxInputLength,
         timeoutMs: Math.floor(this.config.timeoutMs * 0.6) // 60% of total time
       },
-      this.logger
+      this.logger,
+      this.contextDetector
     );
-
-    this.contextDetector = new SystemContextDetector({ logger: this.logger });
 
     this.logger.info('ParseService initialized', {
       maxInputLength: this.config.maxInputLength,

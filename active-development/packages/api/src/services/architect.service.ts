@@ -69,11 +69,12 @@ export class ArchitectService {
   constructor(
     private geminiService: GeminiService,
     config?: Partial<IArchitectConfig>,
-    logger?: Console
+    logger?: Console,
+    contextDetector?: SystemContextDetector
   ) {
     this.config = { ...ArchitectService.DEFAULT_CONFIG, ...config };
     this.logger = logger || console;
-    this.contextDetector = new SystemContextDetector({ logger: this.logger });
+    this.contextDetector = contextDetector || new SystemContextDetector({ logger: this.logger });
 
     this.logger.info('ArchitectService initialized', {
       promptVersion: this.config.promptVersion,

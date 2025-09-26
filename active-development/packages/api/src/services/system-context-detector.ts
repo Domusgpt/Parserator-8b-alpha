@@ -5,6 +5,15 @@ export interface SystemContextDefinition {
   summary: string;
 }
 
+const DEFAULT_SOURCE_WEIGHTS = {
+  schema: 1.25,
+  instructions: 1.5,
+  sample: 1,
+  hint: 2.5
+} as const;
+
+type SourceKey = keyof typeof DEFAULT_SOURCE_WEIGHTS;
+
 export interface SystemContextDetectorOptions {
   /** Allow callers to override the built-in context definitions */
   definitions?: Partial<Record<SystemContextType, SystemContextDefinition>>;
@@ -14,18 +23,18 @@ export interface SystemContextDetectorOptions {
   hintBoost?: number;
   /** Minimum delta between the top two contexts to be considered unambiguous */
   ambiguityDelta?: number;
+  /** Override the relative weights assigned to signal sources */
+  weights?: Partial<Record<SourceKey, number>>;
   /** Optional logger for debug output */
   logger?: Pick<Console, 'debug'>;
 }
-
-type SourceKey = keyof typeof SOURCE_WEIGHTS;
 
 interface ContextScore {
   score: number;
   signals: Map<string, number>;
 }
 
-const SOURCE_KEYS: SourceKey[] = ['schema', 'instructions', 'sample', 'hint'];
+const SOURCE_KEYS: SourceKey[] = Object.keys(DEFAULT_SOURCE_WEIGHTS) as SourceKey[];
 
 interface DetectionInput {
   schemaFields: string[];
@@ -158,14 +167,7 @@ const DEFAULT_MINIMUM_SCORE = 1;
 const DEFAULT_HINT_BOOST = 1.25;
 const DEFAULT_AMBIGUITY_DELTA = 1;
 
-const SOURCE_WEIGHTS = {
-  schema: 1.25,
-  instructions: 1.5,
-  sample: 1,
-  hint: 2.5
-} as const;
-
-const SIGNAL_SOURCE_PREFIX: Record<keyof typeof SOURCE_WEIGHTS, string> = {
+const SIGNAL_SOURCE_PREFIX: Record<SourceKey, string> = {
   schema: 'schema',
   instructions: 'instructions',
   sample: 'sample',
@@ -194,6 +196,7 @@ export class SystemContextDetector {
   private readonly minimumScore: number;
   private readonly hintBoost: number;
   private readonly ambiguityDelta: number;
+  private readonly sourceWeights: Record<SourceKey, number>;
   private readonly logger?: Pick<Console, 'debug'>;
 
   constructor(options: SystemContextDetectorOptions = {}) {
@@ -205,6 +208,10 @@ export class SystemContextDetector {
     this.minimumScore = options.minimumScore ?? DEFAULT_MINIMUM_SCORE;
     this.hintBoost = options.hintBoost ?? DEFAULT_HINT_BOOST;
     this.ambiguityDelta = options.ambiguityDelta ?? DEFAULT_AMBIGUITY_DELTA;
+    this.sourceWeights = {
+      ...DEFAULT_SOURCE_WEIGHTS,
+      ...options.weights
+    };
     this.logger = options.logger;
   }
 
@@ -287,7 +294,7 @@ export class SystemContextDetector {
       context: SystemContextType,
       text: string,
       weight: number,
-      source: keyof typeof SOURCE_WEIGHTS
+      source: SourceKey
     ): void => {
       if (!text.trim()) {
         return;
@@ -307,9 +314,9 @@ export class SystemContextDetector {
         return;
       }
 
-      evaluateTextSource(context, normalizedSchema, SOURCE_WEIGHTS.schema, 'schema');
-      evaluateTextSource(context, normalizedInstructions, SOURCE_WEIGHTS.instructions, 'instructions');
-      evaluateTextSource(context, normalizedSample, SOURCE_WEIGHTS.sample, 'sample');
+      evaluateTextSource(context, normalizedSchema, this.sourceWeights.schema, 'schema');
+      evaluateTextSource(context, normalizedInstructions, this.sourceWeights.instructions, 'instructions');
+      evaluateTextSource(context, normalizedSample, this.sourceWeights.sample, 'sample');
     });
 
     if (input.domainHints?.length) {
@@ -328,7 +335,7 @@ export class SystemContextDetector {
           if (matchesContextName || matchesKeyword) {
             const existingMatches = domainHintMatches.get(context) ?? 0;
             domainHintMatches.set(context, existingMatches + 1);
-            updateContextScore(context, SOURCE_WEIGHTS.hint, hint, 'hint');
+            updateContextScore(context, this.sourceWeights.hint, hint, 'hint');
           }
         });
       });

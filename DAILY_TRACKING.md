@@ -4,6 +4,31 @@
 
 ---
 
+## 📅 SESSION: June 17, 2025
+
+### **Working on**
+- Sharing the upgraded system-context detector across the Parse, Architect, and Extractor flows so tuning happens once and propagates everywhere.
+- Exercising configurable signal weights/keywords with fresh coverage to validate marketing and other niche domains before launch.
+
+### **Status check**
+- API: ✅ (shared detector config + weight overrides covered by tests)
+- Dashboard: ✅ (awaiting data wiring; no regression from API work)
+- Domain: 🔴
+- Extension: 🔴
+- Email: 🔴
+
+### **Accomplished**
+- Added optional detector options to ParseService and reused the instance inside the Architect/Extractor services to keep context telemetry consistent.
+- Introduced customizable signal source weights in `SystemContextDetector` plus marketing keyword overrides with unit/integration coverage.
+- Captured how to bias detection for newsletter/marketing flows so near-term launch checks can validate the niche datasets quickly.
+
+### **Still blocked / needs human follow-up**
+- Parserator.com redirect + SSL remains unresolved.
+- Chrome extension submission and branding refresh still pending the domain fix.
+- parse@parserator.com forwarding untouched; launch checklists still call this out.
+
+---
+
 ## 📅 SESSION: June 16, 2025
 
 ### **Working on**

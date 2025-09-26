@@ -1,4 +1,4 @@
-import { SystemContextDetector } from '../services/system-context-detector';
+import { SystemContextDetector, SYSTEM_CONTEXT_DEFINITIONS } from '../services/system-context-detector';
 
 const sampleEcommerceEmail = `
   Order Confirmation
@@ -73,5 +73,36 @@ describe('SystemContextDetector', () => {
     expect(result.metrics.explicitHintMatchedFinalContext).toBe(true);
     expect(result.metrics.topCandidateHintBoosted).toBe(true);
     expect(result.metrics.domainHintMatches).toBeGreaterThan(0);
+  });
+
+  it('supports custom weights and keyword overrides for niche contexts', () => {
+    const customDetector = new SystemContextDetector({
+      minimumScore: 0.2,
+      weights: {
+        sample: 2.5,
+        instructions: 0.75
+      },
+      definitions: {
+        marketing: {
+          ...SYSTEM_CONTEXT_DEFINITIONS.marketing,
+          keywords: [...SYSTEM_CONTEXT_DEFINITIONS.marketing.keywords, 'newsletter']
+        }
+      }
+    });
+
+    const result = customDetector.detect({
+      schemaFields: ['newsletterId'],
+      instructions: 'Summarize the engagement story',
+      sample: 'Newsletter open rate at 45% with newsletter click-through improving.',
+      domainHints: [],
+      systemContextHint: undefined
+    });
+
+    expect(result.type).toBe('marketing');
+    expect(result.metrics.rawScore).toBeGreaterThan(0);
+    expect(result.metrics.sourceBreakdown.sample).toBeGreaterThan(
+      result.metrics.sourceBreakdown.instructions
+    );
+    expect(result.signals.some(signal => signal.includes('sample:newsletter'))).toBe(true);
   });
 });
