@@ -3,6 +3,8 @@ AutoGPT Integration for Parserator
 Provides plugin for AutoGPT agents to parse unstructured data
 """
 
+import asyncio
+import inspect
 from typing import Any, Dict, List, Optional, Tuple
 import json
 
@@ -15,11 +17,9 @@ except ImportError:
     AUTOGPT_AVAILABLE = False
     command = lambda *args, **kwargs: lambda func: func
 
-from ..services import ParseatorClient
-from ..types import ParseResult
+from ..client import ParseratorClient
 
-
-class ParseatorPlugin:
+class ParseratorPlugin:
     """
     AutoGPT plugin for parsing unstructured data using Parserator.
     
@@ -28,7 +28,7 @@ class ParseatorPlugin:
     
     Installation:
         1. Place this file in your AutoGPT plugins directory
-        2. Add "ParseatorPlugin" to your enabled plugins list
+        2. Add "ParseratorPlugin" to your enabled plugins list
         3. Set PARSERATOR_API_KEY in your environment variables
         
     Example usage:
@@ -47,7 +47,7 @@ class ParseatorPlugin:
             
         self.config = config
         self.api_key = self._get_api_key()
-        self.client = ParseatorClient(api_key=self.api_key) if self.api_key else None
+        self.client = ParseratorClient(api_key=self.api_key) if self.api_key else None
         
     def _get_api_key(self) -> Optional[str]:
         """Get API key from environment or config."""
@@ -114,13 +114,24 @@ class ParseatorPlugin:
                 output_schema=schema,
                 instructions=instructions
             )
-            
+            if inspect.isawaitable(result):
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    result = asyncio.run(result)
+                else:  # pragma: no cover - defensive
+                    raise RuntimeError(
+                        "ParseratorPlugin.parse_text cannot run inside an active event loop; "
+                        "await the client.parse coroutine instead."
+                    )
+
             if result.success:
+                metadata = result.metadata
                 return json.dumps({
                     "success": True,
                     "parsed_data": result.parsed_data,
-                    "confidence": result.metadata.get("confidence", 0.0),
-                    "processing_time_ms": result.metadata.get("processingTimeMs", 0)
+                    "confidence": getattr(metadata, "confidence", 0.0),
+                    "processing_time_ms": getattr(metadata, "processing_time_ms", 0),
                 }, indent=2)
             else:
                 return json.dumps({
@@ -371,9 +382,9 @@ class ParseatorPlugin:
 
 
 # Plugin registration for AutoGPT
-def register() -> ParseatorPlugin:
+def register() -> ParseratorPlugin:
     """Register the Parserator plugin with AutoGPT."""
-    return ParseatorPlugin()
+    return ParseratorPlugin()
 
 
 # Helper functions for plugin usage

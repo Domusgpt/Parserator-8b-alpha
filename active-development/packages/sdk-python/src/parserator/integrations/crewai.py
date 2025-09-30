@@ -3,6 +3,8 @@ CrewAI Integration for Parserator
 Provides tools for CrewAI agents to parse unstructured data
 """
 
+import asyncio
+import inspect
 from typing import Any, Dict, List, Optional, Type
 from pydantic import BaseModel, Field
 
@@ -13,11 +15,9 @@ except ImportError:
     CREWAI_AVAILABLE = False
     BaseTool = object
 
-from ..services import ParseatorClient
-from ..types import ParseResult
+from ..client import ParseratorClient
 
-
-class ParseatorTool(BaseTool):
+class ParseratorTool(BaseTool):
     """
     CrewAI tool for parsing unstructured data using Parserator.
     
@@ -26,11 +26,11 @@ class ParseatorTool(BaseTool):
     
     Example:
         ```python
-        from parserator.integrations.crewai import ParseatorTool
+        from parserator.integrations.crewai import ParseratorTool
         from crewai import Agent, Task, Crew
         
         # Create Parserator tool
-        parser_tool = ParseatorTool(
+        parser_tool = ParseratorTool(
             api_key="your_api_key",
             name="data_parser",
             description="Parse unstructured data into JSON"
@@ -85,7 +85,7 @@ class ParseatorTool(BaseTool):
             **kwargs
         )
         
-        self.client = ParseatorClient(
+        self.client = ParseratorClient(
             api_key=api_key,
             base_url=base_url
         )
@@ -113,7 +113,17 @@ class ParseatorTool(BaseTool):
                 output_schema=output_schema,
                 instructions=instructions
             )
-            
+            if inspect.isawaitable(result):
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    result = asyncio.run(result)
+                else:  # pragma: no cover - defensive
+                    raise RuntimeError(
+                        "ParseratorTool cannot be executed while an event loop is running; "
+                        "await the client.parse coroutine instead."
+                    )
+
             if not result.success:
                 return {
                     "error": True,
@@ -124,8 +134,8 @@ class ParseatorTool(BaseTool):
             return {
                 "error": False,
                 "parsed_data": result.parsed_data,
-                "confidence": result.metadata.get("confidence", 0.0),
-                "processing_time": result.metadata.get("processingTimeMs", 0)
+                "confidence": getattr(result.metadata, "confidence", 0.0),
+                "processing_time": getattr(result.metadata, "processing_time_ms", 0),
             }
             
         except Exception as e:
@@ -136,7 +146,7 @@ class ParseatorTool(BaseTool):
             }
 
 
-class EmailParserTool(ParseatorTool):
+class EmailParserTool(ParseratorTool):
     """Specialized CrewAI tool for parsing email content."""
     
     name: str = "email_parser"
@@ -168,7 +178,7 @@ class EmailParserTool(ParseatorTool):
         )
 
 
-class DocumentParserTool(ParseatorTool):
+class DocumentParserTool(ParseratorTool):
     """Specialized CrewAI tool for parsing document content."""
     
     name: str = "document_parser" 
@@ -213,7 +223,7 @@ class DocumentParserTool(ParseatorTool):
         )
 
 
-class ContactParserTool(ParseatorTool):
+class ContactParserTool(ParseratorTool):
     """Specialized CrewAI tool for parsing contact information."""
     
     name: str = "contact_parser"
@@ -239,7 +249,7 @@ class ContactParserTool(ParseatorTool):
         )
 
 
-class DataExtractionTool(ParseatorTool):
+class DataExtractionTool(ParseratorTool):
     """Flexible CrewAI tool for custom data extraction."""
     
     name: str = "data_extractor"
@@ -296,7 +306,7 @@ def create_parsing_agent(api_key: str, tools: Optional[List[str]] = None) -> Dic
         elif tool_type == 'contact':
             agent_tools.append(ContactParserTool(api_key=api_key))
         elif tool_type == 'general':
-            agent_tools.append(ParseatorTool(api_key=api_key))
+            agent_tools.append(ParseratorTool(api_key=api_key))
         elif tool_type == 'extractor':
             agent_tools.append(DataExtractionTool(api_key=api_key))
     
