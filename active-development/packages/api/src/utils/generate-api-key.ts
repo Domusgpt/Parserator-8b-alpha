@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
+import { generateApiKeyLookupToken } from './api-key-token';
 
 // Initialize Firebase Admin (if not already initialized)
 if (!admin.apps.length) {
@@ -26,6 +27,7 @@ export async function createUserWithApiKey(options: CreateUserOptions) {
   const userId = `user_${uuidv4()}`;
   const apiKey = await generateApiKey();
   const keyHash = await bcrypt.hash(apiKey, 10);
+  const lookupToken = generateApiKeyLookupToken(apiKey);
   
   // Create user document
   await db.collection('users').doc(userId).set({
@@ -44,6 +46,7 @@ export async function createUserWithApiKey(options: CreateUserOptions) {
     userId,
     keyHash,
     name: `${tier} API Key`,
+    lookupToken,
     createdAt: admin.firestore.Timestamp.now(),
     lastUsed: null
   });
