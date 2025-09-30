@@ -1,10 +1,11 @@
-"""
-LangChain Integration for Parserator
-Provides output parser for LangChain agents and chains
-"""
+"""LangChain integration helpers built on the async Parserator SDK."""
 
-from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field
+from __future__ import annotations
+
+import asyncio
+from typing import Any, Awaitable, Callable, Dict, List, Optional, TypeVar
+
+from pydantic import Field
 
 try:
     from langchain.schema import BaseOutputParser
@@ -15,11 +16,28 @@ except ImportError:
     BaseOutputParser = object
     OutputParserException = Exception
 
-from ..services import ParseatorClient
-from ..types import ParseResult
+from ..client import ParseratorClient
+from ..types import ParseResponse
+
+_T = TypeVar("_T")
 
 
-class ParseatorOutputParser(BaseOutputParser):
+def _run_async_call(call: Callable[[], Awaitable[_T]]) -> _T:
+    """Execute an awaitable synchronously, handling active event loops."""
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(call())
+
+    new_loop = asyncio.new_event_loop()
+    try:
+        return new_loop.run_until_complete(call())
+    finally:
+        new_loop.close()
+
+
+class ParseratorOutputParser(BaseOutputParser):
     """
     LangChain output parser using Parserator's two-stage parsing engine.
     
@@ -28,7 +46,7 @@ class ParseatorOutputParser(BaseOutputParser):
     
     Example:
         ```python
-        from parserator.integrations.langchain import ParseatorOutputParser
+        from parserator.integrations.langchain import ParseratorOutputParser
         
         # Define your desired output structure
         schema = {
@@ -38,7 +56,7 @@ class ParseatorOutputParser(BaseOutputParser):
             "action_items": "array"
         }
         
-        parser = ParseatorOutputParser(
+        parser = ParseratorOutputParser(
             api_key="your_api_key",
             output_schema=schema
         )
@@ -76,7 +94,7 @@ class ParseatorOutputParser(BaseOutputParser):
         output_schema: Dict[str, Any],
         instructions: Optional[str] = None,
         base_url: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         if not LANGCHAIN_AVAILABLE:
             raise ImportError(
@@ -91,11 +109,8 @@ class ParseatorOutputParser(BaseOutputParser):
             **kwargs
         )
         
-        self.client = ParseatorClient(
-            api_key=api_key,
-            base_url=base_url
-        )
-    
+        self.client = ParseratorClient(api_key=api_key, base_url=base_url)
+
     def parse(self, text: str) -> Dict[str, Any]:
         """
         Parse unstructured text into structured data.
@@ -110,19 +125,21 @@ class ParseatorOutputParser(BaseOutputParser):
             OutputParserException: If parsing fails
         """
         try:
-            result = self.client.parse(
-                input_data=text,
-                output_schema=self.output_schema,
-                instructions=self.instructions
-            )
-            
-            if not result.success:
-                raise OutputParserException(
-                    f"Parserator parsing failed: {result.error_message}"
+            response: ParseResponse = _run_async_call(
+                lambda: self.client.parse(
+                    input_data=text,
+                    output_schema=self.output_schema,
+                    instructions=self.instructions,
                 )
-                
-            return result.parsed_data
-            
+            )
+
+            if not response.success:
+                raise OutputParserException(
+                    f"Parserator parsing failed: {response.error_message}"
+                )
+
+            return response.parsed_data
+
         except Exception as e:
             raise OutputParserException(f"Failed to parse with Parserator: {str(e)}")
     
@@ -144,7 +161,7 @@ class ParseatorOutputParser(BaseOutputParser):
         return "parserator"
 
 
-class ParseatorChainOutputParser(ParseatorOutputParser):
+class ParseratorChainOutputParser(ParseratorOutputParser):
     """
     Enhanced output parser for complex LangChain workflows.
     
@@ -160,7 +177,7 @@ class ParseatorChainOutputParser(ParseatorOutputParser):
         output_schema: Dict[str, Any],
         retry_attempts: int = 2,
         fallback_schema: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             api_key=api_key,
@@ -187,16 +204,18 @@ class ParseatorChainOutputParser(ParseatorOutputParser):
         # Try fallback schema if available
         if self.fallback_schema:
             try:
-                result = self.client.parse(
-                    input_data=text,
-                    output_schema=self.fallback_schema,
-                    instructions=self.instructions
+                response: ParseResponse = _run_async_call(
+                    lambda: self.client.parse(
+                        input_data=text,
+                        output_schema=self.fallback_schema,
+                        instructions=self.instructions,
+                    )
                 )
-                
-                if result.success:
-                    return result.parsed_data
-                    
-            except Exception as fallback_error:
+
+                if response.success:
+                    return response.parsed_data
+
+            except Exception:
                 pass
         
         # All attempts failed
@@ -205,7 +224,7 @@ class ParseatorChainOutputParser(ParseatorOutputParser):
         )
 
 
-class ParseatorListOutputParser(ParseatorOutputParser):
+class ParseratorListOutputParser(ParseratorOutputParser):
     """
     Specialized parser for extracting lists and arrays from text.
     
@@ -244,7 +263,7 @@ class ParseatorListOutputParser(ParseatorOutputParser):
 
 
 # Helper functions for common use cases
-def create_email_parser(api_key: str) -> ParseatorOutputParser:
+def create_email_parser(api_key: str) -> ParseratorOutputParser:
     """Create a pre-configured parser for email content."""
     schema = {
         "sender": "string",
@@ -257,14 +276,14 @@ def create_email_parser(api_key: str) -> ParseatorOutputParser:
         "important_dates": "array"
     }
     
-    return ParseatorOutputParser(
+    return ParseratorOutputParser(
         api_key=api_key,
         output_schema=schema,
         instructions="Extract key information from email content"
     )
 
 
-def create_document_parser(api_key: str) -> ParseatorOutputParser:
+def create_document_parser(api_key: str) -> ParseratorOutputParser:
     """Create a pre-configured parser for document analysis."""
     schema = {
         "title": "string",
@@ -276,14 +295,14 @@ def create_document_parser(api_key: str) -> ParseatorOutputParser:
         "next_steps": "array"
     }
     
-    return ParseatorOutputParser(
+    return ParseratorOutputParser(
         api_key=api_key,
         output_schema=schema,
         instructions="Analyze document content and extract structured information"
     )
 
 
-def create_research_parser(api_key: str) -> ParseatorOutputParser:
+def create_research_parser(api_key: str) -> ParseratorOutputParser:
     """Create a pre-configured parser for research content."""
     schema = {
         "findings": "array",
@@ -294,7 +313,7 @@ def create_research_parser(api_key: str) -> ParseatorOutputParser:
         "statistical_data": "array"
     }
     
-    return ParseatorOutputParser(
+    return ParseratorOutputParser(
         api_key=api_key,
         output_schema=schema,
         instructions="Extract research findings and methodology information"

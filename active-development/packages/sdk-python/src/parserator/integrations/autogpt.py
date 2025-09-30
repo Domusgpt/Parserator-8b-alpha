@@ -1,10 +1,10 @@
-"""
-AutoGPT Integration for Parserator
-Provides plugin for AutoGPT agents to parse unstructured data
-"""
+"""AutoGPT integration helpers built on the async Parserator SDK."""
 
-from typing import Any, Dict, List, Optional, Tuple
+from __future__ import annotations
+
+import asyncio
 import json
+from typing import Any, Awaitable, Callable, Dict, List, Optional, TypeVar
 
 try:
     from autogpt.agent import Agent
@@ -15,11 +15,28 @@ except ImportError:
     AUTOGPT_AVAILABLE = False
     command = lambda *args, **kwargs: lambda func: func
 
-from ..services import ParseatorClient
-from ..types import ParseResult
+from ..client import ParseratorClient
+from ..types import ParseResponse
+
+_T = TypeVar("_T")
 
 
-class ParseatorPlugin:
+def _run_async_call(call: Callable[[], Awaitable[_T]]) -> _T:
+    """Execute an awaitable synchronously, handling active event loops."""
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(call())
+
+    new_loop = asyncio.new_event_loop()
+    try:
+        return new_loop.run_until_complete(call())
+    finally:
+        new_loop.close()
+
+
+class ParseratorPlugin:
     """
     AutoGPT plugin for parsing unstructured data using Parserator.
     
@@ -28,7 +45,7 @@ class ParseatorPlugin:
     
     Installation:
         1. Place this file in your AutoGPT plugins directory
-        2. Add "ParseatorPlugin" to your enabled plugins list
+        2. Add "ParseratorPlugin" to your enabled plugins list
         3. Set PARSERATOR_API_KEY in your environment variables
         
     Example usage:
@@ -47,7 +64,7 @@ class ParseatorPlugin:
             
         self.config = config
         self.api_key = self._get_api_key()
-        self.client = ParseatorClient(api_key=self.api_key) if self.api_key else None
+        self.client = ParseratorClient(api_key=self.api_key) if self.api_key else None
         
     def _get_api_key(self) -> Optional[str]:
         """Get API key from environment or config."""
@@ -109,25 +126,29 @@ class ParseatorPlugin:
             })
         
         try:
-            result = self.client.parse(
-                input_data=text,
-                output_schema=schema,
-                instructions=instructions
+            response: ParseResponse = _run_async_call(
+                lambda: self.client.parse(
+                    input_data=text,
+                    output_schema=schema,
+                    instructions=instructions,
+                )
             )
-            
-            if result.success:
-                return json.dumps({
-                    "success": True,
-                    "parsed_data": result.parsed_data,
-                    "confidence": result.metadata.get("confidence", 0.0),
-                    "processing_time_ms": result.metadata.get("processingTimeMs", 0)
-                }, indent=2)
-            else:
-                return json.dumps({
-                    "success": False,
-                    "error": result.error_message
-                })
-                
+
+            if response.success:
+                return json.dumps(
+                    {
+                        "success": True,
+                        "parsed_data": response.parsed_data,
+                        "confidence": response.metadata.get("confidence", 0.0),
+                        "processing_time_ms": response.metadata.get(
+                            "processingTimeMs", 0
+                        ),
+                    },
+                    indent=2,
+                )
+
+            return json.dumps({"success": False, "error": response.error_message})
+
         except Exception as e:
             return json.dumps({
                 "success": False,
@@ -371,9 +392,9 @@ class ParseatorPlugin:
 
 
 # Plugin registration for AutoGPT
-def register() -> ParseatorPlugin:
+def register() -> ParseratorPlugin:
     """Register the Parserator plugin with AutoGPT."""
-    return ParseatorPlugin()
+    return ParseratorPlugin()
 
 
 # Helper functions for plugin usage
