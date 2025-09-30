@@ -237,18 +237,6 @@ export class GeminiService {
     config: Required<Omit<ILLMOptions, 'requestId'>>,
     requestId: string
   ): Promise<Omit<ILLMResponse, 'responseTimeMs'>> {
-    // Create timeout promise
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new LLMError(
-          `Request timed out after ${config.timeoutMs}ms`,
-          'REQUEST_TIMEOUT',
-          408,
-          { requestId, timeoutMs: config.timeoutMs }
-        ));
-      }, config.timeoutMs);
-    });
-
     // Create generation config
     const generationConfig: GenerationConfig = {
       maxOutputTokens: config.maxTokens,
@@ -259,14 +247,21 @@ export class GeminiService {
     };
 
     try {
-      // Race between API call and timeout
-      const result = await Promise.race([
-        model.generateContent({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig
-        }),
-        timeoutPromise
-      ]);
+      const result = await this.withTimeout(
+        () =>
+          model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig
+          }),
+        config.timeoutMs,
+        () =>
+          new LLMError(
+            `Request timed out after ${config.timeoutMs}ms`,
+            'REQUEST_TIMEOUT',
+            408,
+            { requestId, timeoutMs: config.timeoutMs }
+          )
+      );
 
       // Validate response
       if (!result.response) {
@@ -459,6 +454,33 @@ export class GeminiService {
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Helper to execute an async operation with a timeout that is safely cleaned up
+   */
+  private withTimeout<T>(
+    operation: () => Promise<T>,
+    timeoutMs: number,
+    errorFactory: () => Error
+  ): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        timeoutId = undefined;
+        reject(errorFactory());
+      }, timeoutMs);
+    });
+
+    const operationPromise = (async () => operation())();
+
+    return Promise.race([operationPromise, timeoutPromise]).finally(() => {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+    });
   }
 
   /**
