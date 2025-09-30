@@ -31,38 +31,7 @@ keywords = [
     "gemini", "structured-data", "json", "extraction", "automation",
     "data-science", "pandas", "numpy", "machine-learning"
 ]
-dependencies = [
-    "httpx>=0.25.0",
-    "pydantic>=2.0.0",
-    "typing-extensions>=4.0.0",
-    "python-dotenv>=1.0.0",
-]
-
-[project.optional-dependencies]
-data-science = [
-    "pandas>=1.5.0",
-    "numpy>=1.21.0",
-    "polars>=0.18.0",
-    "pyarrow>=10.0.0",
-]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
-    "mypy>=1.0.0",
-    "ruff>=0.0.290",
-]
-notebooks = [
-    "jupyter>=1.0.0",
-    "ipywidgets>=8.0.0",
-    "matplotlib>=3.5.0",
-    "seaborn>=0.11.0",
-]
-all = [
-    "parserator-sdk[data-science,dev,notebooks]"
-]
+dependencies = []
 
 [project.urls]
 Homepage = "https://parserator.com"
@@ -139,7 +108,7 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
-    "slow: marks tests as slow (deselect with '-m "not slow"')",
+    'slow: marks tests as slow (deselect with "-m not slow")',
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
 ]
@@ -162,9 +131,9 @@ exclude_lines = [
     "raise AssertionError",
     "raise NotImplementedError",
     "if 0:",
-    "if __name__ == .__main__.:",
-    "class .*\bProtocol\):",
-    "@(abc\.)?abstractmethod",
+    "if __name__ == '__main__':",
+    'class .*\\bProtocol\\):',
+    '@(abc\\.)?abstractmethod',
 ]
 
 [tool.ruff]
