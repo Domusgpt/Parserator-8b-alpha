@@ -6,7 +6,7 @@ accuracy while minimizing token costs.
 
 Example:
     Basic usage:
-    
+
     >>> from parserator import ParseratorClient
     >>> client = ParseratorClient(api_key="pk_live_...")
     >>> result = await client.parse(
@@ -15,9 +15,9 @@ Example:
     ... )
     >>> print(result.parsed_data)
     {'name': 'John Smith', 'email': 'john@example.com', 'phone': '(555) 123-4567'}
-    
+
     Quick parse helper:
-    
+
     >>> from parserator import quick_parse
     >>> result = await quick_parse(
     ...     "pk_live_...",
@@ -25,6 +25,10 @@ Example:
     ...     {"name": "string", "email": "email"}
     ... )
 """
+
+from __future__ import annotations
+
+import inspect
 
 from .client import ParseratorClient
 from .types import (
@@ -191,12 +195,15 @@ async def quick_parse(
         >>> print(result.parsed_data)
     """
     client = ParseratorClient(api_key=api_key)
-    return await client.parse(
+    result = client.parse(
         input_data=input_data,
         output_schema=output_schema,
         instructions=instructions,
-        options=ParseOptions(**options) if options else None
+        options=ParseOptions(**options) if options else None,
     )
+    if inspect.isawaitable(result):
+        return await result
+    return result
 
 
 # Convenience imports for common data science workflows
