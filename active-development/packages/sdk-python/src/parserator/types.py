@@ -173,6 +173,20 @@ class BatchOptions:
     parallelism: int = 4
     halt_on_error: bool = False
 
+    def __post_init__(self) -> None:
+        try:
+            parallelism_value = int(self.parallelism)
+        except (TypeError, ValueError) as exc:  # pragma: no cover - defensive
+            raise TypeError("BatchOptions.parallelism must be an integer.") from exc
+
+        if parallelism_value < 1:
+            raise ValueError("BatchOptions.parallelism must be at least 1.")
+
+        object.__setattr__(self, "parallelism", parallelism_value)
+
+        if not isinstance(self.halt_on_error, bool):  # pragma: no cover - defensive
+            object.__setattr__(self, "halt_on_error", bool(self.halt_on_error))
+
 
 @dataclass(slots=True)
 class BatchParseResponse:

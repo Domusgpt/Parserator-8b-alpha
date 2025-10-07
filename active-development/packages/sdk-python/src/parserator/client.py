@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
 from typing import (
     Any,
@@ -117,45 +118,44 @@ class ParseratorClient:
         *,
         options: Optional[BatchOptions] = None,
     ) -> BatchParseResponse:
-        """Sequentially parse multiple requests."""
+        """Parse multiple requests, optionally in parallel."""
 
-        request_items = self._coerce_batch_requests(requests)
-        results: List[ParseResponse] = []
-        failures: List[ParseError] = []
+        request_items = list(self._coerce_batch_requests(requests))
+        if not request_items:
+            return BatchParseResponse(results=[], failed=[])
 
-        for request in request_items:
+        if options and options.halt_on_error:
+            return self._batch_parse_sequential(request_items, options)
+
+        parallelism = options.parallelism if options else 4
+        parallelism = max(1, min(parallelism, len(request_items)))
+
+        results: List[Optional[ParseResponse]] = [None] * len(request_items)
+        failure_map: Dict[int, ParseError] = {}
+
+        def _execute(index: int, request: ParseRequest) -> Tuple[int, ParseResponse, Optional[ParseError]]:
             try:
-                results.append(self.parse_request(request))
+                response = self.parse_request(request)
+                return index, response, None
             except ParseratorError as exc:
-                error_code = _error_code_for_exception(exc)
-                parse_error = ParseError(
-                    code=error_code,
-                    message=str(exc),
-                    details={"request": request.output_schema},
-                )
-                failures.append(parse_error)
-                results.append(
-                    ParseResponse(
-                        success=False,
-                        error_message=str(exc),
-                        metadata=ParseMetadata(
-                            request_id=getattr(exc, "request_id", None),
-                            raw={"status": "failed"},
-                        ),
-                        error=parse_error,
-                    )
-                )
+                failure_response, parse_error = self._build_failure_result(request, exc)
+                return index, failure_response, parse_error
+            except Exception as exc:  # pragma: no cover - defensive
+                wrapped = ParseratorError(str(exc))
+                failure_response, parse_error = self._build_failure_result(request, wrapped)
+                return index, failure_response, parse_error
 
-                if options and options.halt_on_error:
-                    break
+        with ThreadPoolExecutor(max_workers=parallelism) as executor:
+            futures = [executor.submit(_execute, idx, req) for idx, req in enumerate(request_items)]
+            for future in as_completed(futures):
+                index, response, failure = future.result()
+                results[index] = response
+                if failure:
+                    failure_map[index] = failure
 
-        if options and options.halt_on_error and failures:
-            raise ParseFailedError(
-                "Batch parse halted after encountering an error.",
-                request_id=failures[-1].details.get("requestId") if failures else None,
-            )
-
-        return BatchParseResponse(results=results, failed=failures)
+        ordered_results = [response for response in results if response is not None]
+        failures = [failure_map[idx] for idx in sorted(failure_map)]
+        return BatchParseResponse(results=ordered_results, failed=failures)
 
     def health_check(self) -> bool:
         """Ping the API health endpoint."""
@@ -344,6 +344,50 @@ class ParseratorClient:
         if isinstance(requests, BatchParseRequest):
             return list(requests.requests)
         return list(requests)
+
+    def _batch_parse_sequential(
+        self, requests: Sequence[ParseRequest], options: BatchOptions
+    ) -> BatchParseResponse:
+        results: List[ParseResponse] = []
+        failures: List[ParseError] = []
+
+        for request in requests:
+            try:
+                results.append(self.parse_request(request))
+            except ParseratorError as exc:
+                failure_response, parse_error = self._build_failure_result(request, exc)
+                failures.append(parse_error)
+                results.append(failure_response)
+                if options.halt_on_error:
+                    break
+
+        if options.halt_on_error and failures:
+            raise ParseFailedError(
+                "Batch parse halted after encountering an error.",
+                request_id=failures[-1].details.get("requestId") if failures else None,
+            )
+
+        return BatchParseResponse(results=results, failed=failures)
+
+    def _build_failure_result(
+        self, request: ParseRequest, exc: ParseratorError
+    ) -> Tuple[ParseResponse, ParseError]:
+        error_code = _error_code_for_exception(exc)
+        parse_error = ParseError(
+            code=error_code,
+            message=str(exc),
+            details={"request": request.output_schema},
+        )
+        response = ParseResponse(
+            success=False,
+            error_message=str(exc),
+            metadata=ParseMetadata(
+                request_id=getattr(exc, "request_id", None),
+                raw={"status": "failed"},
+            ),
+            error=parse_error,
+        )
+        return response, parse_error
 
     # ------------------------------------------------------------------
     # Alternate constructors
