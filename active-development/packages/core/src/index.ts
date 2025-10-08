@@ -1,111 +1,160 @@
-/**
- * Parserator Core - Architect-Extractor pattern implementation
- * 
- * This is the core parsing engine that implements the revolutionary
- * two-stage LLM approach for intelligent data parsing.
- */
+import { v4 as uuidv4 } from 'uuid';
 
-// Core interfaces
-export interface SearchStep {
-  targetKey: string;
-  description: string;
-  searchInstruction: string;
-  validationType: ValidationType;
-  isRequired: boolean;
-}
+import { HeuristicArchitect } from './architect';
+import { RegexExtractor } from './extractor';
+import { createDefaultLogger } from './logger';
+import { createDefaultResolvers, ResolverRegistry } from './resolvers';
+import { ParseratorSession } from './session';
+import {
+  ArchitectAgent,
+  CoreLogger,
+  ExtractorAgent,
+  ParseLifecycleEvent,
+  ParseObserver,
+  ParseRequest,
+  ParseResponse,
+  ParseratorCoreConfig,
+  ParseratorCoreOptions
+} from './types';
 
-export interface SearchPlan {
-  steps: SearchStep[];
-  strategy: 'sequential' | 'parallel' | 'adaptive';
-  confidenceThreshold: number;
-  metadata: {
-    detectedFormat: string;
-    complexity: 'low' | 'medium' | 'high';
-    estimatedTokens: number;
-  };
-}
+export * from './types';
+export {
+  HeuristicArchitect,
+  RegexExtractor,
+  ResolverRegistry,
+  createDefaultResolvers,
+  ParseratorSession
+};
 
-export type ValidationType = 
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'email'
-  | 'phone'
-  | 'date'
-  | 'iso_date'
-  | 'url'
-  | 'string_array'
-  | 'number_array'
-  | 'object'
-  | 'custom';
+const DEFAULT_CONFIG: ParseratorCoreConfig = {
+  maxInputLength: 120_000,
+  maxSchemaFields: 64,
+  minConfidence: 0.55,
+  defaultStrategy: 'sequential',
+  enableFieldFallbacks: true
+};
 
-export interface ParseRequest {
-  inputData: string;
-  outputSchema: Record<string, any>;
-  instructions?: string;
-  options?: ParseOptions;
-}
+const DEFAULT_LOGGER: CoreLogger = createDefaultLogger();
 
-export interface ParseOptions {
-  timeout?: number;
-  retries?: number;
-  validateOutput?: boolean;
-  includeMetadata?: boolean;
-  confidenceThreshold?: number;
-}
-
-export interface ParseResponse {
-  success: boolean;
-  parsedData: Record<string, any>;
-  metadata: ParseMetadata;
-  error?: ParseError;
-}
-
-export interface ParseMetadata {
-  architectPlan: SearchPlan;
-  confidence: number;
-  tokensUsed: number;
-  processingTimeMs: number;
-  requestId: string;
-  timestamp: string;
-}
-
-export interface ParseError {
-  code: string;
-  message: string;
-  details?: Record<string, any>;
-  suggestion?: string;
-}
-
-// Simple implementation for now
 export class ParseratorCore {
-  constructor(private apiKey: string) {}
+  private readonly apiKey: string;
+  private config: ParseratorCoreConfig;
+  private logger: CoreLogger;
+  private architect: ArchitectAgent;
+  private extractor: ExtractorAgent;
+  private resolverRegistry: ResolverRegistry;
+  private observers: Set<ParseObserver>;
+
+  constructor(options: ParseratorCoreOptions) {
+    if (!options?.apiKey || options.apiKey.trim().length === 0) {
+      throw new Error('ParseratorCore requires a non-empty apiKey');
+    }
+
+    this.apiKey = options.apiKey;
+    this.config = { ...DEFAULT_CONFIG, ...options.config };
+    this.logger = options.logger ?? DEFAULT_LOGGER;
+
+    const initialResolvers = options.resolvers ?? createDefaultResolvers(this.logger);
+    this.resolverRegistry = new ResolverRegistry(initialResolvers, this.logger);
+
+    this.architect = options.architect ?? new HeuristicArchitect(this.logger);
+
+    const extractor = options.extractor ?? new RegexExtractor(this.logger, this.resolverRegistry);
+    this.attachRegistryIfSupported(extractor);
+    this.extractor = extractor;
+
+    this.observers = new Set(options.observers ?? []);
+  }
+
+  updateConfig(partial: Partial<ParseratorCoreConfig>): void {
+    this.config = { ...this.config, ...partial };
+    this.logger.info?.('parserator-core:config-updated', { config: this.config });
+  }
+
+  getConfig(): ParseratorCoreConfig {
+    return { ...this.config };
+  }
+
+  setArchitect(agent: ArchitectAgent): void {
+    this.architect = agent;
+  }
+
+  setExtractor(agent: ExtractorAgent): void {
+    this.attachRegistryIfSupported(agent);
+    this.extractor = agent;
+  }
+
+  registerResolver(resolver: Parameters<ResolverRegistry['register']>[0], position: 'append' | 'prepend' = 'append'): void {
+    this.resolverRegistry.register(resolver, position);
+    this.logger.info?.('parserator-core:resolver-registered', {
+      resolver: resolver.name,
+      position
+    });
+  }
+
+  replaceResolvers(resolvers: Parameters<ResolverRegistry['register']>[0][]): void {
+    this.resolverRegistry.replaceAll(resolvers);
+    this.logger.info?.('parserator-core:resolvers-replaced', {
+      resolvers: resolvers.map(resolver => resolver.name)
+    });
+  }
+
+  listResolvers(): string[] {
+    return this.resolverRegistry.listResolvers();
+  }
 
   async parse(request: ParseRequest): Promise<ParseResponse> {
-    // This would implement the actual Architect-Extractor pattern
-    // For now, return a basic response structure
-    return {
-      success: true,
-      parsedData: {},
-      metadata: {
-        architectPlan: {
-          steps: [],
-          strategy: 'sequential',
-          confidenceThreshold: 0.8,
-          metadata: {
-            detectedFormat: 'text',
-            complexity: 'low',
-            estimatedTokens: 100
-          }
-        },
-        confidence: 0.9,
-        tokensUsed: 100,
-        processingTimeMs: 500,
-        requestId: 'test-id',
-        timestamp: new Date().toISOString()
+    const session = this.createSession(request);
+    return session.run();
+  }
+
+  createSession(request: ParseRequest, sessionId?: string): ParseratorSession {
+    const session = new ParseratorSession({
+      requestId: sessionId ?? uuidv4(),
+      request,
+      config: { ...this.config },
+      architect: this.architect,
+      extractor: this.extractor,
+      logger: this.logger,
+      notify: event => this.dispatch(event)
+    });
+
+    return session;
+  }
+
+  addObserver(observer: ParseObserver): () => void {
+    this.observers.add(observer);
+    return () => this.removeObserver(observer);
+  }
+
+  removeObserver(observer: ParseObserver): void {
+    this.observers.delete(observer);
+  }
+
+  clearObservers(): void {
+    this.observers.clear();
+  }
+
+  getObservers(): ParseObserver[] {
+    return Array.from(this.observers);
+  }
+
+  private attachRegistryIfSupported(agent: ExtractorAgent): void {
+    if (typeof (agent as any)?.attachRegistry === 'function') {
+      (agent as any).attachRegistry(this.resolverRegistry);
+    }
+  }
+
+  private async dispatch(event: ParseLifecycleEvent): Promise<void> {
+    for (const observer of this.observers) {
+      try {
+        await observer(event);
+      } catch (error) {
+        this.logger.warn?.('parserator-core:observer-error', {
+          event: event.type,
+          message: error instanceof Error ? error.message : String(error)
+        });
       }
-    };
+    }
   }
 }
-
-export default ParseratorCore;
