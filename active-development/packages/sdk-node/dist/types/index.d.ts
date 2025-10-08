@@ -21,13 +21,31 @@ export interface ParseResponse {
     metadata: ParseMetadata;
     error?: ParseError;
 }
+export interface StageBreakdownMetrics {
+    timeMs: number;
+    tokens: number;
+    confidence: number;
+}
+export interface ParseDiagnostic {
+    field: string;
+    stage: 'architect' | 'extractor' | 'validation';
+    message: string;
+    severity: 'info' | 'warning' | 'error';
+}
 export interface ParseMetadata {
     architectPlan: SearchPlan;
     confidence: number;
     tokensUsed: number;
     processingTimeMs: number;
+    architectTokens: number;
+    extractorTokens: number;
     requestId: string;
     timestamp: string;
+    diagnostics: ParseDiagnostic[];
+    stageBreakdown: {
+        architect: StageBreakdownMetrics;
+        extractor: StageBreakdownMetrics;
+    };
 }
 export interface SearchStep {
     targetKey: string;
@@ -46,12 +64,14 @@ export interface SearchPlan {
         detectedFormat: string;
         complexity: 'low' | 'medium' | 'high';
         estimatedTokens: number;
+        origin: 'heuristic' | 'model' | 'cached';
     };
 }
-export type ValidationType = 'string' | 'number' | 'boolean' | 'email' | 'phone' | 'date' | 'iso_date' | 'url' | 'string_array' | 'number_array' | 'object' | 'custom';
+export type ValidationType = 'string' | 'number' | 'boolean' | 'email' | 'phone' | 'date' | 'iso_date' | 'url' | 'string_array' | 'number_array' | 'currency' | 'percentage' | 'address' | 'name' | 'object' | 'custom';
 export interface ParseError {
     code: ErrorCode;
     message: string;
+    stage?: 'validation' | 'architect' | 'extractor' | 'orchestration';
     details?: Record<string, any>;
     suggestion?: string;
 }
