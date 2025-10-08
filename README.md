@@ -40,6 +40,11 @@ POST https://app-5108296280.us-central1.run.app/v1/parse
 }
 ```
 
+### 🧠 Lean Agent Core (2024 Refresh)
+- `ParseratorCore` ships with a credential-free heuristic architect + regex extractor so builders get value instantly while keeping the two-stage workflow familiar.【F:active-development/packages/core/src/index.ts†L36-L156】
+- Swap in custom agents at runtime via `setArchitect`/`setExtractor` and tweak behaviour with `updateConfig`—no heavyweight kernel API required.【F:active-development/packages/core/src/index.ts†L96-L118】
+- Read `docs/AGENTIC_RELAUNCH.md` for the lean-core rollout plan that aligns the product with EMA/WMA storytelling.【F:docs/AGENTIC_RELAUNCH.md†L1-L64】
+
 ---
 
 ## 🏗️ WHAT'S BUILT & WORKING
