@@ -15,6 +15,8 @@ export {
   ParseResponse,
   ParseOptions,
   ParseMetadata,
+  ParseDiagnostic,
+  StageBreakdownMetrics,
   ParseratorConfig,
   
   // Batch processing
