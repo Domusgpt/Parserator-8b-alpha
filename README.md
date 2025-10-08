@@ -40,6 +40,11 @@ POST https://app-5108296280.us-central1.run.app/v1/parse
 }
 ```
 
+### 🧠 Lean Agent Core (2024 Refresh)
+- `ParseratorCore` now rides on a lightweight `ParseratorKernel` that snapshots every stage, emits observer events, and records fallback outcomes so agents and dashboards can replay the full plan/extract lifecycle.【F:active-development/packages/core/src/index.ts†L68-L342】
+- Runtime customization covers architects, extractors, fallback extractors, and post-processors, with `registerPostProcessor`/`addObserver` providing plug-in hooks without abandoning the heuristic defaults.【F:active-development/packages/core/src/index.ts†L344-L426】
+- Read `docs/AGENTIC_RELAUNCH.md` for the lean-core rollout plan that aligns the product with EMA/WMA storytelling.【F:docs/AGENTIC_RELAUNCH.md†L1-L64】
+
 ---
 
 ## 🏗️ WHAT'S BUILT & WORKING
