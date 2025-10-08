@@ -1,111 +1,78 @@
-/**
- * Parserator Core - Architect-Extractor pattern implementation
- * 
- * This is the core parsing engine that implements the revolutionary
- * two-stage LLM approach for intelligent data parsing.
- */
+import { v4 as uuidv4 } from 'uuid';
 
-// Core interfaces
-export interface SearchStep {
-  targetKey: string;
-  description: string;
-  searchInstruction: string;
-  validationType: ValidationType;
-  isRequired: boolean;
-}
+import { AgenticKernel } from './kernel/agentic-kernel';
+import { createDefaultKernel } from './presets/default-kernel';
+import {
+  AgenticParseJob,
+  ParseInvocationOptions,
+  ParseRequest,
+  ParseResponse,
+  ParseratorCoreOptions
+} from './types';
 
-export interface SearchPlan {
-  steps: SearchStep[];
-  strategy: 'sequential' | 'parallel' | 'adaptive';
-  confidenceThreshold: number;
-  metadata: {
-    detectedFormat: string;
-    complexity: 'low' | 'medium' | 'high';
-    estimatedTokens: number;
+export * from './types';
+export * from './kernel/agentic-kernel';
+export * from './modules/architect-module';
+export * from './modules/extractor-module';
+
+function normaliseInvocation(
+  request: ParseRequest,
+  invocation?: ParseInvocationOptions
+): AgenticParseJob {
+  const now = new Date();
+
+  return {
+    ...request,
+    requestId: invocation?.requestId ?? uuidv4(),
+    createdAt: now.toISOString(),
+    invokedBy: invocation?.invokedBy ?? 'sdk',
+    tenantId: invocation?.tenantId,
+    metadata: {
+      ...invocation?.metadata,
+      requestedOptions: request.options
+    }
   };
 }
 
-export type ValidationType = 
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'email'
-  | 'phone'
-  | 'date'
-  | 'iso_date'
-  | 'url'
-  | 'string_array'
-  | 'number_array'
-  | 'object'
-  | 'custom';
-
-export interface ParseRequest {
-  inputData: string;
-  outputSchema: Record<string, any>;
-  instructions?: string;
-  options?: ParseOptions;
-}
-
-export interface ParseOptions {
-  timeout?: number;
-  retries?: number;
-  validateOutput?: boolean;
-  includeMetadata?: boolean;
-  confidenceThreshold?: number;
-}
-
-export interface ParseResponse {
-  success: boolean;
-  parsedData: Record<string, any>;
-  metadata: ParseMetadata;
-  error?: ParseError;
-}
-
-export interface ParseMetadata {
-  architectPlan: SearchPlan;
-  confidence: number;
-  tokensUsed: number;
-  processingTimeMs: number;
-  requestId: string;
-  timestamp: string;
-}
-
-export interface ParseError {
-  code: string;
-  message: string;
-  details?: Record<string, any>;
-  suggestion?: string;
-}
-
-// Simple implementation for now
 export class ParseratorCore {
-  constructor(private apiKey: string) {}
+  private kernel: AgenticKernel;
+  private currentOptions: ParseratorCoreOptions;
 
-  async parse(request: ParseRequest): Promise<ParseResponse> {
-    // This would implement the actual Architect-Extractor pattern
-    // For now, return a basic response structure
-    return {
-      success: true,
-      parsedData: {},
-      metadata: {
-        architectPlan: {
-          steps: [],
-          strategy: 'sequential',
-          confidenceThreshold: 0.8,
-          metadata: {
-            detectedFormat: 'text',
-            complexity: 'low',
-            estimatedTokens: 100
-          }
-        },
-        confidence: 0.9,
-        tokensUsed: 100,
-        processingTimeMs: 500,
-        requestId: 'test-id',
-        timestamp: new Date().toISOString()
+  constructor(options: ParseratorCoreOptions) {
+    this.currentOptions = options;
+    this.kernel = createDefaultKernel(options);
+  }
+
+  /**
+   * Rebuild the kernel with a new configuration without changing the API key.
+   */
+  reconfigure(config: ParseratorCoreOptions['config']): void {
+    this.currentOptions = {
+      ...this.currentOptions,
+      config: {
+        ...this.currentOptions.config,
+        ...config
       }
     };
+    this.kernel = createDefaultKernel(this.currentOptions);
+  }
+
+  /**
+   * Execute the architect-extractor pipeline via the agentic kernel.
+   */
+  async parse(
+    request: ParseRequest,
+    invocation?: ParseInvocationOptions
+  ): Promise<ParseResponse> {
+    const job = normaliseInvocation(request, invocation);
+    const summary = await this.kernel.run(job);
+    return summary.response;
+  }
+
+  /**
+   * Expose the underlying kernel for advanced composition or module injection.
+   */
+  getKernel(): AgenticKernel {
+    return this.kernel;
   }
 }
-
-export default ParseratorCore;
