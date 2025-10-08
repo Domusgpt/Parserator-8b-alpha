@@ -40,6 +40,27 @@ POST https://app-5108296280.us-central1.run.app/v1/parse
 }
 ```
 
+### 🧠 Lean Agent Core (2024 Refresh)
+- `ParseratorCore` now boots a modular architect → resolver → extractor pipeline so builders can plug in new field resolvers without rewriting orchestration, yet still ship with helpful defaults for zero-credential use.【F:active-development/packages/core/src/index.ts†L36-L170】【F:active-development/packages/core/src/resolvers.ts†L1-L365】
+- Section-aware heuristics segment messy transcripts into headings, unlocking currency/percentage/address/name extraction without LLM calls and providing richer diagnostics for downstream agents.【F:active-development/packages/core/src/heuristics.ts†L1-L146】【F:active-development/packages/core/src/resolvers.ts†L78-L258】
+- Swap in custom agents at runtime via `setArchitect`/`setExtractor`, register resolvers with `registerResolver`, and adjust heuristics through `updateConfig`—no heavyweight kernel API required.【F:active-development/packages/core/src/index.ts†L72-L143】
+- Launch reusable `ParseratorSession`s with `createSession` to cache architect plans, stream batched parses, inspect confidence snapshots, and keep token spend low for agents or sensor data that share schemas.【F:active-development/packages/core/src/index.ts†L145-L357】
+- The Firebase Functions API and Node SDK now invoke the shared `ParseratorCore`, emitting unified diagnostics and stage metrics so downstream apps consume identical telemetry across SDK and direct API calls.【F:active-development/packages/api/src/services/parse.service.ts†L1-L318】【F:active-development/packages/sdk-node/src/types/index.ts†L1-L116】
+- Read `docs/AGENTIC_RELAUNCH.md` for the lean-core rollout plan that aligns the product with EMA/WMA storytelling.【F:docs/AGENTIC_RELAUNCH.md†L1-L78】
+
+```ts
+const core = new ParseratorCore({ apiKey: process.env.PARSERATOR_KEY! });
+const session = core.createSession({
+  outputSchema: { name: 'string', email: 'string' },
+  instructions: 'extract the contact record',
+  seedInput: sampleTranscript
+});
+
+const first = await session.parse(sampleTranscript);
+const next = await session.parse(nextTranscript);
+console.log(session.snapshot());
+```
+
 ---
 
 ## 🏗️ WHAT'S BUILT & WORKING
