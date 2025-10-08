@@ -5,7 +5,7 @@
  * Built on the revolutionary Architect-Extractor pattern for maximum efficiency.
  */
 export { ParseratorClient } from './services/ParseratorClient';
-export { ParseRequest, ParseResponse, ParseOptions, ParseMetadata, ParseratorConfig, BatchParseRequest, BatchParseResponse, BatchOptions, SearchStep, SearchPlan, ValidationType, ParseError, ErrorCode, ProgressCallback, EventHandler, ParseEvent, RetryConfig, SchemaTemplate, SchemaValidationResult, SchemaValidationError, ParsePreset, AdvancedConfig } from './types';
+export { ParseRequest, ParseResponse, ParseOptions, ParseMetadata, ParseDiagnostic, StageBreakdownMetrics, ParseratorConfig, BatchParseRequest, BatchParseResponse, BatchOptions, SearchStep, SearchPlan, ValidationType, ParseError, ErrorCode, ProgressCallback, EventHandler, ParseEvent, RetryConfig, SchemaTemplate, SchemaValidationResult, SchemaValidationError, ParsePreset, AdvancedConfig } from './types';
 export { ParseratorError, ValidationError, AuthenticationError, RateLimitError, QuotaExceededError, NetworkError, TimeoutError, ParseFailedError, ServiceUnavailableError, ErrorFactory } from './errors';
 export { EMAIL_PARSER, INVOICE_PARSER, CONTACT_PARSER, CSV_PARSER, LOG_PARSER, DOCUMENT_PARSER, ALL_PRESETS, getPresetByName, getPresetsByTag, listAvailablePresets } from './types/presets';
 export { validateParseRequest, validateConfig, validateOutputSchema, validateSchemaStructure, validateInputData, isValidationType, isValidApiKey, isValidUrl, getValidationErrorMessage } from './types/validation';
