@@ -40,6 +40,11 @@ POST https://app-5108296280.us-central1.run.app/v1/parse
 }
 ```
 
+- `ParseratorCore` now boots a modular architect → resolver → extractor pipeline so builders can plug in new field resolvers without rewriting orchestration, yet still ship with helpful defaults for zero-credential use.【F:active-development/packages/core/src/index.ts†L36-L143】【F:active-development/packages/core/src/resolvers.ts†L1-L229】
+- Swap in custom agents at runtime via `setArchitect`/`setExtractor`, register resolvers with `registerResolver`, and adjust heuristics through `updateConfig`—no heavyweight kernel API required.【F:active-development/packages/core/src/index.ts†L72-L143】
+- Instrument each parse with `ParseratorSession`: start a session, subscribe to lifecycle observers, and choose whether to run plan/extract sequentially or stepwise from your agent runtime.【F:active-development/packages/core/src/index.ts†L79-L143】【F:active-development/packages/core/src/session.ts†L1-L266】
+- Read `docs/AGENTIC_RELAUNCH.md` for the lean-core rollout plan that aligns the product with EMA/WMA storytelling.【F:docs/AGENTIC_RELAUNCH.md†L1-L102】
+
 ---
 
 ## 🏗️ WHAT'S BUILT & WORKING
