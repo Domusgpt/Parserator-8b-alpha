@@ -40,6 +40,11 @@ POST https://app-5108296280.us-central1.run.app/v1/parse
 }
 ```
 
+### 🧠 Agentic Kernel (2024 Relaunch)
+- `ParseratorCore` now wraps a modular **Agentic Kernel** that orchestrates planner/executor modules with typed diagnostics and instrumentation hooks.
+- Default modules (`planner/default-architect`, `executor/default-extractor`) ship as safe baselines while allowing custom modules for agents, on-prem, or sensor-driven workloads.
+- See `docs/AGENTIC_RELAUNCH.md` for the architecture blueprint and migration roadmap into the API/SDK packages.
+
 ---
 
 ## 🏗️ WHAT'S BUILT & WORKING
