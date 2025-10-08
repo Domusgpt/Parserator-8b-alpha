@@ -1,9 +1,9 @@
 /**
  * Parse Service for Parserator
- * Main orchestration service that coordinates the two-stage Architect-Extractor workflow
- * Provides the primary parsing interface for the SaaS API
+ * Orchestrates the lightweight @parserator/core pipeline for API requests
+ * while preserving compatibility with existing SaaS interfaces.
  */
-import { IParseResult } from '../interfaces/search-plan.interface';
+import { ParseResponse as CoreParseResponse, ParseOptions } from '@parserator/core';
 import { GeminiService } from './llm.service';
 /**
  * Configuration for Parse operations
@@ -15,12 +15,16 @@ export interface IParseConfig {
     maxSchemaFields: number;
     /** Overall timeout for parsing operations */
     timeoutMs: number;
-    /** Whether to enable fallback strategies */
+    /** Whether to enable low-confidence warnings (historical fallback flag) */
     enableFallbacks: boolean;
-    /** Sample size for Architect analysis */
-    architectSampleSize: number;
     /** Minimum confidence threshold for accepting results */
     minOverallConfidence: number;
+    /** Optional default ParseOptions passed to the core */
+    defaultOptions?: ParseOptions;
+    /** Optional strategy override for the core planner */
+    coreStrategy?: 'sequential' | 'parallel' | 'adaptive';
+    /** API key forwarded to the core (not used by heuristics but required) */
+    coreApiKey?: string;
 }
 /**
  * Input parameters for parsing operations
@@ -32,6 +36,8 @@ export interface IParseRequest {
     outputSchema: Record<string, any>;
     /** Optional user instructions for parsing */
     instructions?: string;
+    /** Optional overrides forwarded to the core */
+    options?: ParseOptions;
     /** Request ID for tracking */
     requestId?: string;
     /** User ID for billing/analytics */
@@ -46,50 +52,21 @@ export declare class ParseError extends Error {
     details?: Record<string, unknown> | undefined;
     constructor(message: string, code: string, stage: 'validation' | 'architect' | 'extractor' | 'orchestration', details?: Record<string, unknown> | undefined);
 }
+export type IParseResult = CoreParseResponse;
 /**
- * Main parsing service that orchestrates the two-stage workflow
- * Provides intelligent data parsing with cost optimization and high accuracy
+ * Main parsing service that orchestrates the @parserator/core workflow
  */
 export declare class ParseService {
-    private geminiService;
+    private readonly geminiService;
     private config;
     private logger;
-    private architectService;
-    private extractorService;
+    private readonly core;
     private static readonly DEFAULT_CONFIG;
     constructor(geminiService: GeminiService, config?: Partial<IParseConfig>, logger?: Console);
     /**
-     * Main parsing method that orchestrates the two-stage workflow
+     * Main parsing method that delegates to the core pipeline
      */
     parse(request: IParseRequest): Promise<IParseResult>;
-    /**
-     * Execute the Architect stage
-     */
-    private executeArchitectStage;
-    /**
-     * Execute the Extractor stage
-     */
-    private executeExtractorStage;
-    /**
-     * Combine results from both stages into final result
-     */
-    private combineResults;
-    /**
-     * Create a failure result with comprehensive error information
-     */
-    private createFailureResult;
-    /**
-     * Create an optimized sample from input data for the Architect
-     */
-    private createOptimizedSample;
-    /**
-     * Validate parse request inputs
-     */
-    private validateParseRequest;
-    /**
-     * Generate unique operation ID for tracking
-     */
-    private generateOperationId;
     /**
      * Get service health status
      */
@@ -106,5 +83,18 @@ export declare class ParseService {
      * Update configuration
      */
     updateConfig(newConfig: Partial<IParseConfig>): void;
+    private createCoreLogger;
+    private normaliseCoreResult;
+    private logCoreOutcome;
+    private createFailureResult;
+    private createPlaceholderPlan;
+    /**
+     * Validate parse request inputs
+     */
+    private validateParseRequest;
+    /**
+     * Generate unique operation ID for tracking
+     */
+    private generateOperationId;
 }
 //# sourceMappingURL=parse.service.d.ts.map
