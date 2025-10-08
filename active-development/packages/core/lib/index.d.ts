@@ -1,64 +1,41 @@
-/**
- * Parserator Core - Architect-Extractor pattern implementation
- *
- * This is the core parsing engine that implements the revolutionary
- * two-stage LLM approach for intelligent data parsing.
- */
-export interface SearchStep {
-    targetKey: string;
-    description: string;
-    searchInstruction: string;
-    validationType: ValidationType;
-    isRequired: boolean;
-}
-export interface SearchPlan {
-    steps: SearchStep[];
-    strategy: 'sequential' | 'parallel' | 'adaptive';
-    confidenceThreshold: number;
-    metadata: {
-        detectedFormat: string;
-        complexity: 'low' | 'medium' | 'high';
-        estimatedTokens: number;
-    };
-}
-export type ValidationType = 'string' | 'number' | 'boolean' | 'email' | 'phone' | 'date' | 'iso_date' | 'url' | 'string_array' | 'number_array' | 'object' | 'custom';
-export interface ParseRequest {
-    inputData: string;
-    outputSchema: Record<string, any>;
-    instructions?: string;
-    options?: ParseOptions;
-}
-export interface ParseOptions {
-    timeout?: number;
-    retries?: number;
-    validateOutput?: boolean;
-    includeMetadata?: boolean;
-    confidenceThreshold?: number;
-}
-export interface ParseResponse {
-    success: boolean;
-    parsedData: Record<string, any>;
-    metadata: ParseMetadata;
-    error?: ParseError;
-}
-export interface ParseMetadata {
-    architectPlan: SearchPlan;
-    confidence: number;
-    tokensUsed: number;
-    processingTimeMs: number;
-    requestId: string;
-    timestamp: string;
-}
-export interface ParseError {
-    code: string;
-    message: string;
-    details?: Record<string, any>;
-    suggestion?: string;
-}
+import { ArchitectAgent, ArchitectContext, ArchitectResult, CoreLogger, ExtractorAgent, ExtractorContext, ExtractorResult, ParseRequest, ParseResponse, ParseratorCoreConfig, ParseratorCoreOptions } from './types';
+export * from './types';
 export declare class ParseratorCore {
-    private apiKey;
-    constructor(apiKey: string);
+    private readonly apiKey;
+    private config;
+    private logger;
+    private architect;
+    private extractor;
+    constructor(options: ParseratorCoreOptions);
+    /**
+     * Update runtime configuration while keeping the same agents.
+     */
+    updateConfig(partial: Partial<ParseratorCoreConfig>): void;
+    /**
+     * Swap in a custom architect agent.
+     */
+    setArchitect(agent: ArchitectAgent): void;
+    /**
+     * Swap in a custom extractor agent.
+     */
+    setExtractor(agent: ExtractorAgent): void;
+    /**
+     * Execute the two-stage parse flow. The default implementation uses
+     * a heuristic architect and regex-driven extractor so developers and
+     * agents get useful behaviour without provisioning LLM credentials.
+     */
     parse(request: ParseRequest): Promise<ParseResponse>;
+    private validateRequest;
 }
-export default ParseratorCore;
+declare class HeuristicArchitect implements ArchitectAgent {
+    private readonly logger;
+    constructor(logger: CoreLogger);
+    createPlan(context: ArchitectContext): Promise<ArchitectResult>;
+}
+declare class RegexExtractor implements ExtractorAgent {
+    private readonly logger;
+    constructor(logger: CoreLogger);
+    execute(context: ExtractorContext): Promise<ExtractorResult>;
+}
+export { HeuristicArchitect, RegexExtractor };
 //# sourceMappingURL=index.d.ts.map
