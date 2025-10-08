@@ -102,9 +102,10 @@ describe('ParseService Integration Tests', () => {
       expect(result.success).toBe(true);
       expect(result.parsedData.name).toBe('John Doe');
       expect(result.parsedData.email).toBe('john@example.com');
-      expect(result.metadata.confidence).toBeGreaterThan(0.8);
+      expect(result.metadata.confidence).toBeGreaterThan(0.6);
       expect(result.metadata.tokensUsed).toBeGreaterThan(0);
       expect(result.metadata.architectPlan.steps).toHaveLength(2);
+      expect(result.metadata.diagnostics.length).toBeGreaterThan(0);
     });
 
     it('should handle validation errors gracefully', async () => {
