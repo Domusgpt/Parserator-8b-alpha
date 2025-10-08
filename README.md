@@ -40,6 +40,11 @@ POST https://app-5108296280.us-central1.run.app/v1/parse
 }
 ```
 
+### 🧠 Lean Agent Core (2024 Refresh)
+- `ParseratorCore` now boots a modular architect → resolver → extractor pipeline so builders can plug in new field resolvers without rewriting orchestration, yet still ship with helpful defaults for zero-credential use.【F:active-development/packages/core/src/index.ts†L36-L170】【F:active-development/packages/core/src/resolvers.ts†L1-L229】
+- Swap in custom agents at runtime via `setArchitect`/`setExtractor`, register resolvers with `registerResolver`, and adjust heuristics through `updateConfig`—no heavyweight kernel API required.【F:active-development/packages/core/src/index.ts†L72-L143】
+- Read `docs/AGENTIC_RELAUNCH.md` for the lean-core rollout plan that aligns the product with EMA/WMA storytelling.【F:docs/AGENTIC_RELAUNCH.md†L1-L78】
+
 ---
 
 ## 🏗️ WHAT'S BUILT & WORKING
