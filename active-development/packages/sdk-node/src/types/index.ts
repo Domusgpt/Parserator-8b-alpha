@@ -26,13 +26,36 @@ export interface ParseResponse {
   error?: ParseError;
 }
 
+export interface StageBreakdownMetrics {
+  timeMs: number;
+  tokens: number;
+  confidence: number;
+  runs?: number;
+}
+
+export interface ParseDiagnostic {
+  field: string;
+  stage: 'preprocess' | 'validation' | 'architect' | 'extractor' | 'postprocess';
+  message: string;
+  severity: 'info' | 'warning' | 'error';
+}
+
 export interface ParseMetadata {
   architectPlan: SearchPlan;
   confidence: number;
   tokensUsed: number;
   processingTimeMs: number;
+  architectTokens: number;
+  extractorTokens: number;
   requestId: string;
   timestamp: string;
+  diagnostics: ParseDiagnostic[];
+  stageBreakdown: {
+    preprocess?: StageBreakdownMetrics;
+    architect: StageBreakdownMetrics;
+    extractor: StageBreakdownMetrics;
+    postprocess?: StageBreakdownMetrics;
+  };
 }
 
 // Architect-Extractor Pattern Types
@@ -54,6 +77,7 @@ export interface SearchPlan {
     detectedFormat: string;
     complexity: 'low' | 'medium' | 'high';
     estimatedTokens: number;
+    origin: 'heuristic' | 'model' | 'cached';
   };
 }
 
@@ -68,6 +92,10 @@ export type ValidationType =
   | 'url'
   | 'string_array'
   | 'number_array'
+  | 'currency'
+  | 'percentage'
+  | 'address'
+  | 'name'
   | 'object'
   | 'custom';
 
@@ -75,6 +103,7 @@ export type ValidationType =
 export interface ParseError {
   code: ErrorCode;
   message: string;
+  stage?: 'validation' | 'preprocess' | 'architect' | 'extractor' | 'postprocess' | 'orchestration';
   details?: Record<string, any>;
   suggestion?: string;
 }
