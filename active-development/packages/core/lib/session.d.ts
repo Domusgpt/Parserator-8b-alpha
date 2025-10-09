@@ -1,0 +1,77 @@
+import { ArchitectAgent, CoreLogger, ExtractorAgent, ParseResponse, ParseratorCoreConfig, ParseratorPlanRefreshResult, ParseratorPlanState, ParseratorSessionInit, ParseratorSessionSnapshot, ParseratorTelemetry, ParseratorInterceptor, ParseratorPreprocessor, ParseratorPostprocessor, SessionParseOverrides, RefreshPlanOptions, ParseratorAutoRefreshState, ParseratorPlanCache } from './types';
+interface ParseratorSessionDependencies {
+    architect: ArchitectAgent;
+    extractor: ExtractorAgent;
+    config: () => ParseratorCoreConfig;
+    logger: CoreLogger;
+    telemetry: ParseratorTelemetry;
+    interceptors: () => ParseratorInterceptor[];
+    preprocessors: () => ParseratorPreprocessor[];
+    postprocessors: () => ParseratorPostprocessor[];
+    profile?: string;
+    planCache?: ParseratorPlanCache;
+    planCacheKey?: string;
+    init: ParseratorSessionInit;
+}
+export declare class ParseratorSession {
+    private readonly deps;
+    readonly id: string;
+    readonly createdAt: string;
+    private plan?;
+    private planDiagnostics;
+    private planConfidence;
+    private planTokens;
+    private planProcessingTime;
+    private totalArchitectTokens;
+    private totalExtractorTokens;
+    private parseCount;
+    private lastRequestId?;
+    private lastConfidence?;
+    private lastDiagnostics;
+    private lastResponse?;
+    private defaultSeedInput?;
+    private telemetry;
+    private profileName?;
+    private planCache?;
+    private planCacheKey?;
+    private planUpdatedAt?;
+    private lastSeedInput?;
+    private autoRefreshConfig?;
+    private autoRefresh?;
+    private parsesSinceRefresh;
+    private lowConfidenceRuns;
+    private lastAutoRefreshAt?;
+    private lastAutoRefreshAttemptAt?;
+    private lastAutoRefreshReason?;
+    private autoRefreshPending;
+    constructor(deps: ParseratorSessionDependencies);
+    parse(inputData: string, overrides?: SessionParseOverrides): Promise<ParseResponse>;
+    snapshot(): ParseratorSessionSnapshot;
+    exportInit(overrides?: Partial<ParseratorSessionInit>): ParseratorSessionInit;
+    private getInterceptors;
+    private getPreprocessors;
+    private getPostprocessors;
+    private resolvePlanCacheKey;
+    private queuePlanCachePersist;
+    private runBeforeInterceptors;
+    private executePreprocessorsForRequest;
+    private executePostprocessorsForResponse;
+    private runAfterInterceptors;
+    private runFailureInterceptors;
+    private handleAutoRefreshPostParse;
+    getAutoRefreshState(): ParseratorAutoRefreshState | undefined;
+    private getConfig;
+    private getAutoRefreshConfigSnapshot;
+    private isAutoRefreshCoolingDown;
+    private triggerAutoRefresh;
+    private resetAutoRefreshState;
+    private normaliseAutoRefresh;
+    private ensurePlan;
+    getPlanState(options?: {
+        includePlan?: boolean;
+    }): ParseratorPlanState;
+    refreshPlan(options?: RefreshPlanOptions): Promise<ParseratorPlanRefreshResult>;
+    private captureFailure;
+}
+export {};
+//# sourceMappingURL=session.d.ts.map
