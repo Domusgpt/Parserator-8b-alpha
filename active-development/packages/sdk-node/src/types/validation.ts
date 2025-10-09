@@ -58,8 +58,10 @@ export function validateOutputSchema(schema: Record<string, any>): Joi.Validatio
 // Type guards
 export function isValidationType(type: string): type is ValidationType {
   const validTypes: ValidationType[] = [
-    'string', 'number', 'boolean', 'email', 'phone', 'date', 
-    'iso_date', 'url', 'string_array', 'number_array', 'object', 'custom'
+    'string', 'number', 'boolean', 'email', 'phone', 'date',
+    'iso_date', 'url', 'string_array', 'number_array',
+    'currency', 'percentage', 'address', 'name',
+    'object', 'custom'
   ];
   return validTypes.includes(type as ValidationType);
 }
