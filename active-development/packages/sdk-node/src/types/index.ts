@@ -26,13 +26,34 @@ export interface ParseResponse {
   error?: ParseError;
 }
 
+export interface StageBreakdownMetrics {
+  timeMs: number;
+  tokens: number;
+  confidence: number;
+}
+
+export interface ParseDiagnostic {
+  field: string;
+  stage: 'architect' | 'extractor' | 'validation';
+  message: string;
+  severity: 'info' | 'warning' | 'error';
+}
+
 export interface ParseMetadata {
   architectPlan: SearchPlan;
   confidence: number;
   tokensUsed: number;
   processingTimeMs: number;
+  architectTokens: number;
+  extractorTokens: number;
   requestId: string;
   timestamp: string;
+  diagnostics: ParseDiagnostic[];
+  stageBreakdown: {
+    architect: StageBreakdownMetrics;
+    extractor: StageBreakdownMetrics;
+  };
+  planCache?: PlanCacheInfo;
 }
 
 // Architect-Extractor Pattern Types
@@ -54,10 +75,11 @@ export interface SearchPlan {
     detectedFormat: string;
     complexity: 'low' | 'medium' | 'high';
     estimatedTokens: number;
+    origin: 'heuristic' | 'model' | 'cached';
   };
 }
 
-export type ValidationType = 
+export type ValidationType =
   | 'string'
   | 'number'
   | 'boolean'
@@ -68,13 +90,39 @@ export type ValidationType =
   | 'url'
   | 'string_array'
   | 'number_array'
+  | 'currency'
+  | 'percentage'
+  | 'address'
+  | 'name'
   | 'object'
   | 'custom';
+
+export type PlanCacheStatus = 'disabled' | 'miss' | 'hit' | 'stale' | 'expired' | 'rejected';
+
+export interface PlanCachePolicy {
+  minConfidence?: number;
+  staleAfterMs?: number;
+  maxAgeMs?: number;
+}
+
+export interface PlanCacheInfo {
+  key?: string;
+  status: PlanCacheStatus;
+  stale?: boolean;
+  ageMs?: number;
+  updatedAt?: string;
+  profile?: string;
+  reason?: string;
+  refreshed?: boolean;
+  refreshedAt?: string;
+  policy?: PlanCachePolicy;
+}
 
 // Error Types
 export interface ParseError {
   code: ErrorCode;
   message: string;
+  stage?: 'validation' | 'architect' | 'extractor' | 'orchestration';
   details?: Record<string, any>;
   suggestion?: string;
 }
