@@ -109,7 +109,6 @@ async function initializeServices() {
             maxSchemaFields: 50,
             timeoutMs: 60000,
             enableFallbacks: true,
-            architectSampleSize: 1000,
             minOverallConfidence: 0.5
         }, console);
         isInitialized = true;
