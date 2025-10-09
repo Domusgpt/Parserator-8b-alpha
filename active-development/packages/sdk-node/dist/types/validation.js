@@ -59,7 +59,9 @@ function validateOutputSchema(schema) {
 function isValidationType(type) {
     const validTypes = [
         'string', 'number', 'boolean', 'email', 'phone', 'date',
-        'iso_date', 'url', 'string_array', 'number_array', 'object', 'custom'
+        'iso_date', 'url', 'string_array', 'number_array',
+        'currency', 'percentage', 'address', 'name',
+        'object', 'custom'
     ];
     return validTypes.includes(type);
 }
