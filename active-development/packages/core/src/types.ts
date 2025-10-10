@@ -32,6 +32,8 @@ export interface SearchStep {
   isRequired: boolean;
 }
 
+export type SearchPlanOrigin = 'heuristic' | 'model' | 'cached' | (string & {});
+
 export interface SearchPlan {
   id: string;
   version: string;
@@ -42,7 +44,7 @@ export interface SearchPlan {
     detectedFormat: string;
     complexity: 'low' | 'medium' | 'high';
     estimatedTokens: number;
-    origin: 'heuristic' | 'model' | 'cached';
+    origin: SearchPlanOrigin;
   };
 }
 
