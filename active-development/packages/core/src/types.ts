@@ -165,6 +165,9 @@ export interface ArchitectContext {
   instructions?: string;
   options?: ParseOptions;
   config: ParseratorCoreConfig;
+  profile?: string;
+  requestId?: string;
+  sessionId?: string;
 }
 
 export interface ArchitectResult {
@@ -181,6 +184,11 @@ export interface ExtractorContext {
   inputData: string;
   plan: SearchPlan;
   config: ParseratorCoreConfig;
+  instructions?: string;
+  outputSchema?: Record<string, unknown>;
+  requestId?: string;
+  sessionId?: string;
+  profile?: string;
 }
 
 export interface ExtractorResult {
@@ -199,6 +207,43 @@ export interface ArchitectAgent {
 
 export interface ExtractorAgent {
   execute(context: ExtractorContext): Promise<ExtractorResult>;
+}
+
+export interface LeanLLMPlanRewriteRequest {
+  inputData: string;
+  outputSchema: Record<string, unknown>;
+  instructions?: string;
+  heuristicPlan: SearchPlan;
+  diagnostics: ParseDiagnostic[];
+  context: {
+    profile?: string;
+    requestId?: string;
+    sessionId?: string;
+  };
+}
+
+export interface LeanLLMPlanRewriteResponse {
+  plan?: SearchPlan;
+  confidence?: number;
+  diagnostics?: ParseDiagnostic[];
+  usage?: {
+    tokensUsed?: number;
+    latencyMs?: number;
+    model?: string;
+  };
+  raw?: unknown;
+}
+
+export interface LeanLLMPlanClient {
+  rewrite(request: LeanLLMPlanRewriteRequest): Promise<LeanLLMPlanRewriteResponse>;
+}
+
+export interface ParseratorLeanLLMPlanRewriteOptions {
+  client: LeanLLMPlanClient;
+  minHeuristicConfidence?: number;
+  concurrency?: number;
+  cooldownMs?: number;
+  logger?: CoreLogger;
 }
 
 export interface ParseratorPreprocessContext {
@@ -337,6 +382,7 @@ export interface ParseratorCoreOptions {
   architect?: ArchitectAgent;
   extractor?: ExtractorAgent;
   resolvers?: FieldResolver[];
+  leanLLMPlanRewrite?: ParseratorLeanLLMPlanRewriteOptions;
   profile?: ParseratorProfileOption;
   telemetry?: ParseratorTelemetry | ParseratorTelemetryListener | ParseratorTelemetryListener[];
   interceptors?: ParseratorInterceptor | ParseratorInterceptor[];
@@ -425,6 +471,30 @@ export interface ParseratorAutoRefreshState {
   lastReason?: ParseratorAutoRefreshReason;
   coolingDown: boolean;
   pending: boolean;
+}
+
+export interface ParseratorPlanCacheBackgroundState {
+  pendingWrites: number;
+  pending: number;
+  inFlight: number;
+  completed: number;
+  failed: number;
+  idle: boolean;
+  lastAttemptAt?: string;
+  lastPersistAt?: string;
+  lastPersistReason?: string;
+  lastPersistError?: string;
+  lastPersistDurationMs?: number;
+  attempts: number;
+}
+
+export interface ParseratorAutoRefreshBackgroundState extends ParseratorAutoRefreshState {
+  inFlight: number;
+}
+
+export interface ParseratorSessionBackgroundState {
+  planCache: ParseratorPlanCacheBackgroundState;
+  autoRefresh?: ParseratorAutoRefreshBackgroundState;
 }
 
 export interface ParseratorInterceptorContext {
@@ -519,12 +589,46 @@ export interface ParseratorPlanReadyEvent extends ParseratorTelemetryBaseEvent {
   confidence: number;
 }
 
+export interface ParseratorPlanCacheEvent extends ParseratorTelemetryBaseEvent {
+  type: 'plan:cache';
+  action: 'hit' | 'miss' | 'store' | 'delete' | 'clear';
+  key?: string;
+  scope?: string;
+  planId?: string;
+  confidence?: number;
+  tokensUsed?: number;
+  processingTimeMs?: number;
+  reason?: string;
+  error?: string;
+}
+
+export type ParseratorPlanAutoRefreshSkipReason = 'cooldown' | 'pending';
+
+export interface ParseratorPlanAutoRefreshEvent extends ParseratorTelemetryBaseEvent {
+  type: 'plan:auto-refresh';
+  action: 'queued' | 'triggered' | 'completed' | 'skipped' | 'failed';
+  reason?: ParseratorAutoRefreshReason;
+  skipReason?: ParseratorPlanAutoRefreshSkipReason;
+  confidence?: number;
+  threshold?: number;
+  minConfidence?: number;
+  maxParses?: number;
+  parsesSinceRefresh?: number;
+  lowConfidenceRuns?: number;
+  cooldownMs?: number;
+  pending: boolean;
+  seedProvided?: boolean;
+  error?: string;
+}
+
 export type ParseratorTelemetryEvent =
   | ParseratorParseStartEvent
   | ParseratorParseStageEvent
   | ParseratorParseSuccessEvent
   | ParseratorParseFailureEvent
-  | ParseratorPlanReadyEvent;
+  | ParseratorPlanReadyEvent
+  | ParseratorPlanCacheEvent
+  | ParseratorPlanAutoRefreshEvent;
 
 export type ParseratorTelemetryListener = (
   event: ParseratorTelemetryEvent
