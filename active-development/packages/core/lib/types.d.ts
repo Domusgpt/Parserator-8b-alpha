@@ -13,6 +13,7 @@ export interface SearchStep {
     validationType: ValidationType;
     isRequired: boolean;
 }
+export type SearchPlanOrigin = 'heuristic' | 'model' | 'cached' | (string & {});
 export interface SearchPlan {
     id: string;
     version: string;
@@ -23,7 +24,7 @@ export interface SearchPlan {
         detectedFormat: string;
         complexity: 'low' | 'medium' | 'high';
         estimatedTokens: number;
-        origin: 'heuristic' | 'model' | 'cached';
+        origin: SearchPlanOrigin;
     };
 }
 export interface ParseOptions {
@@ -441,7 +442,19 @@ export interface ParseratorPlanReadyEvent extends ParseratorTelemetryBaseEvent {
     processingTimeMs: number;
     confidence: number;
 }
-export type ParseratorTelemetryEvent = ParseratorParseStartEvent | ParseratorParseStageEvent | ParseratorParseSuccessEvent | ParseratorParseFailureEvent | ParseratorPlanReadyEvent;
+export interface ParseratorPlanCacheEvent extends ParseratorTelemetryBaseEvent {
+    type: 'plan:cache';
+    action: 'hit' | 'miss' | 'store' | 'delete' | 'clear';
+    key?: string;
+    scope?: string;
+    planId?: string;
+    confidence?: number;
+    tokensUsed?: number;
+    processingTimeMs?: number;
+    reason?: string;
+    error?: string;
+}
+export type ParseratorTelemetryEvent = ParseratorParseStartEvent | ParseratorParseStageEvent | ParseratorParseSuccessEvent | ParseratorParseFailureEvent | ParseratorPlanReadyEvent | ParseratorPlanCacheEvent;
 export type ParseratorTelemetryListener = (event: ParseratorTelemetryEvent) => void | Promise<void>;
 export interface ParseratorTelemetry {
     emit(event: ParseratorTelemetryEvent): void;

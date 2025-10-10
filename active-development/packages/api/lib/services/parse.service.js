@@ -295,8 +295,14 @@ class ParseService {
      */
     validateParseRequest(request) {
         // Validate input data
-        if (!request.inputData || typeof request.inputData !== 'string') {
+        if (request.inputData === undefined || request.inputData === null) {
             throw new ParseError('Input data must be a non-empty string', 'INVALID_INPUT_DATA', 'validation');
+        }
+        if (typeof request.inputData !== 'string') {
+            throw new ParseError('Input data must be provided as a string', 'INVALID_INPUT_DATA', 'validation');
+        }
+        if (request.inputData.length === 0) {
+            throw new ParseError('Input data cannot be empty or only whitespace', 'EMPTY_INPUT_DATA', 'validation');
         }
         if (request.inputData.trim().length === 0) {
             throw new ParseError('Input data cannot be empty or only whitespace', 'EMPTY_INPUT_DATA', 'validation');
