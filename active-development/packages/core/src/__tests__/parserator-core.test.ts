@@ -378,4 +378,60 @@ describe('ParseratorCore', () => {
     expect(sessionResult.metadata.architectPlan.metadata.origin).toBe('cached');
     expect(architect.calls).toBe(1);
   });
+
+  it('exposes safe copies of plan cache entries for inspection and removal', async () => {
+    const architect = new FakeArchitect();
+    const extractor = new FakeExtractor();
+    const planCache = createInMemoryPlanCache();
+
+    const core = new ParseratorCore({
+      ...createCoreOptions(),
+      architect,
+      extractor,
+      planCache,
+    });
+
+    const request = createRequest('introspect');
+    await core.parse(request);
+
+    const entry = await core.getPlanCacheEntry(request);
+    expect(entry).toBeDefined();
+    expect(entry?.plan.metadata.origin).toBe('heuristic');
+
+    // Mutate the returned copy and confirm cache integrity remains intact.
+    if (entry) {
+      entry.plan.metadata.origin = 'mutated';
+      entry.diagnostics.push({ field: '*', stage: 'architect', message: 'changed', severity: 'warning' });
+    }
+
+    const freshEntry = await core.getPlanCacheEntry(request);
+    expect(freshEntry?.plan.metadata.origin).toBe('heuristic');
+    expect(freshEntry?.diagnostics).toHaveLength(0);
+
+    const deleted = await core.deletePlanCacheEntry(request);
+    expect(deleted).toBe(true);
+    expect(await core.getPlanCacheEntry(request)).toBeUndefined();
+  });
+
+  it('clears cached plans for the active profile when supported', async () => {
+    const architect = new FakeArchitect();
+    const extractor = new FakeExtractor();
+    const planCache = createInMemoryPlanCache();
+
+    const core = new ParseratorCore({
+      ...createCoreOptions(),
+      architect,
+      extractor,
+      planCache,
+    });
+
+    const request = createRequest('clear-profile');
+    await core.parse(request);
+
+    expect(await core.getPlanCacheEntry(request)).toBeDefined();
+
+    const cleared = await core.clearPlanCache();
+    expect(cleared).toBe(true);
+    expect(await core.getPlanCacheEntry(request)).toBeUndefined();
+  });
 });

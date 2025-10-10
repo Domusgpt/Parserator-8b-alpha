@@ -335,6 +335,82 @@ export class ParseratorCore {
     return this.createSession(sessionInit);
   }
 
+  async getPlanCacheEntry(request: ParseRequest): Promise<ParseratorPlanCacheEntry | undefined> {
+    const planCacheKey = this.getPlanCacheKey(request);
+    if (!planCacheKey || !this.planCache) {
+      return undefined;
+    }
+
+    try {
+      const entry = await this.planCache.get(planCacheKey);
+      if (!entry) {
+        return undefined;
+      }
+
+      return this.cloneCacheEntry(entry);
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-introspect-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: this.profileName,
+        key: planCacheKey,
+        operation: 'get'
+      });
+      return undefined;
+    }
+  }
+
+  async deletePlanCacheEntry(request: ParseRequest): Promise<boolean> {
+    const planCacheKey = this.getPlanCacheKey(request);
+    if (!planCacheKey || !this.planCache || typeof this.planCache.delete !== 'function') {
+      this.logger.warn?.('parserator-core:plan-cache-delete-unsupported', {
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      return false;
+    }
+
+    try {
+      await this.planCache.delete(planCacheKey);
+      this.logger.info?.('parserator-core:plan-cache-delete', {
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-delete-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      return false;
+    }
+  }
+
+  async clearPlanCache(profile?: string): Promise<boolean> {
+    if (!this.planCache || typeof this.planCache.clear !== 'function') {
+      this.logger.warn?.('parserator-core:plan-cache-clear-unsupported', {
+        profile: profile ?? this.profileName ?? 'all'
+      });
+      return false;
+    }
+
+    const targetProfile = profile ?? this.profileName;
+
+    try {
+      await Promise.resolve(this.planCache.clear(targetProfile));
+      this.logger.info?.('parserator-core:plan-cache-cleared', {
+        profile: targetProfile ?? 'all'
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-clear-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: targetProfile ?? 'all'
+      });
+      return false;
+    }
+  }
+
   private composeConfig(): ParseratorCoreConfig {
     return {
       ...DEFAULT_CONFIG,
@@ -810,6 +886,14 @@ export class ParseratorCore {
       });
       return undefined;
     }
+  }
+
+  private cloneCacheEntry(entry: ParseratorPlanCacheEntry): ParseratorPlanCacheEntry {
+    return {
+      ...entry,
+      plan: clonePlan(entry.plan, entry.plan.metadata.origin),
+      diagnostics: [...entry.diagnostics]
+    };
   }
 
   private async runBeforeInterceptors(context: ParseratorInterceptorContext): Promise<void> {
