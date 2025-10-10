@@ -1,4 +1,4 @@
-import { ParseDiagnostic, ParseError, ParseMetadata, ParseRequest, ParseResponse, ParseratorCoreConfig, ParseratorPlanCacheKeyInput, SearchPlan } from './types';
+import { ParseDiagnostic, ParseError, ParseMetadata, ParseRequest, ParseResponse, ParseratorCoreConfig, ParseratorPlanCacheKeyInput, ParseratorFallbackUsage, SearchPlan } from './types';
 export declare function clamp(value: number, min: number, max: number): number;
 export declare function createEmptyPlan(request: ParseRequest, config: ParseratorCoreConfig): SearchPlan;
 export declare function clonePlan(plan: SearchPlan, originOverride?: SearchPlan['metadata']['origin']): SearchPlan;
@@ -12,6 +12,7 @@ export interface FailureResponseOptions {
     architectTokens?: number;
     extractorTokens?: number;
     stageBreakdown?: ParseMetadata['stageBreakdown'];
+    fallbacks?: ParseratorFallbackUsage;
 }
 export declare function createFailureResponse(options: FailureResponseOptions): ParseResponse;
 export declare function toParseError(error: unknown, stage: ParseError['stage']): ParseError;

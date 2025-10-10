@@ -19,6 +19,7 @@ class RegexExtractor {
         let requiredCount = 0;
         let aggregatedConfidence = 0;
         const sharedState = new Map();
+        sharedState.set(resolvers_1.PLAN_SHARED_STATE_KEY, context.plan);
         for (const step of context.plan.steps) {
             if (step.isRequired) {
                 requiredCount += 1;
@@ -52,7 +53,10 @@ class RegexExtractor {
         }
         const success = requiredCount === 0 || resolvedRequired === requiredCount;
         const processingTimeMs = Date.now() - start;
-        const tokensUsed = Math.max(72, Math.round(context.plan.metadata.estimatedTokens * 0.7));
+        const fallbackUsage = buildLeanLLMUsage(sharedState);
+        const fallbackTokens = fallbackUsage?.tokensUsed ?? 0;
+        const baseTokens = Math.max(72, Math.round(context.plan.metadata.estimatedTokens * 0.7));
+        const tokensUsed = baseTokens + fallbackTokens;
         if (!success) {
             const missing = context.plan.steps
                 .filter(step => step.isRequired && !(step.targetKey in parsed))
@@ -76,7 +80,8 @@ class RegexExtractor {
                 processingTimeMs,
                 confidence: (0, utils_1.clamp)(aggregatedConfidence / Math.max(context.plan.steps.length, 1), 0, 1),
                 diagnostics,
-                error
+                error,
+                fallbackUsage
             };
         }
         const confidence = context.plan.steps.length
@@ -94,7 +99,8 @@ class RegexExtractor {
             tokensUsed,
             processingTimeMs,
             confidence,
-            diagnostics
+            diagnostics,
+            fallbackUsage
         };
     }
 }
@@ -105,5 +111,24 @@ function computeStepConfidence(isRequired, resolverConfidence, value) {
     }
     const base = isRequired ? 0.7 : 0.5;
     return (0, utils_1.clamp)(Math.max(resolverConfidence, base), 0, 1);
+}
+function buildLeanLLMUsage(shared) {
+    const state = shared.get(resolvers_1.LEAN_LLM_USAGE_KEY);
+    if (!state) {
+        return undefined;
+    }
+    const fields = Array.from(state.fields ?? []).sort();
+    const resolvers = Array.from(state.resolvers ?? []).sort();
+    const hasMeaningfulData = state.calls > 0 || state.tokensUsed > 0 || state.successful > 0 || fields.length > 0;
+    if (!hasMeaningfulData) {
+        return undefined;
+    }
+    return {
+        calls: state.calls,
+        successfulCalls: state.successful,
+        tokensUsed: state.tokensUsed,
+        fields,
+        resolvers
+    };
 }
 //# sourceMappingURL=extractor.js.map

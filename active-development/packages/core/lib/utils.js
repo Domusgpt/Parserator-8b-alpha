@@ -67,7 +67,8 @@ function createFailureResponse(options) {
                 tokens: options.extractorTokens ?? 0,
                 confidence: 0
             }
-        }
+        },
+        fallbacks: options.fallbacks
     };
     return {
         success: false,

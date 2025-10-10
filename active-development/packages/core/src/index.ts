@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { HeuristicArchitect } from './architect';
 import { RegexExtractor } from './extractor';
 import { createDefaultLogger } from './logger';
-import { createDefaultResolvers, ResolverRegistry } from './resolvers';
+import { createDefaultResolvers, LeanLLMResolver, ResolverRegistry } from './resolvers';
 import { listParseratorProfiles, resolveProfile } from './profiles';
 import { ParseratorSession } from './session';
 import { createTelemetryHub, TelemetryHub } from './telemetry';
@@ -136,6 +136,20 @@ export class ParseratorCore {
     const initialResolvers =
       options.resolvers ?? resolvedProfile?.resolvers ?? createDefaultResolvers(this.logger);
     this.resolverRegistry = new ResolverRegistry(initialResolvers, this.logger);
+
+    if (options.llmFallback) {
+      const { position, ...fallbackConfig } = options.llmFallback;
+      const resolver = new LeanLLMResolver({
+        ...fallbackConfig,
+        logger: this.logger
+      });
+      const placement = position ?? 'append';
+      this.resolverRegistry.register(resolver, placement);
+      this.logger.info?.('parserator-core:lean-llm-fallback-registered', {
+        resolver: resolver.name,
+        position: placement
+      });
+    }
 
     this.architect = options.architect ?? resolvedProfile?.architect ?? new HeuristicArchitect(this.logger);
 
@@ -1305,6 +1319,7 @@ export class ParseratorCore {
 export {
   HeuristicArchitect,
   RegexExtractor,
+  LeanLLMResolver,
   ResolverRegistry,
   createDefaultResolvers,
   createInMemoryPlanCache,

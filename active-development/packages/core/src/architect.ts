@@ -9,6 +9,7 @@ import {
 import {
   buildPlannerSteps,
   detectFormat,
+  detectSystemContext,
   estimateComplexity,
   estimateTokenCost
 } from './heuristics';
@@ -21,11 +22,17 @@ export class HeuristicArchitect implements ArchitectAgent {
     const start = Date.now();
     const diagnostics: ParseDiagnostic[] = [];
 
+    const systemContext = detectSystemContext(
+      context.outputSchema,
+      context.instructions
+    );
+
     const steps = buildPlannerSteps(
       context.outputSchema,
       context.instructions,
       context.options,
-      context.config
+      context.config,
+      systemContext
     ).map(step => {
       if (!step.isRequired) {
         diagnostics.push({
@@ -38,6 +45,27 @@ export class HeuristicArchitect implements ArchitectAgent {
       return step;
     });
 
+    if (systemContext) {
+      diagnostics.push({
+        field: '*',
+        stage: 'architect',
+        message: `Detected ${systemContext.label} context (${Math.round(
+          systemContext.confidence * 100
+        )}% confidence).`,
+        severity: 'info'
+      });
+
+      const rationale = systemContext.rationale[0];
+      if (rationale) {
+        diagnostics.push({
+          field: '*',
+          stage: 'architect',
+          message: rationale,
+          severity: 'info'
+        });
+      }
+    }
+
     const plan: SearchPlan = {
       id: `plan_${Date.now().toString(36)}`,
       version: '1.0',
@@ -49,7 +77,8 @@ export class HeuristicArchitect implements ArchitectAgent {
         detectedFormat: detectFormat(context.inputData),
         complexity: estimateComplexity(steps.length, context.inputData.length),
         estimatedTokens: estimateTokenCost(steps.length, context.inputData.length),
-        origin: 'heuristic'
+        origin: 'heuristic',
+        context: systemContext
       }
     };
 

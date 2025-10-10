@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TelemetryHub = exports.createTelemetryHub = exports.createInMemoryPlanCache = exports.createDefaultResolvers = exports.ResolverRegistry = exports.RegexExtractor = exports.HeuristicArchitect = exports.ParseratorCore = exports.createDefaultPostprocessors = exports.createDefaultPreprocessors = exports.ParseratorSession = void 0;
+exports.TelemetryHub = exports.createTelemetryHub = exports.createInMemoryPlanCache = exports.createDefaultResolvers = exports.ResolverRegistry = exports.LeanLLMResolver = exports.RegexExtractor = exports.HeuristicArchitect = exports.ParseratorCore = exports.createDefaultPostprocessors = exports.createDefaultPreprocessors = exports.ParseratorSession = void 0;
 const uuid_1 = require("uuid");
 const architect_1 = require("./architect");
 Object.defineProperty(exports, "HeuristicArchitect", { enumerable: true, get: function () { return architect_1.HeuristicArchitect; } });
@@ -23,6 +23,7 @@ Object.defineProperty(exports, "RegexExtractor", { enumerable: true, get: functi
 const logger_1 = require("./logger");
 const resolvers_1 = require("./resolvers");
 Object.defineProperty(exports, "createDefaultResolvers", { enumerable: true, get: function () { return resolvers_1.createDefaultResolvers; } });
+Object.defineProperty(exports, "LeanLLMResolver", { enumerable: true, get: function () { return resolvers_1.LeanLLMResolver; } });
 Object.defineProperty(exports, "ResolverRegistry", { enumerable: true, get: function () { return resolvers_1.ResolverRegistry; } });
 const profiles_1 = require("./profiles");
 const session_1 = require("./session");
@@ -95,6 +96,19 @@ class ParseratorCore {
         this.config = this.composeConfig();
         const initialResolvers = options.resolvers ?? resolvedProfile?.resolvers ?? (0, resolvers_1.createDefaultResolvers)(this.logger);
         this.resolverRegistry = new resolvers_1.ResolverRegistry(initialResolvers, this.logger);
+        if (options.llmFallback) {
+            const { position, ...fallbackConfig } = options.llmFallback;
+            const resolver = new resolvers_1.LeanLLMResolver({
+                ...fallbackConfig,
+                logger: this.logger
+            });
+            const placement = position ?? 'append';
+            this.resolverRegistry.register(resolver, placement);
+            this.logger.info?.('parserator-core:lean-llm-fallback-registered', {
+                resolver: resolver.name,
+                position: placement
+            });
+        }
         this.architect = options.architect ?? resolvedProfile?.architect ?? new architect_1.HeuristicArchitect(this.logger);
         const extractor = options.extractor ?? resolvedProfile?.extractor ?? new extractor_1.RegexExtractor(this.logger, this.resolverRegistry);
         this.attachRegistryIfSupported(extractor);
@@ -257,6 +271,99 @@ class ParseratorCore {
         });
         return this.createSession(sessionInit);
     }
+    async getPlanCacheEntry(request) {
+        const planCacheKey = this.getPlanCacheKey(request);
+        if (!planCacheKey || !this.planCache) {
+            return undefined;
+        }
+        try {
+            const entry = await this.planCache.get(planCacheKey);
+            if (!entry) {
+                return undefined;
+            }
+            return this.cloneCacheEntry(entry);
+        }
+        catch (error) {
+            this.logger.warn?.('parserator-core:plan-cache-introspect-failed', {
+                error: error instanceof Error ? error.message : error,
+                profile: this.profileName,
+                key: planCacheKey,
+                operation: 'get'
+            });
+            return undefined;
+        }
+    }
+    async deletePlanCacheEntry(request) {
+        const planCacheKey = this.getPlanCacheKey(request);
+        if (!planCacheKey || !this.planCache || typeof this.planCache.delete !== 'function') {
+            this.logger.warn?.('parserator-core:plan-cache-delete-unsupported', {
+                profile: this.profileName,
+                key: planCacheKey
+            });
+            return false;
+        }
+        try {
+            await this.planCache.delete(planCacheKey);
+            this.logger.info?.('parserator-core:plan-cache-delete', {
+                profile: this.profileName,
+                key: planCacheKey
+            });
+            this.emitPlanCacheEvent({
+                action: 'delete',
+                key: planCacheKey,
+                reason: 'management'
+            });
+            return true;
+        }
+        catch (error) {
+            this.logger.warn?.('parserator-core:plan-cache-delete-failed', {
+                error: error instanceof Error ? error.message : error,
+                profile: this.profileName,
+                key: planCacheKey
+            });
+            this.emitPlanCacheEvent({
+                action: 'delete',
+                key: planCacheKey,
+                reason: 'management',
+                error
+            });
+            return false;
+        }
+    }
+    async clearPlanCache(profile) {
+        if (!this.planCache || typeof this.planCache.clear !== 'function') {
+            this.logger.warn?.('parserator-core:plan-cache-clear-unsupported', {
+                profile: profile ?? this.profileName ?? 'all'
+            });
+            return false;
+        }
+        const targetProfile = profile ?? this.profileName;
+        try {
+            await Promise.resolve(this.planCache.clear(targetProfile));
+            this.logger.info?.('parserator-core:plan-cache-cleared', {
+                profile: targetProfile ?? 'all'
+            });
+            this.emitPlanCacheEvent({
+                action: 'clear',
+                scope: targetProfile ?? 'all',
+                reason: 'management'
+            });
+            return true;
+        }
+        catch (error) {
+            this.logger.warn?.('parserator-core:plan-cache-clear-failed', {
+                error: error instanceof Error ? error.message : error,
+                profile: targetProfile ?? 'all'
+            });
+            this.emitPlanCacheEvent({
+                action: 'clear',
+                scope: targetProfile ?? 'all',
+                reason: 'management',
+                error
+            });
+            return false;
+        }
+    }
     composeConfig() {
         return {
             ...DEFAULT_CONFIG,
@@ -348,12 +455,37 @@ class ParseratorCore {
                         profile: this.profileName,
                         key: planCacheKey
                     });
+                    this.emitPlanCacheEvent({
+                        action: 'hit',
+                        key: planCacheKey,
+                        planId: cachedEntry.plan.id,
+                        confidence: cachedEntry.confidence,
+                        tokensUsed: cachedEntry.tokensUsed,
+                        processingTimeMs: cachedEntry.processingTimeMs,
+                        requestId,
+                        reason: 'parse'
+                    });
+                }
+                else {
+                    this.emitPlanCacheEvent({
+                        action: 'miss',
+                        key: planCacheKey,
+                        requestId,
+                        reason: 'parse'
+                    });
                 }
             }
             catch (error) {
                 this.logger.warn?.('parserator-core:plan-cache-get-failed', {
                     error: error instanceof Error ? error.message : error,
                     profile: this.profileName
+                });
+                this.emitPlanCacheEvent({
+                    action: 'miss',
+                    key: planCacheKey,
+                    requestId,
+                    reason: 'parse',
+                    error
                 });
             }
         }
@@ -443,11 +575,29 @@ class ParseratorCore {
                         profile: this.profileName,
                         key: planCacheKey
                     });
+                    this.emitPlanCacheEvent({
+                        action: 'store',
+                        key: planCacheKey,
+                        planId: entry.plan.id,
+                        confidence: entry.confidence,
+                        tokensUsed: entry.tokensUsed,
+                        processingTimeMs: entry.processingTimeMs,
+                        requestId,
+                        reason: 'parse'
+                    });
                 }
                 catch (error) {
                     this.logger.warn?.('parserator-core:plan-cache-set-failed', {
                         error: error instanceof Error ? error.message : error,
                         profile: this.profileName
+                    });
+                    this.emitPlanCacheEvent({
+                        action: 'store',
+                        key: planCacheKey,
+                        planId: entry.plan.id,
+                        requestId,
+                        reason: 'parse',
+                        error
                     });
                 }
             }
@@ -676,6 +826,39 @@ class ParseratorCore {
             });
             return undefined;
         }
+    }
+    cloneCacheEntry(entry) {
+        return {
+            ...entry,
+            plan: (0, utils_1.clonePlan)(entry.plan, entry.plan.metadata.origin),
+            diagnostics: [...entry.diagnostics]
+        };
+    }
+    emitPlanCacheEvent(event) {
+        const requestId = event.requestId ?? (0, uuid_1.v4)();
+        const errorMessage = event.error === undefined
+            ? undefined
+            : event.error instanceof Error
+                ? event.error.message
+                : typeof event.error === 'string'
+                    ? event.error
+                    : String(event.error);
+        this.telemetry.emit({
+            type: 'plan:cache',
+            source: 'core',
+            requestId,
+            timestamp: new Date().toISOString(),
+            profile: this.profileName,
+            action: event.action,
+            key: event.key,
+            scope: event.scope,
+            planId: event.planId,
+            confidence: event.confidence,
+            tokensUsed: event.tokensUsed,
+            processingTimeMs: event.processingTimeMs,
+            reason: event.reason,
+            error: errorMessage
+        });
     }
     async runBeforeInterceptors(context) {
         for (const interceptor of this.interceptors) {
