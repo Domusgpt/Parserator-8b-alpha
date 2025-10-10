@@ -20,7 +20,7 @@ const joi_1 = __importDefault(require("joi"));
 // Validation schemas using Joi
 exports.parseRequestSchema = joi_1.default.object({
     inputData: joi_1.default.string().required().min(1).max(1000000),
-    outputSchema: joi_1.default.object().required(),
+    outputSchema: joi_1.default.object().min(1).required(),
     instructions: joi_1.default.string().optional().max(10000),
     options: joi_1.default.object({
         timeout: joi_1.default.number().min(1000).max(300000).default(30000),

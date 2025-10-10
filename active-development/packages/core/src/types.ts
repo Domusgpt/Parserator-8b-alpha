@@ -32,6 +32,8 @@ export interface SearchStep {
   isRequired: boolean;
 }
 
+export type SearchPlanOrigin = 'heuristic' | 'model' | 'cached' | (string & {});
+
 export interface SearchPlan {
   id: string;
   version: string;
@@ -42,8 +44,24 @@ export interface SearchPlan {
     detectedFormat: string;
     complexity: 'low' | 'medium' | 'high';
     estimatedTokens: number;
-    origin: 'heuristic' | 'model' | 'cached';
+    origin: SearchPlanOrigin;
+    context?: DetectedSystemContext;
   };
+}
+
+export interface DetectedSystemContext {
+  /** Machine-readable identifier for the detected system. */
+  id: string;
+  /** Human friendly label for presentation and logging. */
+  label: string;
+  /** Confidence score between 0-1 derived from heuristic matches. */
+  confidence: number;
+  /** Schema field keys that contributed to the match. */
+  matchedFields: string[];
+  /** Instruction keywords that contributed to the match. */
+  matchedInstructionTerms: string[];
+  /** Additional notes that explain why the context was selected. */
+  rationale: string[];
 }
 
 export interface ParseOptions {
@@ -127,6 +145,10 @@ export interface FieldResolutionContext {
   config: ParseratorCoreConfig;
   logger: CoreLogger;
   shared: Map<string, unknown>;
+  plan?: SearchPlan;
+  instructions?: string;
+  outputSchema?: Record<string, unknown>;
+  options?: ParseOptions;
 }
 
 export interface FieldResolutionResult {
@@ -142,6 +164,43 @@ export interface FieldResolver {
   resolve(
     context: FieldResolutionContext
   ): Promise<FieldResolutionResult | undefined> | FieldResolutionResult | undefined;
+}
+
+export interface LeanLLMExtractionRequest {
+  input: string;
+  steps: SearchStep[];
+  instructions?: string;
+  schema?: Record<string, unknown>;
+  options?: ParseOptions;
+}
+
+export interface LeanLLMExtractionFieldResult {
+  key: string;
+  value?: unknown;
+  confidence?: number;
+  rationale?: string;
+  alternateKeys?: string[];
+}
+
+export interface LeanLLMExtractionResponse {
+  fields: LeanLLMExtractionFieldResult[];
+  usage?: {
+    tokens?: number;
+    cost?: number;
+    latencyMs?: number;
+  };
+  raw?: unknown;
+}
+
+export interface LeanLLMClient {
+  name: string;
+  extractFields(request: LeanLLMExtractionRequest): Promise<LeanLLMExtractionResponse>;
+}
+
+export interface LeanLLMResolverOptions {
+  includeOptionalFields?: boolean;
+  defaultConfidence?: number;
+  name?: string;
 }
 
 export interface CoreLogger {
@@ -181,6 +240,9 @@ export interface ExtractorContext {
   inputData: string;
   plan: SearchPlan;
   config: ParseratorCoreConfig;
+  instructions?: string;
+  outputSchema?: Record<string, unknown>;
+  options?: ParseOptions;
 }
 
 export interface ExtractorResult {
@@ -337,6 +399,8 @@ export interface ParseratorCoreOptions {
   architect?: ArchitectAgent;
   extractor?: ExtractorAgent;
   resolvers?: FieldResolver[];
+  leanLLMClient?: LeanLLMClient;
+  leanLLMResolverOptions?: LeanLLMResolverOptions;
   profile?: ParseratorProfileOption;
   telemetry?: ParseratorTelemetry | ParseratorTelemetryListener | ParseratorTelemetryListener[];
   interceptors?: ParseratorInterceptor | ParseratorInterceptor[];

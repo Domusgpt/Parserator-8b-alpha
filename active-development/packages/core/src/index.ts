@@ -3,7 +3,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { HeuristicArchitect } from './architect';
 import { RegexExtractor } from './extractor';
 import { createDefaultLogger } from './logger';
-import { createDefaultResolvers, ResolverRegistry } from './resolvers';
+import {
+  createDefaultResolvers,
+  createLooseKeyValueResolver,
+  LeanLLMResolver,
+  ResolverRegistry
+} from './resolvers';
 import { listParseratorProfiles, resolveProfile } from './profiles';
 import { ParseratorSession } from './session';
 import { createTelemetryHub, TelemetryHub } from './telemetry';
@@ -136,6 +141,19 @@ export class ParseratorCore {
     const initialResolvers =
       options.resolvers ?? resolvedProfile?.resolvers ?? createDefaultResolvers(this.logger);
     this.resolverRegistry = new ResolverRegistry(initialResolvers, this.logger);
+
+    if (options.leanLLMClient) {
+      const leanResolver = new LeanLLMResolver(
+        options.leanLLMClient,
+        this.logger,
+        options.leanLLMResolverOptions
+      );
+      this.resolverRegistry.register(leanResolver, 'append');
+      this.logger.info?.('parserator-core:lean-llm-resolver-registered', {
+        client: options.leanLLMClient.name,
+        includeOptional: options.leanLLMResolverOptions?.includeOptionalFields ?? false
+      });
+    }
 
     this.architect = options.architect ?? resolvedProfile?.architect ?? new HeuristicArchitect(this.logger);
 
@@ -691,7 +709,10 @@ export class ParseratorCore {
     const extractorResult = await this.extractor.execute({
       inputData: request.inputData,
       plan: activePlan,
-      config: this.config
+      config: this.config,
+      instructions: request.instructions,
+      outputSchema: request.outputSchema,
+      options: request.options
     });
 
     this.telemetry.emit({
@@ -1307,6 +1328,8 @@ export {
   RegexExtractor,
   ResolverRegistry,
   createDefaultResolvers,
+  createLooseKeyValueResolver,
+  LeanLLMResolver,
   createInMemoryPlanCache,
   createTelemetryHub,
   TelemetryHub

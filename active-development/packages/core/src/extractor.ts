@@ -40,7 +40,11 @@ export class RegexExtractor implements ExtractorAgent {
         step,
         config: context.config,
         logger: this.logger,
-        shared: sharedState
+        shared: sharedState,
+        plan: context.plan,
+        instructions: context.instructions,
+        outputSchema: context.outputSchema,
+        options: context.options
       });
 
       if (resolution) {
