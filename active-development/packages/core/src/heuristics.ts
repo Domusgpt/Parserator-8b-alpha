@@ -1,4 +1,5 @@
 import {
+  DetectedSystemContext,
   ParseOptions,
   ParseratorCoreConfig,
   SearchStep,
@@ -72,9 +73,11 @@ export function humaniseKey(key: string): string {
 export function buildSearchInstruction(
   humanKey: string,
   validationType: ValidationType,
-  instructions?: string
+  instructions?: string,
+  context?: DetectedSystemContext
 ): string {
-  const base = `Locate the value for "${humanKey}"`;
+  const parts: string[] = [];
+  parts.push(`Locate the value for "${humanKey}".`);
   const guidance = {
     email: 'Prefer RFC compliant email addresses.',
     phone: 'Return the primary phone number including country code when available.',
@@ -90,9 +93,30 @@ export function buildSearchInstruction(
     custom: 'Apply custom logic described by the caller.'
   } as Record<ValidationType, string>;
 
-  const suffix = guidance[validationType] ?? guidance.string;
-  const hint = instructions ? ` Consider caller instructions: ${instructions}` : '';
-  return `${base}. ${suffix}${hint}`.trim();
+  parts.push(guidance[validationType] ?? guidance.string);
+
+  // Only inject contextual hints when the heuristics were confident enough to avoid
+  // polluting instructions with misleading domain assumptions. Older persisted plans
+  // may omit the confidence attribute, so treat those as implicitly approved.
+  const shouldApplyContext = context?.confidence !== undefined ? context.confidence >= 0.5 : true;
+
+  if (context && shouldApplyContext) {
+    const contextualHint = resolveContextualHint(context, validationType);
+    if (contextualHint) {
+      parts.push(contextualHint);
+    } else {
+      parts.push(`Optimise for ${context.label.toLowerCase()} records.`);
+    }
+  }
+
+  if (instructions) {
+    parts.push(`Caller instructions: ${instructions}`);
+  }
+
+  return parts
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function detectFormat(input: string): string {
@@ -129,6 +153,242 @@ export function escapeRegExp(value: string): string {
 
 export function normaliseKey(value: string): string {
   return value.replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase();
+}
+
+interface ContextRule {
+  id: string;
+  label: string;
+  schemaKeywords: string[];
+  instructionKeywords?: string[];
+  baseConfidence?: number;
+  description?: string;
+  generalHint?: string;
+  validationHints?: Partial<Record<ValidationType, string>>;
+}
+
+const SYSTEM_CONTEXT_RULES: ContextRule[] = [
+  {
+    id: 'ecommerce',
+    label: 'E-commerce Catalog',
+    schemaKeywords: ['sku', 'product', 'variant', 'inventory', 'price', 'upc', 'category', 'brand'],
+    instructionKeywords: ['product', 'catalog', 'cart', 'retail', 'merch', 'listing', 'shop'],
+    baseConfidence: 0.32,
+    description: 'Product-focused schema fields detected.',
+    generalHint: 'Align answers with product catalogue terminology and include variant-specific context when available.',
+    validationHints: {
+      currency: 'Return pricing data and capture currency symbols when present.',
+      number: 'Use inventory counts or quantity values related to the product.',
+      string: 'Emphasise product names, variant labels, or merchandising descriptors.'
+    }
+  },
+  {
+    id: 'crm',
+    label: 'Customer Relationship Management',
+    schemaKeywords: ['lead', 'contact', 'company', 'account', 'pipeline', 'stage', 'deal', 'owner', 'opportunity'],
+    instructionKeywords: ['crm', 'sales', 'pipeline', 'deal', 'lead'],
+    baseConfidence: 0.3,
+    description: 'Lead and account terminology found in schema.',
+    generalHint: 'Surface contact-centric information suitable for CRM records and note lifecycle stage where possible.',
+    validationHints: {
+      name: 'Prefer full contact names or account owners referenced in the data.',
+      string: 'Highlight relationship status, lifecycle stage, or next actions relevant to CRM workflows.'
+    }
+  },
+  {
+    id: 'finance',
+    label: 'Financial Document',
+    schemaKeywords: ['invoice', 'amount', 'balance', 'due', 'tax', 'payment', 'total', 'transaction', 'account', 'statement'],
+    instructionKeywords: ['invoice', 'payment', 'billing', 'accounting', 'finance'],
+    baseConfidence: 0.34,
+    description: 'Financial terminology detected across schema fields.',
+    generalHint: 'Prioritise monetary amounts, payment status, and billing identifiers for financial documents.',
+    validationHints: {
+      currency: 'Normalise monetary values with decimals and include currency codes when stated.',
+      date: 'Return dates tied to billing or payment schedules such as due or issue dates.',
+      string: 'Capture reference numbers (invoice, purchase order) or payment statuses verbatim.'
+    }
+  },
+  {
+    id: 'healthcare',
+    label: 'Medical Record',
+    schemaKeywords: ['patient', 'diagnosis', 'provider', 'treatment', 'medication', 'clinic', 'procedure', 'insurance'],
+    instructionKeywords: ['medical', 'health', 'patient', 'clinical'],
+    baseConfidence: 0.28,
+    description: 'Medical terminology detected throughout the schema.',
+    generalHint: 'Maintain medically accurate language and respect patient context when extracting values.',
+    validationHints: {
+      string: 'Summarise clinical information such as diagnoses, treatments, or physician notes with precision.',
+      date: 'Return dates associated with care events, admissions, or treatment milestones.'
+    }
+  },
+  {
+    id: 'support',
+    label: 'Support Ticket',
+    schemaKeywords: ['ticket', 'issue', 'priority', 'status', 'agent', 'queue', 'resolution', 'sla', 'incident'],
+    instructionKeywords: ['support', 'helpdesk', 'ticket', 'incident', 'case'],
+    baseConfidence: 0.27,
+    description: 'Support workflow vocabulary discovered in schema fields.',
+    generalHint: 'Focus on ticket lifecycle attributes such as status, severity, owners, and resolution actions.',
+    validationHints: {
+      string: 'Capture concise issue statements or resolution notes that help triage the ticket.',
+      boolean: 'Indicate whether the ticket has been resolved or still requires attention.'
+    }
+  }
+];
+
+function resolveContextualHint(
+  context: DetectedSystemContext,
+  validationType: ValidationType
+): string | undefined {
+  const rule = SYSTEM_CONTEXT_RULES.find(candidate => candidate.id === context.id);
+  if (!rule) {
+    return undefined;
+  }
+
+  return rule.validationHints?.[validationType] ?? rule.generalHint;
+}
+
+function tokeniseInstructionTerms(instructions?: string): string[] {
+  if (!instructions) {
+    return [];
+  }
+  const tokens = instructions
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map(token => token.trim())
+    .filter(token => token.length >= 3);
+  return Array.from(new Set(tokens));
+}
+
+function extractSchemaDescriptors(value: unknown): string[] {
+  if (!value) {
+    return [];
+  }
+
+  if (typeof value === 'string') {
+    return [value];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap(extractSchemaDescriptors);
+  }
+
+  if (typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).flatMap(extractSchemaDescriptors);
+  }
+
+  return [];
+}
+
+export function detectSystemContext(
+  outputSchema: Record<string, unknown>,
+  instructions?: string
+): DetectedSystemContext | undefined {
+  const schemaEntries = Object.entries(outputSchema).map(([field, descriptor]) => ({
+    field,
+    fieldKey: normaliseKey(field),
+    descriptorTokens: extractSchemaDescriptors(descriptor).map(token => normaliseKey(token))
+  }));
+
+  const instructionTokens = tokeniseInstructionTerms(instructions);
+
+  let bestMatch: {
+    rule: ContextRule;
+    matchedFields: string[];
+    matchedInstructionTerms: string[];
+    confidence: number;
+    rationale: string[];
+  } | undefined;
+
+  for (const rule of SYSTEM_CONTEXT_RULES) {
+    const matchedFields: string[] = [];
+    const matchedInstructionTerms: string[] = [];
+
+    for (const entry of schemaEntries) {
+      const hasSchemaMatch = rule.schemaKeywords.some(keyword => {
+        return (
+          entry.fieldKey.includes(keyword) ||
+          entry.descriptorTokens.some(token => token.includes(keyword))
+        );
+      });
+
+      if (hasSchemaMatch) {
+        matchedFields.push(entry.field);
+      }
+    }
+
+    if (rule.instructionKeywords?.length) {
+      instructionTokens.forEach(token => {
+        if (rule.instructionKeywords!.some(keyword => token.includes(keyword))) {
+          matchedInstructionTerms.push(token);
+        }
+      });
+    }
+
+    const uniqueFields = Array.from(new Set(matchedFields));
+    const uniqueInstructionTerms = Array.from(new Set(matchedInstructionTerms));
+    const totalMatches = uniqueFields.length + uniqueInstructionTerms.length;
+
+    if (totalMatches === 0) {
+      continue;
+    }
+
+    const coverage = uniqueFields.length / Math.max(schemaEntries.length, 1);
+    const confidence = Math.min(
+      0.95,
+      (rule.baseConfidence ?? 0.25) +
+        Math.min(uniqueFields.length, 5) * 0.14 +
+        Math.min(uniqueInstructionTerms.length, 4) * 0.1 +
+        coverage * 0.22
+    );
+
+    if (confidence < 0.45) {
+      continue;
+    }
+
+    const rationale: string[] = [];
+    if (uniqueFields.length) {
+      rationale.push(`Schema fields matched: ${uniqueFields.join(', ')}`);
+    }
+    if (uniqueInstructionTerms.length) {
+      rationale.push(`Instruction cues: ${uniqueInstructionTerms.join(', ')}`);
+    }
+    if (coverage >= 0.35) {
+      rationale.push(
+        `Approximately ${Math.round(coverage * 100)}% of fields align with ${rule.label.toLowerCase()} keywords.`
+      );
+    }
+    if (rule.description) {
+      rationale.push(rule.description);
+    }
+
+    if (
+      !bestMatch ||
+      confidence > bestMatch.confidence ||
+      (confidence === bestMatch.confidence && uniqueFields.length > bestMatch.matchedFields.length)
+    ) {
+      bestMatch = {
+        rule,
+        matchedFields: uniqueFields,
+        matchedInstructionTerms: uniqueInstructionTerms,
+        confidence,
+        rationale
+      };
+    }
+  }
+
+  if (!bestMatch) {
+    return undefined;
+  }
+
+  return {
+    id: bestMatch.rule.id,
+    label: bestMatch.rule.label,
+    confidence: bestMatch.confidence,
+    matchedFields: bestMatch.matchedFields,
+    matchedInstructionTerms: bestMatch.matchedInstructionTerms,
+    rationale: bestMatch.rationale
+  };
 }
 
 export interface StructuredSection {
@@ -213,7 +473,8 @@ export function buildPlannerSteps(
   outputSchema: Record<string, unknown>,
   instructions: string | undefined,
   options: ParseOptions | undefined,
-  config: ParseratorCoreConfig
+  config: ParseratorCoreConfig,
+  context?: DetectedSystemContext
 ): SearchStep[] {
   return Object.keys(outputSchema).map(field => {
     const schemaValue = outputSchema[field];
@@ -221,7 +482,12 @@ export function buildPlannerSteps(
     const isRequired = !isFieldOptional(schemaValue);
     const humanKey = humaniseKey(field);
 
-    const searchInstruction = buildSearchInstruction(humanKey, validationType, instructions);
+    const searchInstruction = buildSearchInstruction(
+      humanKey,
+      validationType,
+      instructions,
+      context
+    );
 
     return {
       targetKey: field,
