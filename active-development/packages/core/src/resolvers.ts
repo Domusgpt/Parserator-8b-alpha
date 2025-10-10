@@ -603,13 +603,80 @@ function matchAddress(input: string): string | undefined {
 
 function matchName(input: string): string | undefined {
   const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const candidate = lines.find(line => /^([A-Z][a-z]+\s+){0,3}[A-Z][a-z]+$/.test(line));
-  if (candidate) {
-    return candidate;
+
+  const csvCandidate = extractNameFromCsv(lines);
+  if (csvCandidate) {
+    return csvCandidate;
   }
-  const namePattern = /[A-Z][a-z]+\s+[A-Z][a-z]+/;
-  const match = input.match(namePattern);
-  return match ? match[0] : undefined;
+
+  const labelledMatch = input.match(/(?:^|\b)(?:name|customer|contact)\s*[:\-]\s*([^\n\r]+)/i);
+  if (labelledMatch) {
+    const value = labelledMatch[1].split(/[\r\n,]/)[0]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+
+  const introductionMatch = input.match(/\bmy name is\s+([A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*){0,3})/i);
+  if (introductionMatch) {
+    return introductionMatch[1].trim();
+  }
+
+  const multiWordLine = lines.find(line => /^[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}$/.test(line));
+  if (multiWordLine) {
+    return multiWordLine;
+  }
+
+  const multiWordMatches = input.match(/[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+)+/g);
+  if (multiWordMatches && multiWordMatches.length) {
+    return multiWordMatches.sort((a, b) => b.length - a.length)[0].trim();
+  }
+
+  const singleWordLine = lines.find(line => /^[A-Z][a-z]+$/.test(line));
+  return singleWordLine ?? undefined;
+}
+
+function extractNameFromCsv(lines: string[]): string | undefined {
+  if (lines.length < 2 || !lines.some(line => line.includes(','))) {
+    return undefined;
+  }
+
+  const [headerLine, ...dataLines] = lines;
+  if (!headerLine.includes(',')) {
+    return undefined;
+  }
+
+  const headers = headerLine.split(',').map(part => part.trim()).filter(Boolean);
+  const nameIndex = headers.findIndex(header => {
+    const normalised = normaliseKey(header);
+    return normalised === 'name' || normalised.includes('name');
+  });
+
+  if (nameIndex === -1) {
+    return undefined;
+  }
+
+  for (const line of dataLines) {
+    if (!line.includes(',')) {
+      continue;
+    }
+
+    const values = line.split(',').map(part => part.trim());
+    const value = values[nameIndex];
+    if (!value) {
+      continue;
+    }
+
+    if (/^[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}$/.test(value)) {
+      return value;
+    }
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
 }
 
 function findBestSectionMatch(

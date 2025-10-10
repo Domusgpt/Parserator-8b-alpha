@@ -13,6 +13,7 @@ export interface SearchStep {
     validationType: ValidationType;
     isRequired: boolean;
 }
+export type SearchPlanOrigin = 'heuristic' | 'model' | 'cached' | (string & {});
 export interface SearchPlan {
     id: string;
     version: string;
@@ -23,8 +24,23 @@ export interface SearchPlan {
         detectedFormat: string;
         complexity: 'low' | 'medium' | 'high';
         estimatedTokens: number;
-        origin: 'heuristic' | 'model' | 'cached';
+        origin: SearchPlanOrigin;
+        context?: DetectedSystemContext;
     };
+}
+export interface DetectedSystemContext {
+    /** Machine-readable identifier for the detected system. */
+    id: string;
+    /** Human friendly label for presentation and logging. */
+    label: string;
+    /** Confidence score between 0-1 derived from heuristic matches. */
+    confidence: number;
+    /** Schema field keys that contributed to the match. */
+    matchedFields: string[];
+    /** Instruction keywords that contributed to the match. */
+    matchedInstructionTerms: string[];
+    /** Additional notes that explain why the context was selected. */
+    rationale: string[];
 }
 export interface ParseOptions {
     timeout?: number;
@@ -441,7 +457,19 @@ export interface ParseratorPlanReadyEvent extends ParseratorTelemetryBaseEvent {
     processingTimeMs: number;
     confidence: number;
 }
-export type ParseratorTelemetryEvent = ParseratorParseStartEvent | ParseratorParseStageEvent | ParseratorParseSuccessEvent | ParseratorParseFailureEvent | ParseratorPlanReadyEvent;
+export interface ParseratorPlanCacheEvent extends ParseratorTelemetryBaseEvent {
+    type: 'plan:cache';
+    action: 'hit' | 'miss' | 'store' | 'delete' | 'clear';
+    key?: string;
+    scope?: string;
+    planId?: string;
+    confidence?: number;
+    tokensUsed?: number;
+    processingTimeMs?: number;
+    reason?: string;
+    error?: string;
+}
+export type ParseratorTelemetryEvent = ParseratorParseStartEvent | ParseratorParseStageEvent | ParseratorParseSuccessEvent | ParseratorParseFailureEvent | ParseratorPlanReadyEvent | ParseratorPlanCacheEvent;
 export type ParseratorTelemetryListener = (event: ParseratorTelemetryEvent) => void | Promise<void>;
 export interface ParseratorTelemetry {
     emit(event: ParseratorTelemetryEvent): void;
