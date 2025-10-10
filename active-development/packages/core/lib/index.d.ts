@@ -1,6 +1,6 @@
 import { HeuristicArchitect } from './architect';
 import { RegexExtractor } from './extractor';
-import { createDefaultResolvers, ResolverRegistry } from './resolvers';
+import { createDefaultResolvers, createLooseKeyValueResolver, LeanLLMResolver, ResolverRegistry } from './resolvers';
 import { ParseratorSession } from './session';
 import { createTelemetryHub, TelemetryHub } from './telemetry';
 import { createInMemoryPlanCache } from './cache';
@@ -67,5 +67,5 @@ export declare class ParseratorCore {
     private handleExtractorFailure;
     private attachRegistryIfSupported;
 }
-export { HeuristicArchitect, RegexExtractor, ResolverRegistry, createDefaultResolvers, createInMemoryPlanCache, createTelemetryHub, TelemetryHub };
+export { HeuristicArchitect, RegexExtractor, ResolverRegistry, createDefaultResolvers, createLooseKeyValueResolver, LeanLLMResolver, createInMemoryPlanCache, createTelemetryHub, TelemetryHub };
 //# sourceMappingURL=index.d.ts.map

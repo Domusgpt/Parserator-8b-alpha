@@ -3,7 +3,13 @@ import {
   FieldResolutionContext,
   FieldResolutionResult,
   FieldResolver,
+  LeanLLMClient,
+  LeanLLMExtractionFieldResult,
+  LeanLLMExtractionRequest,
+  LeanLLMExtractionResponse,
+  LeanLLMResolverOptions,
   ParseDiagnostic,
+  SearchStep,
   ValidationType
 } from './types';
 import {
@@ -20,6 +26,9 @@ const JSON_PAYLOAD_ERROR_KEY = 'resolver:json:error';
 const JSON_PAYLOAD_DIAG_KEY = 'resolver:json:diagnosed';
 const SECTION_CACHE_KEY = 'resolver:sections:cache';
 const LOOSE_KEY_VALUE_CACHE_KEY = 'resolver:loosekv:cache';
+const LEAN_LLM_RESPONSE_KEY = 'resolver:leanllm:response';
+const LEAN_LLM_ERROR_KEY = 'resolver:leanllm:error';
+const LEAN_LLM_FAILURE_REPORTED_KEY = 'resolver:leanllm:reported';
 
 export class ResolverRegistry {
   private resolvers: FieldResolver[];
@@ -330,6 +339,193 @@ class LooseKeyValueResolver implements FieldResolver {
       value: resolved,
       confidence,
       diagnostics,
+      resolver: this.name
+    };
+  }
+}
+
+export class LeanLLMResolver implements FieldResolver {
+  readonly name: string;
+
+  private readonly includeOptional: boolean;
+  private readonly defaultConfidence: number;
+
+  constructor(
+    private readonly client: LeanLLMClient,
+    private readonly logger: CoreLogger,
+    options: LeanLLMResolverOptions = {}
+  ) {
+    this.includeOptional = options.includeOptionalFields ?? false;
+    this.defaultConfidence = clamp(options.defaultConfidence ?? 0.6, 0, 1);
+    const baseName = options.name ?? this.client.name ?? 'lean-llm';
+    this.name = baseName.startsWith('lean-llm') ? baseName : `lean-llm:${baseName}`;
+  }
+
+  supports(step: FieldResolutionContext['step']): boolean {
+    return step.isRequired || this.includeOptional;
+  }
+
+  async resolve(context: FieldResolutionContext): Promise<FieldResolutionResult | undefined> {
+    if (!context.config.enableFieldFallbacks) {
+      return undefined;
+    }
+
+    if (!context.plan) {
+      return undefined;
+    }
+
+    if (!context.step.isRequired && !this.includeOptional) {
+      return undefined;
+    }
+
+    let response = context.shared.get(LEAN_LLM_RESPONSE_KEY) as
+      | LeanLLMExtractionResponse
+      | null
+      | undefined;
+
+    if (response === undefined) {
+      const steps = this.collectSteps(context.plan.steps);
+      if (!steps.length) {
+        context.shared.set(LEAN_LLM_RESPONSE_KEY, null);
+        return undefined;
+      }
+
+      const request: LeanLLMExtractionRequest = {
+        input: context.inputData,
+        steps,
+        instructions: context.instructions,
+        schema: context.outputSchema,
+        options: context.options
+      };
+
+      try {
+        const start = Date.now();
+        response = await this.client.extractFields(request);
+        context.shared.set(LEAN_LLM_RESPONSE_KEY, response ?? null);
+        this.logger.debug?.('parserator-core:lean-llm-resolver-called', {
+          client: this.client.name,
+          latencyMs: Date.now() - start,
+          fields: steps.map(step => step.targetKey)
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'unknown lean LLM error';
+        context.shared.set(LEAN_LLM_RESPONSE_KEY, null);
+        context.shared.set(LEAN_LLM_ERROR_KEY, message);
+        this.logger.warn?.('parserator-core:lean-llm-resolver-error', {
+          client: this.client.name,
+          field: context.step.targetKey,
+          message
+        });
+
+        if (context.shared.get(LEAN_LLM_FAILURE_REPORTED_KEY)) {
+          return undefined;
+        }
+
+        context.shared.set(LEAN_LLM_FAILURE_REPORTED_KEY, true);
+
+        return {
+          value: undefined,
+          confidence: 0,
+          diagnostics: [
+            {
+              field: context.step.targetKey,
+              stage: 'extractor',
+              message: `Lean LLM (${this.client.name}) resolver failed: ${message}`,
+              severity: context.step.isRequired ? 'warning' : 'info'
+            }
+          ],
+          resolver: this.name
+        };
+      }
+    }
+
+    if (response === null) {
+      return this.createUnavailableResult(context);
+    }
+
+    const fieldResult = this.findFieldResult(response, context.step.targetKey);
+
+    if (!fieldResult || fieldResult.value === undefined) {
+      return {
+        value: undefined,
+        confidence: clamp(fieldResult?.confidence ?? 0.18, 0, 0.6),
+        diagnostics: [
+          {
+            field: context.step.targetKey,
+            stage: 'extractor',
+            message: `Lean LLM (${this.client.name}) could not supply ${context.step.targetKey}`,
+            severity: context.step.isRequired ? 'warning' : 'info'
+          }
+        ],
+        resolver: this.name
+      };
+    }
+
+    const rationaleSuffix = fieldResult.rationale ? ` — ${fieldResult.rationale}` : '';
+
+    return {
+      value: fieldResult.value,
+      confidence: clamp(fieldResult.confidence ?? this.defaultConfidence, 0, 1),
+      diagnostics: [
+        {
+          field: context.step.targetKey,
+          stage: 'extractor',
+          message: `Lean LLM (${this.client.name}) fallback resolved ${context.step.targetKey}${rationaleSuffix}`,
+          severity: 'info'
+        }
+      ],
+      resolver: this.name
+    };
+  }
+
+  private collectSteps(steps: SearchStep[]): SearchStep[] {
+    const selected = this.includeOptional ? steps : steps.filter(step => step.isRequired);
+    return selected.map(step => ({ ...step }));
+  }
+
+  private findFieldResult(
+    response: LeanLLMExtractionResponse,
+    targetKey: string
+  ): LeanLLMExtractionFieldResult | undefined {
+    const normalisedTarget = normaliseKey(targetKey);
+    for (const field of response?.fields ?? []) {
+      const candidates = [field.key, ...(field.alternateKeys ?? [])];
+      if (
+        candidates.some(candidate => {
+          const normalisedCandidate = normaliseKey(String(candidate ?? ''));
+          return normalisedCandidate && normalisedCandidate === normalisedTarget;
+        })
+      ) {
+        return field;
+      }
+    }
+
+    return undefined;
+  }
+
+  private createUnavailableResult(
+    context: FieldResolutionContext
+  ): FieldResolutionResult | undefined {
+    if (context.shared.get(LEAN_LLM_FAILURE_REPORTED_KEY)) {
+      return undefined;
+    }
+
+    context.shared.set(LEAN_LLM_FAILURE_REPORTED_KEY, true);
+    const message = context.shared.get(LEAN_LLM_ERROR_KEY) as string | undefined;
+
+    return {
+      value: undefined,
+      confidence: 0,
+      diagnostics: [
+        {
+          field: context.step.targetKey,
+          stage: 'extractor',
+          message: message
+            ? `Lean LLM (${this.client.name}) fallback unavailable: ${message}`
+            : `Lean LLM (${this.client.name}) fallback unavailable after previous failure`,
+          severity: context.step.isRequired ? 'warning' : 'info'
+        }
+      ],
       resolver: this.name
     };
   }

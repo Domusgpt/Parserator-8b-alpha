@@ -115,6 +115,10 @@ export interface FieldResolutionContext {
     config: ParseratorCoreConfig;
     logger: CoreLogger;
     shared: Map<string, unknown>;
+    plan?: SearchPlan;
+    instructions?: string;
+    outputSchema?: Record<string, unknown>;
+    options?: ParseOptions;
 }
 export interface FieldResolutionResult {
     value?: unknown;
@@ -126,6 +130,38 @@ export interface FieldResolver {
     name: string;
     supports(step: SearchStep): boolean;
     resolve(context: FieldResolutionContext): Promise<FieldResolutionResult | undefined> | FieldResolutionResult | undefined;
+}
+export interface LeanLLMExtractionRequest {
+    input: string;
+    steps: SearchStep[];
+    instructions?: string;
+    schema?: Record<string, unknown>;
+    options?: ParseOptions;
+}
+export interface LeanLLMExtractionFieldResult {
+    key: string;
+    value?: unknown;
+    confidence?: number;
+    rationale?: string;
+    alternateKeys?: string[];
+}
+export interface LeanLLMExtractionResponse {
+    fields: LeanLLMExtractionFieldResult[];
+    usage?: {
+        tokens?: number;
+        cost?: number;
+        latencyMs?: number;
+    };
+    raw?: unknown;
+}
+export interface LeanLLMClient {
+    name: string;
+    extractFields(request: LeanLLMExtractionRequest): Promise<LeanLLMExtractionResponse>;
+}
+export interface LeanLLMResolverOptions {
+    includeOptionalFields?: boolean;
+    defaultConfidence?: number;
+    name?: string;
 }
 export interface CoreLogger {
     debug: (...args: unknown[]) => void;
@@ -160,6 +196,9 @@ export interface ExtractorContext {
     inputData: string;
     plan: SearchPlan;
     config: ParseratorCoreConfig;
+    instructions?: string;
+    outputSchema?: Record<string, unknown>;
+    options?: ParseOptions;
 }
 export interface ExtractorResult {
     success: boolean;
@@ -295,6 +334,8 @@ export interface ParseratorCoreOptions {
     architect?: ArchitectAgent;
     extractor?: ExtractorAgent;
     resolvers?: FieldResolver[];
+    leanLLMClient?: LeanLLMClient;
+    leanLLMResolverOptions?: LeanLLMResolverOptions;
     profile?: ParseratorProfileOption;
     telemetry?: ParseratorTelemetry | ParseratorTelemetryListener | ParseratorTelemetryListener[];
     interceptors?: ParseratorInterceptor | ParseratorInterceptor[];

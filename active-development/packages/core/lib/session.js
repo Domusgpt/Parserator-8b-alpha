@@ -148,7 +148,10 @@ class ParseratorSession {
         const extractorResult = await this.deps.extractor.execute({
             inputData: request.inputData,
             plan,
-            config: runtimeConfig
+            config: runtimeConfig,
+            instructions: request.instructions,
+            outputSchema: request.outputSchema,
+            options: request.options
         });
         const combinedDiagnostics = [
             ...preprocessDiagnostics,

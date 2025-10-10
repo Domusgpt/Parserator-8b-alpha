@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TelemetryHub = exports.createTelemetryHub = exports.createInMemoryPlanCache = exports.createDefaultResolvers = exports.ResolverRegistry = exports.RegexExtractor = exports.HeuristicArchitect = exports.ParseratorCore = exports.createDefaultPostprocessors = exports.createDefaultPreprocessors = exports.ParseratorSession = void 0;
+exports.TelemetryHub = exports.createTelemetryHub = exports.createInMemoryPlanCache = exports.LeanLLMResolver = exports.createLooseKeyValueResolver = exports.createDefaultResolvers = exports.ResolverRegistry = exports.RegexExtractor = exports.HeuristicArchitect = exports.ParseratorCore = exports.createDefaultPostprocessors = exports.createDefaultPreprocessors = exports.ParseratorSession = void 0;
 const uuid_1 = require("uuid");
 const architect_1 = require("./architect");
 Object.defineProperty(exports, "HeuristicArchitect", { enumerable: true, get: function () { return architect_1.HeuristicArchitect; } });
@@ -23,6 +23,8 @@ Object.defineProperty(exports, "RegexExtractor", { enumerable: true, get: functi
 const logger_1 = require("./logger");
 const resolvers_1 = require("./resolvers");
 Object.defineProperty(exports, "createDefaultResolvers", { enumerable: true, get: function () { return resolvers_1.createDefaultResolvers; } });
+Object.defineProperty(exports, "createLooseKeyValueResolver", { enumerable: true, get: function () { return resolvers_1.createLooseKeyValueResolver; } });
+Object.defineProperty(exports, "LeanLLMResolver", { enumerable: true, get: function () { return resolvers_1.LeanLLMResolver; } });
 Object.defineProperty(exports, "ResolverRegistry", { enumerable: true, get: function () { return resolvers_1.ResolverRegistry; } });
 const profiles_1 = require("./profiles");
 const session_1 = require("./session");
@@ -95,6 +97,14 @@ class ParseratorCore {
         this.config = this.composeConfig();
         const initialResolvers = options.resolvers ?? resolvedProfile?.resolvers ?? (0, resolvers_1.createDefaultResolvers)(this.logger);
         this.resolverRegistry = new resolvers_1.ResolverRegistry(initialResolvers, this.logger);
+        if (options.leanLLMClient) {
+            const leanResolver = new resolvers_1.LeanLLMResolver(options.leanLLMClient, this.logger, options.leanLLMResolverOptions);
+            this.resolverRegistry.register(leanResolver, 'append');
+            this.logger.info?.('parserator-core:lean-llm-resolver-registered', {
+                client: options.leanLLMClient.name,
+                includeOptional: options.leanLLMResolverOptions?.includeOptionalFields ?? false
+            });
+        }
         this.architect = options.architect ?? resolvedProfile?.architect ?? new architect_1.HeuristicArchitect(this.logger);
         const extractor = options.extractor ?? resolvedProfile?.extractor ?? new extractor_1.RegexExtractor(this.logger, this.resolverRegistry);
         this.attachRegistryIfSupported(extractor);
@@ -592,7 +602,10 @@ class ParseratorCore {
         const extractorResult = await this.extractor.execute({
             inputData: request.inputData,
             plan: activePlan,
-            config: this.config
+            config: this.config,
+            instructions: request.instructions,
+            outputSchema: request.outputSchema,
+            options: request.options
         });
         this.telemetry.emit({
             type: 'parse:stage',
