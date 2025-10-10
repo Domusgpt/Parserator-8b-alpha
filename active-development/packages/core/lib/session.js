@@ -5,6 +5,8 @@ const uuid_1 = require("uuid");
 const utils_1 = require("./utils");
 const preprocessors_1 = require("./preprocessors");
 const postprocessors_1 = require("./postprocessors");
+const telemetry_1 = require("./telemetry");
+const async_queue_1 = require("./async-queue");
 class ParseratorSession {
     constructor(deps) {
         this.deps = deps;
@@ -18,6 +20,8 @@ class ParseratorSession {
         this.parsesSinceRefresh = 0;
         this.lowConfidenceRuns = 0;
         this.autoRefreshPending = false;
+        this.planCacheQueue = (0, async_queue_1.createAsyncTaskQueue)();
+        this.autoRefreshTasks = new Set();
         this.id = deps.init.sessionId ?? (0, uuid_1.v4)();
         this.createdAt = new Date().toISOString();
         this.planConfidence = (0, utils_1.clamp)(deps.init.planConfidence ?? 0.8, 0, 1);
@@ -30,6 +34,16 @@ class ParseratorSession {
         this.deps.init.autoRefresh = this.autoRefreshConfig;
         this.planCache = deps.planCache;
         this.planCacheKey = deps.planCacheKey ?? this.resolvePlanCacheKey(deps.init);
+        this.emitPlanCacheTelemetry = (0, telemetry_1.createPlanCacheTelemetryEmitter)({
+            telemetry: this.telemetry,
+            source: 'session',
+            resolveProfile: () => this.profileName,
+            resolveSessionId: () => this.id,
+            resolveKey: () => this.planCacheKey,
+            resolvePlanId: () => this.plan?.id,
+            requestIdFactory: uuid_1.v4,
+            logger: this.deps.logger
+        });
         if (deps.init.plan) {
             this.plan = (0, utils_1.clonePlan)(deps.init.plan, 'cached');
             this.planDiagnostics = [...(deps.init.planDiagnostics ?? [])];
@@ -320,12 +334,13 @@ class ParseratorSession {
                 response
             });
         }
-        await this.handleAutoRefreshPostParse({
+        this.scheduleAutoRefreshPostParse({
             request,
             response,
             confidence: metadata.confidence,
             threshold,
-            overrides
+            overrides,
+            requestId
         });
         return response;
     }
@@ -351,6 +366,28 @@ class ParseratorSession {
             lastConfidence: this.lastConfidence,
             lastDiagnostics: [...this.lastDiagnostics],
             autoRefresh: this.getAutoRefreshState()
+        };
+    }
+    getBackgroundTaskState() {
+        const pendingWrites = this.planCacheQueue.size();
+        const planCacheState = {
+            pendingWrites,
+            idle: pendingWrites === 0,
+            lastAttemptAt: this.planCacheLastPersistAttemptAt,
+            lastPersistAt: this.planCacheLastPersistAt,
+            lastPersistReason: this.planCacheLastPersistReason,
+            lastPersistError: this.planCacheLastPersistError
+        };
+        const autoRefresh = this.getAutoRefreshState();
+        if (!autoRefresh) {
+            return { planCache: planCacheState };
+        }
+        return {
+            planCache: planCacheState,
+            autoRefresh: {
+                ...autoRefresh,
+                inFlight: this.autoRefreshTasks.size
+            }
         };
     }
     exportInit(overrides = {}) {
@@ -426,7 +463,7 @@ class ParseratorSession {
             return undefined;
         }
     }
-    queuePlanCachePersist(reason) {
+    queuePlanCachePersist(reason, context = {}) {
         if (!this.planCache || !this.planCacheKey || !this.plan) {
             return;
         }
@@ -439,12 +476,51 @@ class ParseratorSession {
             updatedAt: this.planUpdatedAt ?? new Date().toISOString(),
             profile: this.profileName
         };
-        Promise.resolve(this.planCache.set(this.planCacheKey, entry)).catch(error => {
-            this.deps.logger.warn?.('parserator-core:session-plan-cache-set-failed', {
-                error: error instanceof Error ? error.message : error,
-                sessionId: this.id,
-                reason
-            });
+        void this.planCacheQueue.enqueue(async () => {
+            this.planCacheLastPersistAttemptAt = new Date().toISOString();
+            this.planCacheLastPersistReason = reason;
+            try {
+                await this.planCache.set(this.planCacheKey, entry);
+                this.planCacheLastPersistAt = new Date().toISOString();
+                this.planCacheLastPersistError = undefined;
+                this.emitPlanCacheTelemetry({
+                    action: 'store',
+                    requestId: context.requestId,
+                    reason,
+                    key: this.planCacheKey,
+                    planId: entry.plan.id,
+                    confidence: entry.confidence,
+                    tokensUsed: entry.tokensUsed,
+                    processingTimeMs: entry.processingTimeMs
+                });
+            }
+            catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                this.planCacheLastPersistError = errorMessage;
+                this.deps.logger.warn?.('parserator-core:session-plan-cache-set-failed', {
+                    error: error instanceof Error ? error.message : error,
+                    sessionId: this.id,
+                    reason
+                });
+                this.emitPlanCacheTelemetry({
+                    action: 'store',
+                    requestId: context.requestId,
+                    reason,
+                    key: this.planCacheKey,
+                    planId: entry.plan.id,
+                    error
+                });
+            }
+        });
+    }
+    emitAutoRefreshTelemetry(event) {
+        this.telemetry.emit({
+            type: 'plan:auto-refresh',
+            source: 'session',
+            timestamp: new Date().toISOString(),
+            profile: this.profileName,
+            sessionId: this.id,
+            ...event
         });
     }
     async runBeforeInterceptors(context) {
@@ -548,6 +624,13 @@ class ParseratorSession {
             }
         }
     }
+    scheduleAutoRefreshPostParse(params) {
+        if (!this.autoRefresh) {
+            return;
+        }
+        const task = this.handleAutoRefreshPostParse(params);
+        this.trackAutoRefreshTask(task, params.requestId);
+    }
     async handleAutoRefreshPostParse(params) {
         if (!this.autoRefresh || !this.plan) {
             return;
@@ -577,6 +660,18 @@ class ParseratorSession {
         if (!trigger) {
             return;
         }
+        this.emitAutoRefreshTelemetry({
+            requestId: params.requestId,
+            action: 'queued',
+            reason: trigger,
+            confidence: params.confidence,
+            threshold: params.threshold,
+            minConfidence: this.autoRefresh.minConfidence,
+            maxParses: this.autoRefresh.maxParses,
+            parsesSinceRefresh: this.parsesSinceRefresh,
+            lowConfidenceRuns: this.lowConfidenceRuns,
+            pending: this.autoRefreshPending
+        });
         await this.triggerAutoRefresh({
             reason: trigger,
             request: params.request,
@@ -633,7 +728,24 @@ class ParseratorSession {
         return now - this.lastAutoRefreshAt < this.autoRefresh.minIntervalMs;
     }
     async triggerAutoRefresh(params) {
-        if (!this.autoRefresh || this.autoRefreshPending) {
+        if (!this.autoRefresh) {
+            return;
+        }
+        if (this.autoRefreshPending) {
+            this.emitAutoRefreshTelemetry({
+                requestId: params.response.metadata.requestId,
+                action: 'skipped',
+                reason: params.reason,
+                skipReason: 'pending',
+                confidence: params.confidence,
+                threshold: params.threshold,
+                minConfidence: this.autoRefresh.minConfidence,
+                maxParses: this.autoRefresh.maxParses,
+                parsesSinceRefresh: this.parsesSinceRefresh,
+                lowConfidenceRuns: this.lowConfidenceRuns,
+                cooldownMs: this.autoRefresh.minIntervalMs,
+                pending: true
+            });
             return;
         }
         if (this.isAutoRefreshCoolingDown()) {
@@ -645,11 +757,26 @@ class ParseratorSession {
                     ? new Date(this.lastAutoRefreshAt).toISOString()
                     : undefined
             });
+            this.emitAutoRefreshTelemetry({
+                requestId: params.response.metadata.requestId,
+                action: 'skipped',
+                reason: params.reason,
+                skipReason: 'cooldown',
+                confidence: params.confidence,
+                threshold: params.threshold,
+                minConfidence: this.autoRefresh.minConfidence,
+                maxParses: this.autoRefresh.maxParses,
+                parsesSinceRefresh: this.parsesSinceRefresh,
+                lowConfidenceRuns: this.lowConfidenceRuns,
+                cooldownMs: this.autoRefresh.minIntervalMs,
+                pending: false
+            });
             return;
         }
         const seedInput = params.reason === 'usage'
             ? this.defaultSeedInput ?? this.lastSeedInput ?? params.request.inputData
             : params.overrides.seedInput ?? params.request.inputData;
+        const seedProvided = Boolean(seedInput);
         this.autoRefreshPending = true;
         this.lastAutoRefreshAttemptAt = Date.now();
         try {
@@ -661,7 +788,21 @@ class ParseratorSession {
                 minConfidence: this.autoRefresh.minConfidence,
                 parsesSinceRefresh: this.parsesSinceRefresh,
                 maxParses: this.autoRefresh.maxParses,
-                seedProvided: Boolean(seedInput)
+                seedProvided
+            });
+            this.emitAutoRefreshTelemetry({
+                requestId: params.response.metadata.requestId,
+                action: 'triggered',
+                reason: params.reason,
+                confidence: params.confidence,
+                threshold: params.threshold,
+                minConfidence: this.autoRefresh.minConfidence,
+                maxParses: this.autoRefresh.maxParses,
+                parsesSinceRefresh: this.parsesSinceRefresh,
+                lowConfidenceRuns: this.lowConfidenceRuns,
+                cooldownMs: this.autoRefresh.minIntervalMs,
+                pending: true,
+                seedProvided
             });
             const result = await this.refreshPlan({
                 force: true,
@@ -677,18 +818,63 @@ class ParseratorSession {
                     error: result.failure?.error?.message ?? 'unknown',
                     requestId: params.response.metadata.requestId
                 });
+                this.emitAutoRefreshTelemetry({
+                    requestId: params.response.metadata.requestId,
+                    action: 'failed',
+                    reason: params.reason,
+                    confidence: params.confidence,
+                    threshold: params.threshold,
+                    minConfidence: this.autoRefresh.minConfidence,
+                    maxParses: this.autoRefresh.maxParses,
+                    parsesSinceRefresh: this.parsesSinceRefresh,
+                    lowConfidenceRuns: this.lowConfidenceRuns,
+                    cooldownMs: this.autoRefresh.minIntervalMs,
+                    pending: false,
+                    seedProvided,
+                    error: result.failure?.error?.message ?? 'unknown'
+                });
                 return;
             }
             if (!result.skipped) {
                 this.lastAutoRefreshAt = Date.now();
                 this.lastAutoRefreshReason = params.reason;
             }
+            this.emitAutoRefreshTelemetry({
+                requestId: params.response.metadata.requestId,
+                action: 'completed',
+                reason: params.reason,
+                confidence: params.confidence,
+                threshold: params.threshold,
+                minConfidence: this.autoRefresh.minConfidence,
+                maxParses: this.autoRefresh.maxParses,
+                parsesSinceRefresh: this.parsesSinceRefresh,
+                lowConfidenceRuns: this.lowConfidenceRuns,
+                cooldownMs: this.autoRefresh.minIntervalMs,
+                pending: false,
+                seedProvided
+            });
         }
         catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             this.deps.logger.warn?.('parserator-core:session-auto-refresh-error', {
                 sessionId: this.id,
                 reason: params.reason,
-                error: error instanceof Error ? error.message : error
+                error: errorMessage
+            });
+            this.emitAutoRefreshTelemetry({
+                requestId: params.response.metadata.requestId,
+                action: 'failed',
+                reason: params.reason,
+                confidence: params.confidence,
+                threshold: params.threshold,
+                minConfidence: this.autoRefresh.minConfidence,
+                maxParses: this.autoRefresh.maxParses,
+                parsesSinceRefresh: this.parsesSinceRefresh,
+                lowConfidenceRuns: this.lowConfidenceRuns,
+                cooldownMs: this.autoRefresh.minIntervalMs,
+                pending: false,
+                seedProvided,
+                error: errorMessage
             });
         }
         finally {
@@ -698,6 +884,30 @@ class ParseratorSession {
     resetAutoRefreshState() {
         this.parsesSinceRefresh = 0;
         this.lowConfidenceRuns = 0;
+    }
+    trackAutoRefreshTask(task, requestId) {
+        let tracked;
+        tracked = task
+            .catch(error => {
+            this.deps.logger.warn?.('parserator-core:session-auto-refresh-unhandled', {
+                error: error instanceof Error ? error.message : error,
+                sessionId: this.id,
+                requestId
+            });
+        })
+            .finally(() => {
+            this.autoRefreshTasks.delete(tracked);
+        });
+        this.autoRefreshTasks.add(tracked);
+    }
+    async waitForAutoRefreshIdle() {
+        if (this.autoRefreshTasks.size === 0) {
+            return;
+        }
+        await Promise.all(Array.from(this.autoRefreshTasks, task => task.catch(() => undefined)));
+    }
+    async waitForIdleTasks() {
+        await Promise.all([this.planCacheQueue.onIdle(), this.waitForAutoRefreshIdle()]);
     }
     normaliseAutoRefresh(config) {
         if (!config) {
@@ -766,6 +976,16 @@ class ParseratorSession {
             try {
                 const cached = await this.planCache.get(this.planCacheKey);
                 if (cached?.plan) {
+                    this.emitPlanCacheTelemetry({
+                        action: 'hit',
+                        requestId: params.requestId,
+                        reason: params.reason,
+                        key: this.planCacheKey,
+                        planId: cached.plan.id,
+                        confidence: cached.confidence,
+                        tokensUsed: cached.tokensUsed,
+                        processingTimeMs: cached.processingTimeMs
+                    });
                     this.plan = (0, utils_1.clonePlan)(cached.plan, 'cached');
                     this.planDiagnostics = [...cached.diagnostics];
                     this.planConfidence = (0, utils_1.clamp)(cached.confidence ?? this.planConfidence, 0, 1);
@@ -795,14 +1015,27 @@ class ParseratorSession {
                         planId: this.plan.id,
                         strategy: this.plan.strategy
                     });
-                    this.queuePlanCachePersist('reuse');
+                    this.queuePlanCachePersist('reuse', { requestId: params.requestId });
                     return undefined;
                 }
+                this.emitPlanCacheTelemetry({
+                    action: 'miss',
+                    requestId: params.requestId,
+                    reason: params.reason,
+                    key: this.planCacheKey
+                });
             }
             catch (error) {
                 this.deps.logger.warn?.('parserator-core:session-plan-cache-get-failed', {
                     error: error instanceof Error ? error.message : error,
                     sessionId: this.id
+                });
+                this.emitPlanCacheTelemetry({
+                    action: 'miss',
+                    requestId: params.requestId,
+                    reason: params.reason,
+                    key: this.planCacheKey,
+                    error
                 });
             }
         }
@@ -895,7 +1128,7 @@ class ParseratorSession {
             processingTimeMs: this.planProcessingTime,
             confidence: this.planConfidence
         });
-        this.queuePlanCachePersist(params.reason);
+        this.queuePlanCachePersist(params.reason, { requestId: params.requestId });
         return undefined;
     }
     getPlanState(options = {}) {

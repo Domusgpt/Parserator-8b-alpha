@@ -427,6 +427,24 @@ export interface ParseratorAutoRefreshState {
   pending: boolean;
 }
 
+export interface ParseratorPlanCacheBackgroundState {
+  pendingWrites: number;
+  idle: boolean;
+  lastAttemptAt?: string;
+  lastPersistAt?: string;
+  lastPersistReason?: string;
+  lastPersistError?: string;
+}
+
+export interface ParseratorAutoRefreshBackgroundState extends ParseratorAutoRefreshState {
+  inFlight: number;
+}
+
+export interface ParseratorSessionBackgroundState {
+  planCache: ParseratorPlanCacheBackgroundState;
+  autoRefresh?: ParseratorAutoRefreshBackgroundState;
+}
+
 export interface ParseratorInterceptorContext {
   request: ParseRequest;
   requestId: string;
@@ -519,12 +537,46 @@ export interface ParseratorPlanReadyEvent extends ParseratorTelemetryBaseEvent {
   confidence: number;
 }
 
+export interface ParseratorPlanCacheEvent extends ParseratorTelemetryBaseEvent {
+  type: 'plan:cache';
+  action: 'hit' | 'miss' | 'store' | 'delete' | 'clear';
+  key?: string;
+  scope?: string;
+  planId?: string;
+  confidence?: number;
+  tokensUsed?: number;
+  processingTimeMs?: number;
+  reason?: string;
+  error?: string;
+}
+
+export type ParseratorPlanAutoRefreshSkipReason = 'cooldown' | 'pending';
+
+export interface ParseratorPlanAutoRefreshEvent extends ParseratorTelemetryBaseEvent {
+  type: 'plan:auto-refresh';
+  action: 'queued' | 'triggered' | 'completed' | 'skipped' | 'failed';
+  reason?: ParseratorAutoRefreshReason;
+  skipReason?: ParseratorPlanAutoRefreshSkipReason;
+  confidence?: number;
+  threshold?: number;
+  minConfidence?: number;
+  maxParses?: number;
+  parsesSinceRefresh?: number;
+  lowConfidenceRuns?: number;
+  cooldownMs?: number;
+  pending: boolean;
+  seedProvided?: boolean;
+  error?: string;
+}
+
 export type ParseratorTelemetryEvent =
   | ParseratorParseStartEvent
   | ParseratorParseStageEvent
   | ParseratorParseSuccessEvent
   | ParseratorParseFailureEvent
-  | ParseratorPlanReadyEvent;
+  | ParseratorPlanReadyEvent
+  | ParseratorPlanCacheEvent
+  | ParseratorPlanAutoRefreshEvent;
 
 export type ParseratorTelemetryListener = (
   event: ParseratorTelemetryEvent
