@@ -1,0 +1,11 @@
+export const SHARED_PLAN_KEY = 'parserator-core:plan';
+export const SHARED_SCHEMA_KEY = 'parserator-core:schema';
+export const SHARED_INSTRUCTIONS_KEY = 'parserator-core:instructions';
+export const SHARED_REQUEST_ID_KEY = 'parserator-core:request-id';
+export const SHARED_SESSION_ID_KEY = 'parserator-core:session-id';
+export const SHARED_PROFILE_KEY = 'parserator-core:profile';
+export const SHARED_LEAN_LLM_RESULTS_KEY = 'parserator-core:lean-llm:results';
+export const SHARED_LEAN_LLM_PENDING_KEY = 'parserator-core:lean-llm:pending';
+export const SHARED_LEAN_LLM_LAST_CALL_KEY = 'parserator-core:lean-llm:last-call';
+export const SHARED_LEAN_LLM_LAST_ERROR_KEY = 'parserator-core:lean-llm:last-error';
+export const SHARED_RESOLVED_FIELD_PREFIX = 'parserator-core:resolved-field:';

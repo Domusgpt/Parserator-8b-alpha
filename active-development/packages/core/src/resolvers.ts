@@ -36,6 +36,10 @@ export class ResolverRegistry {
     }
   }
 
+  removeByName(name: string): void {
+    this.resolvers = this.resolvers.filter(resolver => resolver.name !== name);
+  }
+
   replaceAll(resolvers: FieldResolver[]): void {
     this.resolvers = [...resolvers];
   }

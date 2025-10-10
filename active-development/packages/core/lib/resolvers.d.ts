@@ -4,6 +4,7 @@ export declare class ResolverRegistry {
     private resolvers;
     constructor(resolvers?: FieldResolver[], logger?: CoreLogger | undefined);
     register(resolver: FieldResolver, position?: 'append' | 'prepend'): void;
+    removeByName(name: string): void;
     replaceAll(resolvers: FieldResolver[]): void;
     listResolvers(): string[];
     resolve(context: FieldResolutionContext): Promise<FieldResolutionResult | undefined>;
