@@ -519,12 +519,26 @@ export interface ParseratorPlanReadyEvent extends ParseratorTelemetryBaseEvent {
   confidence: number;
 }
 
+export interface ParseratorPlanCacheEvent extends ParseratorTelemetryBaseEvent {
+  type: 'plan:cache';
+  action: 'hit' | 'miss' | 'store' | 'delete' | 'clear';
+  key?: string;
+  scope?: string;
+  planId?: string;
+  confidence?: number;
+  tokensUsed?: number;
+  processingTimeMs?: number;
+  reason?: string;
+  error?: string;
+}
+
 export type ParseratorTelemetryEvent =
   | ParseratorParseStartEvent
   | ParseratorParseStageEvent
   | ParseratorParseSuccessEvent
   | ParseratorParseFailureEvent
-  | ParseratorPlanReadyEvent;
+  | ParseratorPlanReadyEvent
+  | ParseratorPlanCacheEvent;
 
 export type ParseratorTelemetryListener = (
   event: ParseratorTelemetryEvent

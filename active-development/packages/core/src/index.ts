@@ -20,6 +20,7 @@ import {
   ParseratorPostprocessor,
   ParseratorPlanCache,
   ParseratorPlanCacheEntry,
+  ParseratorPlanCacheEvent,
   ParseDiagnostic,
   ParseError,
   ParseMetadata,
@@ -335,6 +336,104 @@ export class ParseratorCore {
     return this.createSession(sessionInit);
   }
 
+  async getPlanCacheEntry(request: ParseRequest): Promise<ParseratorPlanCacheEntry | undefined> {
+    const planCacheKey = this.getPlanCacheKey(request);
+    if (!planCacheKey || !this.planCache) {
+      return undefined;
+    }
+
+    try {
+      const entry = await this.planCache.get(planCacheKey);
+      if (!entry) {
+        return undefined;
+      }
+
+      return this.cloneCacheEntry(entry);
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-introspect-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: this.profileName,
+        key: planCacheKey,
+        operation: 'get'
+      });
+      return undefined;
+    }
+  }
+
+  async deletePlanCacheEntry(request: ParseRequest): Promise<boolean> {
+    const planCacheKey = this.getPlanCacheKey(request);
+    if (!planCacheKey || !this.planCache || typeof this.planCache.delete !== 'function') {
+      this.logger.warn?.('parserator-core:plan-cache-delete-unsupported', {
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      return false;
+    }
+
+    try {
+      await this.planCache.delete(planCacheKey);
+      this.logger.info?.('parserator-core:plan-cache-delete', {
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      this.emitPlanCacheEvent({
+        action: 'delete',
+        key: planCacheKey,
+        reason: 'management'
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-delete-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      this.emitPlanCacheEvent({
+        action: 'delete',
+        key: planCacheKey,
+        reason: 'management',
+        error
+      });
+      return false;
+    }
+  }
+
+  async clearPlanCache(profile?: string): Promise<boolean> {
+    if (!this.planCache || typeof this.planCache.clear !== 'function') {
+      this.logger.warn?.('parserator-core:plan-cache-clear-unsupported', {
+        profile: profile ?? this.profileName ?? 'all'
+      });
+      return false;
+    }
+
+    const targetProfile = profile ?? this.profileName;
+
+    try {
+      await Promise.resolve(this.planCache.clear(targetProfile));
+      this.logger.info?.('parserator-core:plan-cache-cleared', {
+        profile: targetProfile ?? 'all'
+      });
+      this.emitPlanCacheEvent({
+        action: 'clear',
+        scope: targetProfile ?? 'all',
+        reason: 'management'
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-clear-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: targetProfile ?? 'all'
+      });
+      this.emitPlanCacheEvent({
+        action: 'clear',
+        scope: targetProfile ?? 'all',
+        reason: 'management',
+        error
+      });
+      return false;
+    }
+  }
+
   private composeConfig(): ParseratorCoreConfig {
     return {
       ...DEFAULT_CONFIG,
@@ -434,11 +533,35 @@ export class ParseratorCore {
             profile: this.profileName,
             key: planCacheKey
           });
+          this.emitPlanCacheEvent({
+            action: 'hit',
+            key: planCacheKey,
+            planId: cachedEntry.plan.id,
+            confidence: cachedEntry.confidence,
+            tokensUsed: cachedEntry.tokensUsed,
+            processingTimeMs: cachedEntry.processingTimeMs,
+            requestId,
+            reason: 'parse'
+          });
+        } else {
+          this.emitPlanCacheEvent({
+            action: 'miss',
+            key: planCacheKey,
+            requestId,
+            reason: 'parse'
+          });
         }
       } catch (error) {
         this.logger.warn?.('parserator-core:plan-cache-get-failed', {
           error: error instanceof Error ? error.message : error,
           profile: this.profileName
+        });
+        this.emitPlanCacheEvent({
+          action: 'miss',
+          key: planCacheKey,
+          requestId,
+          reason: 'parse',
+          error
         });
       }
     }
@@ -536,10 +659,28 @@ export class ParseratorCore {
             profile: this.profileName,
             key: planCacheKey
           });
+          this.emitPlanCacheEvent({
+            action: 'store',
+            key: planCacheKey,
+            planId: entry.plan.id,
+            confidence: entry.confidence,
+            tokensUsed: entry.tokensUsed,
+            processingTimeMs: entry.processingTimeMs,
+            requestId,
+            reason: 'parse'
+          });
         } catch (error) {
           this.logger.warn?.('parserator-core:plan-cache-set-failed', {
             error: error instanceof Error ? error.message : error,
             profile: this.profileName
+          });
+          this.emitPlanCacheEvent({
+            action: 'store',
+            key: planCacheKey,
+            planId: entry.plan.id,
+            requestId,
+            reason: 'parse',
+            error
           });
         }
       }
@@ -810,6 +951,54 @@ export class ParseratorCore {
       });
       return undefined;
     }
+  }
+
+  private cloneCacheEntry(entry: ParseratorPlanCacheEntry): ParseratorPlanCacheEntry {
+    return {
+      ...entry,
+      plan: clonePlan(entry.plan, entry.plan.metadata.origin),
+      diagnostics: [...entry.diagnostics]
+    };
+  }
+
+  private emitPlanCacheEvent(event: {
+    action: ParseratorPlanCacheEvent['action'];
+    key?: string;
+    scope?: string;
+    planId?: string;
+    confidence?: number;
+    tokensUsed?: number;
+    processingTimeMs?: number;
+    requestId?: string;
+    reason?: string;
+    error?: unknown;
+  }): void {
+    const requestId = event.requestId ?? uuidv4();
+    const errorMessage =
+      event.error === undefined
+        ? undefined
+        : event.error instanceof Error
+        ? event.error.message
+        : typeof event.error === 'string'
+        ? event.error
+        : String(event.error);
+
+    this.telemetry.emit({
+      type: 'plan:cache',
+      source: 'core',
+      requestId,
+      timestamp: new Date().toISOString(),
+      profile: this.profileName,
+      action: event.action,
+      key: event.key,
+      scope: event.scope,
+      planId: event.planId,
+      confidence: event.confidence,
+      tokensUsed: event.tokensUsed,
+      processingTimeMs: event.processingTimeMs,
+      reason: event.reason,
+      error: errorMessage
+    });
   }
 
   private async runBeforeInterceptors(context: ParseratorInterceptorContext): Promise<void> {

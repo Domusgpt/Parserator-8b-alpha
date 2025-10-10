@@ -29,6 +29,7 @@ import {
   ParseratorAutoRefreshState,
   ParseratorAutoRefreshReason,
   ParseratorPlanCache,
+  ParseratorPlanCacheEvent,
   StageMetrics
 } from './types';
 import {
@@ -552,7 +553,48 @@ export class ParseratorSession {
     }
   }
 
-  private queuePlanCachePersist(reason: string): void {
+  private emitPlanCacheEvent(event: {
+    action: ParseratorPlanCacheEvent['action'];
+    requestId?: string;
+    reason: string;
+    key?: string;
+    scope?: string;
+    planId?: string;
+    confidence?: number;
+    tokensUsed?: number;
+    processingTimeMs?: number;
+    error?: unknown;
+  }): void {
+    const requestId = event.requestId ?? uuidv4();
+    const errorMessage =
+      event.error === undefined
+        ? undefined
+        : event.error instanceof Error
+        ? event.error.message
+        : typeof event.error === 'string'
+        ? event.error
+        : String(event.error);
+
+    this.telemetry.emit({
+      type: 'plan:cache',
+      source: 'session',
+      requestId,
+      timestamp: new Date().toISOString(),
+      profile: this.profileName,
+      sessionId: this.id,
+      action: event.action,
+      key: event.key ?? this.planCacheKey,
+      scope: event.scope,
+      planId: event.planId ?? this.plan?.id,
+      confidence: event.confidence,
+      tokensUsed: event.tokensUsed,
+      processingTimeMs: event.processingTimeMs,
+      reason: event.reason,
+      error: errorMessage
+    });
+  }
+
+  private queuePlanCachePersist(reason: string, context: { requestId?: string } = {}): void {
     if (!this.planCache || !this.planCacheKey || !this.plan) {
       return;
     }
@@ -567,13 +609,34 @@ export class ParseratorSession {
       profile: this.profileName
     };
 
-    Promise.resolve(this.planCache.set(this.planCacheKey, entry)).catch(error => {
-      this.deps.logger.warn?.('parserator-core:session-plan-cache-set-failed', {
-        error: error instanceof Error ? error.message : error,
-        sessionId: this.id,
-        reason
+    Promise.resolve(this.planCache.set(this.planCacheKey, entry))
+      .then(() => {
+        this.emitPlanCacheEvent({
+          action: 'store',
+          requestId: context.requestId,
+          reason,
+          key: this.planCacheKey!,
+          planId: entry.plan.id,
+          confidence: entry.confidence,
+          tokensUsed: entry.tokensUsed,
+          processingTimeMs: entry.processingTimeMs
+        });
+      })
+      .catch(error => {
+        this.deps.logger.warn?.('parserator-core:session-plan-cache-set-failed', {
+          error: error instanceof Error ? error.message : error,
+          sessionId: this.id,
+          reason
+        });
+        this.emitPlanCacheEvent({
+          action: 'store',
+          requestId: context.requestId,
+          reason,
+          key: this.planCacheKey!,
+          planId: entry.plan.id,
+          error
+        });
       });
-    });
   }
 
   private async runBeforeInterceptors(context: ParseratorInterceptorContext): Promise<void> {
@@ -979,6 +1042,16 @@ export class ParseratorSession {
       try {
         const cached = await this.planCache.get(this.planCacheKey);
         if (cached?.plan) {
+          this.emitPlanCacheEvent({
+            action: 'hit',
+            requestId: params.requestId,
+            reason: params.reason,
+            key: this.planCacheKey,
+            planId: cached.plan.id,
+            confidence: cached.confidence,
+            tokensUsed: cached.tokensUsed,
+            processingTimeMs: cached.processingTimeMs
+          });
           this.plan = clonePlan(cached.plan, 'cached');
           this.planDiagnostics = [...cached.diagnostics];
           this.planConfidence = clamp(cached.confidence ?? this.planConfidence, 0, 1);
@@ -1011,14 +1084,27 @@ export class ParseratorSession {
             strategy: this.plan.strategy
           });
 
-          this.queuePlanCachePersist('reuse');
+          this.queuePlanCachePersist('reuse', { requestId: params.requestId });
 
           return undefined;
         }
+        this.emitPlanCacheEvent({
+          action: 'miss',
+          requestId: params.requestId,
+          reason: params.reason,
+          key: this.planCacheKey
+        });
       } catch (error) {
         this.deps.logger.warn?.('parserator-core:session-plan-cache-get-failed', {
           error: error instanceof Error ? error.message : error,
           sessionId: this.id
+        });
+        this.emitPlanCacheEvent({
+          action: 'miss',
+          requestId: params.requestId,
+          reason: params.reason,
+          key: this.planCacheKey,
+          error
         });
       }
     }
@@ -1122,7 +1208,7 @@ export class ParseratorSession {
       confidence: this.planConfidence
     });
 
-    this.queuePlanCachePersist(params.reason);
+    this.queuePlanCachePersist(params.reason, { requestId: params.requestId });
 
     return undefined;
   }
