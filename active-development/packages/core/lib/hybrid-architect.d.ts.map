@@ -1,0 +1,1 @@
+{"version":3,"file":"hybrid-architect.d.ts","sourceRoot":"","sources":["../src/hybrid-architect.ts"],"names":[],"mappings":"AACA,OAAO,EACL,cAAc,EAId,mCAAmC,EAGpC,MAAM,SAAS,CAAC;AAGjB,UAAU,sBAAuB,SAAQ,mCAAmC;IAC1E,IAAI,EAAE,cAAc,CAAC;CACtB;AA6CD,wBAAgB,qBAAqB,CAAC,OAAO,EAAE,sBAAsB,GAAG,cAAc,CAiJrF"}
