@@ -32,6 +32,8 @@ export interface SearchStep {
   isRequired: boolean;
 }
 
+export type SearchPlanOrigin = 'heuristic' | 'model' | 'cached' | (string & {});
+
 export interface SearchPlan {
   id: string;
   version: string;
@@ -42,8 +44,24 @@ export interface SearchPlan {
     detectedFormat: string;
     complexity: 'low' | 'medium' | 'high';
     estimatedTokens: number;
-    origin: 'heuristic' | 'model' | 'cached';
+    origin: SearchPlanOrigin;
+    context?: DetectedSystemContext;
   };
+}
+
+export interface DetectedSystemContext {
+  /** Machine-readable identifier for the detected system. */
+  id: string;
+  /** Human friendly label for presentation and logging. */
+  label: string;
+  /** Confidence score between 0-1 derived from heuristic matches. */
+  confidence: number;
+  /** Schema field keys that contributed to the match. */
+  matchedFields: string[];
+  /** Instruction keywords that contributed to the match. */
+  matchedInstructionTerms: string[];
+  /** Additional notes that explain why the context was selected. */
+  rationale: string[];
 }
 
 export interface ParseOptions {

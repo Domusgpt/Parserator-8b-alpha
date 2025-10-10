@@ -116,7 +116,11 @@ export async function quickParse(
   outputSchema: Record<string, any>,
   instructions?: string
 ): Promise<ParseResponse> {
-  const client = new ParseratorClient({ apiKey });
+  const client = new ParseratorClient({
+    apiKey,
+    timeout: 10000,
+    retries: 0
+  });
   return client.parse({
     inputData,
     outputSchema,
