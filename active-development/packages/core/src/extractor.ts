@@ -6,7 +6,7 @@ import {
   ParseDiagnostic,
   ParseError
 } from './types';
-import { ResolverRegistry, createDefaultResolvers } from './resolvers';
+import { PLAN_SHARED_STATE_KEY, ResolverRegistry, createDefaultResolvers } from './resolvers';
 import { clamp } from './utils';
 
 export class RegexExtractor implements ExtractorAgent {
@@ -29,6 +29,7 @@ export class RegexExtractor implements ExtractorAgent {
     let aggregatedConfidence = 0;
 
     const sharedState = new Map<string, unknown>();
+    sharedState.set(PLAN_SHARED_STATE_KEY, context.plan);
 
     for (const step of context.plan.steps) {
       if (step.isRequired) {

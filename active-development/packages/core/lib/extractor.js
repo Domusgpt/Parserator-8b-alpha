@@ -19,6 +19,7 @@ class RegexExtractor {
         let requiredCount = 0;
         let aggregatedConfidence = 0;
         const sharedState = new Map();
+        sharedState.set(resolvers_1.PLAN_SHARED_STATE_KEY, context.plan);
         for (const step of context.plan.steps) {
             if (step.isRequired) {
                 requiredCount += 1;
