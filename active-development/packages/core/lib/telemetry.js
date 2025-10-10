@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TelemetryHub = void 0;
 exports.createTelemetryHub = createTelemetryHub;
+exports.createPlanCacheTelemetryEmitter = createPlanCacheTelemetryEmitter;
+const uuid_1 = require("uuid");
 class NoopTelemetry {
     emit() {
         // noop
@@ -66,5 +68,61 @@ function createTelemetryHub(input, logger) {
     }
     const listeners = Array.isArray(input) ? input : [input];
     return new TelemetryHub(listeners, logger);
+}
+function createPlanCacheTelemetryEmitter(options) {
+    const requestIdFactory = options.requestIdFactory ?? uuid_1.v4;
+    const safeResolve = (resolver, label) => {
+        if (!resolver) {
+            return undefined;
+        }
+        try {
+            return resolver();
+        }
+        catch (error) {
+            options.logger?.warn?.('parserator-core:plan-cache-telemetry-resolve-failed', {
+                error: error instanceof Error ? error.message : error,
+                source: options.source,
+                field: label
+            });
+            return undefined;
+        }
+    };
+    const normaliseError = (error) => {
+        if (error === undefined || error === null) {
+            return undefined;
+        }
+        if (error instanceof Error) {
+            return error.message;
+        }
+        if (typeof error === 'string') {
+            return error;
+        }
+        try {
+            return JSON.stringify(error);
+        }
+        catch {
+            return String(error);
+        }
+    };
+    return event => {
+        const requestId = event.requestId ?? requestIdFactory();
+        options.telemetry.emit({
+            type: 'plan:cache',
+            source: options.source,
+            requestId,
+            timestamp: new Date().toISOString(),
+            profile: safeResolve(options.resolveProfile, 'profile'),
+            sessionId: safeResolve(options.resolveSessionId, 'sessionId'),
+            action: event.action,
+            key: event.key ?? safeResolve(options.resolveKey, 'key'),
+            scope: event.scope,
+            planId: event.planId ?? safeResolve(options.resolvePlanId, 'planId'),
+            confidence: event.confidence,
+            tokensUsed: event.tokensUsed,
+            processingTimeMs: event.processingTimeMs,
+            reason: event.reason,
+            error: normaliseError(event.error)
+        });
+    };
 }
 //# sourceMappingURL=telemetry.js.map
