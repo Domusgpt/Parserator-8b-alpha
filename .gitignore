@@ -1,0 +1,12 @@
+# Dependency directories
+node_modules/
+**/node_modules/
+
+# Build outputs
+**/dist/
+**/build/
+**/.gradle/
+
+# IDE metadata
+.idea/
+*.iml
