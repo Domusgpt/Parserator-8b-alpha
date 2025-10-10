@@ -6,7 +6,11 @@ import { createDefaultLogger } from './logger';
 import { createDefaultResolvers, ResolverRegistry } from './resolvers';
 import { listParseratorProfiles, resolveProfile } from './profiles';
 import { ParseratorSession } from './session';
-import { createTelemetryHub, TelemetryHub } from './telemetry';
+import {
+  createPlanCacheTelemetryEmitter,
+  createTelemetryHub,
+  TelemetryHub
+} from './telemetry';
 import { createInMemoryPlanCache } from './cache';
 import { createDefaultPreprocessors, executePreprocessors } from './preprocessors';
 import { createDefaultPostprocessors, executePostprocessors } from './postprocessors';
@@ -79,6 +83,7 @@ export class ParseratorCore {
   private profileOverrides: Partial<ParseratorCoreConfig> = {};
   private configOverrides: Partial<ParseratorCoreConfig> = {};
   private telemetry: ParseratorTelemetry;
+  private emitPlanCacheTelemetry: ReturnType<typeof createPlanCacheTelemetryEmitter>;
   private planCache?: ParseratorPlanCache;
   private readonly interceptors = new Set<ParseratorInterceptor>();
   private readonly preprocessors: ParseratorPreprocessor[] = [];
@@ -92,6 +97,13 @@ export class ParseratorCore {
     this.apiKey = options.apiKey;
     this.logger = options.logger ?? DEFAULT_LOGGER;
     this.telemetry = createTelemetryHub(options.telemetry, this.logger);
+    this.emitPlanCacheTelemetry = createPlanCacheTelemetryEmitter({
+      telemetry: this.telemetry,
+      source: 'core',
+      resolveProfile: () => this.profileName,
+      requestIdFactory: uuidv4,
+      logger: this.logger
+    });
 
     if (options.interceptors) {
       const interceptors = Array.isArray(options.interceptors)
@@ -335,6 +347,104 @@ export class ParseratorCore {
     return this.createSession(sessionInit);
   }
 
+  async getPlanCacheEntry(request: ParseRequest): Promise<ParseratorPlanCacheEntry | undefined> {
+    const planCacheKey = this.getPlanCacheKey(request);
+    if (!planCacheKey || !this.planCache) {
+      return undefined;
+    }
+
+    try {
+      const entry = await this.planCache.get(planCacheKey);
+      if (!entry) {
+        return undefined;
+      }
+
+      return this.cloneCacheEntry(entry);
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-introspect-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: this.profileName,
+        key: planCacheKey,
+        operation: 'get'
+      });
+      return undefined;
+    }
+  }
+
+  async deletePlanCacheEntry(request: ParseRequest): Promise<boolean> {
+    const planCacheKey = this.getPlanCacheKey(request);
+    if (!planCacheKey || !this.planCache || typeof this.planCache.delete !== 'function') {
+      this.logger.warn?.('parserator-core:plan-cache-delete-unsupported', {
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      return false;
+    }
+
+    try {
+      await this.planCache.delete(planCacheKey);
+      this.logger.info?.('parserator-core:plan-cache-delete', {
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      this.emitPlanCacheTelemetry({
+        action: 'delete',
+        key: planCacheKey,
+        reason: 'management'
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-delete-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      this.emitPlanCacheTelemetry({
+        action: 'delete',
+        key: planCacheKey,
+        reason: 'management',
+        error
+      });
+      return false;
+    }
+  }
+
+  async clearPlanCache(profile?: string): Promise<boolean> {
+    if (!this.planCache || typeof this.planCache.clear !== 'function') {
+      this.logger.warn?.('parserator-core:plan-cache-clear-unsupported', {
+        profile: profile ?? this.profileName ?? 'all'
+      });
+      return false;
+    }
+
+    const targetProfile = profile ?? this.profileName;
+
+    try {
+      await Promise.resolve(this.planCache.clear(targetProfile));
+      this.logger.info?.('parserator-core:plan-cache-cleared', {
+        profile: targetProfile ?? 'all'
+      });
+      this.emitPlanCacheTelemetry({
+        action: 'clear',
+        scope: targetProfile ?? 'all',
+        reason: 'management'
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-clear-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: targetProfile ?? 'all'
+      });
+      this.emitPlanCacheTelemetry({
+        action: 'clear',
+        scope: targetProfile ?? 'all',
+        reason: 'management',
+        error
+      });
+      return false;
+    }
+  }
+
   private composeConfig(): ParseratorCoreConfig {
     return {
       ...DEFAULT_CONFIG,
@@ -434,11 +544,35 @@ export class ParseratorCore {
             profile: this.profileName,
             key: planCacheKey
           });
+          this.emitPlanCacheTelemetry({
+            action: 'hit',
+            key: planCacheKey,
+            planId: cachedEntry.plan.id,
+            confidence: cachedEntry.confidence,
+            tokensUsed: cachedEntry.tokensUsed,
+            processingTimeMs: cachedEntry.processingTimeMs,
+            requestId,
+            reason: 'parse'
+          });
+        } else {
+          this.emitPlanCacheTelemetry({
+            action: 'miss',
+            key: planCacheKey,
+            requestId,
+            reason: 'parse'
+          });
         }
       } catch (error) {
         this.logger.warn?.('parserator-core:plan-cache-get-failed', {
           error: error instanceof Error ? error.message : error,
           profile: this.profileName
+        });
+        this.emitPlanCacheTelemetry({
+          action: 'miss',
+          key: planCacheKey,
+          requestId,
+          reason: 'parse',
+          error
         });
       }
     }
@@ -536,10 +670,28 @@ export class ParseratorCore {
             profile: this.profileName,
             key: planCacheKey
           });
+          this.emitPlanCacheTelemetry({
+            action: 'store',
+            key: planCacheKey,
+            planId: entry.plan.id,
+            confidence: entry.confidence,
+            tokensUsed: entry.tokensUsed,
+            processingTimeMs: entry.processingTimeMs,
+            requestId,
+            reason: 'parse'
+          });
         } catch (error) {
           this.logger.warn?.('parserator-core:plan-cache-set-failed', {
             error: error instanceof Error ? error.message : error,
             profile: this.profileName
+          });
+          this.emitPlanCacheTelemetry({
+            action: 'store',
+            key: planCacheKey,
+            planId: entry.plan.id,
+            requestId,
+            reason: 'parse',
+            error
           });
         }
       }
@@ -811,6 +963,15 @@ export class ParseratorCore {
       return undefined;
     }
   }
+
+  private cloneCacheEntry(entry: ParseratorPlanCacheEntry): ParseratorPlanCacheEntry {
+    return {
+      ...entry,
+      plan: clonePlan(entry.plan, entry.plan.metadata.origin),
+      diagnostics: [...entry.diagnostics]
+    };
+  }
+
 
   private async runBeforeInterceptors(context: ParseratorInterceptorContext): Promise<void> {
     for (const interceptor of this.interceptors) {
@@ -1120,5 +1281,6 @@ export {
   createDefaultResolvers,
   createInMemoryPlanCache,
   createTelemetryHub,
+  createPlanCacheTelemetryEmitter,
   TelemetryHub
 };
