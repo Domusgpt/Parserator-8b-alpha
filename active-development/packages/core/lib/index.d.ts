@@ -2,9 +2,9 @@ import { HeuristicArchitect } from './architect';
 import { RegexExtractor } from './extractor';
 import { createDefaultResolvers, ResolverRegistry } from './resolvers';
 import { ParseratorSession } from './session';
-import { createTelemetryHub, TelemetryHub } from './telemetry';
+import { createPlanCacheTelemetryEmitter, createTelemetryHub, TelemetryHub } from './telemetry';
 import { createInMemoryPlanCache } from './cache';
-import { ArchitectAgent, BatchParseOptions, ExtractorAgent, ParseratorPreprocessor, ParseratorPostprocessor, ParseRequest, ParseResponse, ParseratorCoreConfig, ParseratorCoreOptions, ParseratorProfileOption, ParseratorSessionFromResponseOptions, ParseratorSessionInit, ParseratorInterceptor } from './types';
+import { ArchitectAgent, BatchParseOptions, ExtractorAgent, ParseratorPreprocessor, ParseratorPostprocessor, ParseratorPlanCacheEntry, ParseRequest, ParseResponse, ParseratorCoreConfig, ParseratorCoreOptions, ParseratorProfileOption, ParseratorSessionFromResponseOptions, ParseratorSessionInit, ParseratorInterceptor } from './types';
 export * from './types';
 export * from './profiles';
 export { ParseratorSession } from './session';
@@ -21,6 +21,7 @@ export declare class ParseratorCore {
     private profileOverrides;
     private configOverrides;
     private telemetry;
+    private emitPlanCacheTelemetry;
     private planCache?;
     private readonly interceptors;
     private readonly preprocessors;
@@ -46,6 +47,9 @@ export declare class ParseratorCore {
     clearPostprocessors(): void;
     createSession(init: ParseratorSessionInit): ParseratorSession;
     createSessionFromResponse(options: ParseratorSessionFromResponseOptions): ParseratorSession;
+    getPlanCacheEntry(request: ParseRequest): Promise<ParseratorPlanCacheEntry | undefined>;
+    deletePlanCacheEntry(request: ParseRequest): Promise<boolean>;
+    clearPlanCache(profile?: string): Promise<boolean>;
     private composeConfig;
     parse(request: ParseRequest): Promise<ParseResponse>;
     parseMany(requests: ParseRequest[], options?: BatchParseOptions): Promise<ParseResponse[]>;
@@ -53,6 +57,7 @@ export declare class ParseratorCore {
     private getPreprocessors;
     private getPostprocessors;
     private getPlanCacheKey;
+    private cloneCacheEntry;
     private runBeforeInterceptors;
     private runPreprocessors;
     private runPostprocessors;
@@ -62,5 +67,5 @@ export declare class ParseratorCore {
     private handleExtractorFailure;
     private attachRegistryIfSupported;
 }
-export { HeuristicArchitect, RegexExtractor, ResolverRegistry, createDefaultResolvers, createInMemoryPlanCache, createTelemetryHub, TelemetryHub };
+export { HeuristicArchitect, RegexExtractor, ResolverRegistry, createDefaultResolvers, createInMemoryPlanCache, createTelemetryHub, createPlanCacheTelemetryEmitter, TelemetryHub };
 //# sourceMappingURL=index.d.ts.map

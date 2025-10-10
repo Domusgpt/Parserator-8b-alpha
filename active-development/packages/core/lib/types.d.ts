@@ -441,7 +441,36 @@ export interface ParseratorPlanReadyEvent extends ParseratorTelemetryBaseEvent {
     processingTimeMs: number;
     confidence: number;
 }
-export type ParseratorTelemetryEvent = ParseratorParseStartEvent | ParseratorParseStageEvent | ParseratorParseSuccessEvent | ParseratorParseFailureEvent | ParseratorPlanReadyEvent;
+export interface ParseratorPlanCacheEvent extends ParseratorTelemetryBaseEvent {
+    type: 'plan:cache';
+    action: 'hit' | 'miss' | 'store' | 'delete' | 'clear';
+    key?: string;
+    scope?: string;
+    planId?: string;
+    confidence?: number;
+    tokensUsed?: number;
+    processingTimeMs?: number;
+    reason?: string;
+    error?: string;
+}
+export type ParseratorPlanAutoRefreshSkipReason = 'cooldown' | 'pending';
+export interface ParseratorPlanAutoRefreshEvent extends ParseratorTelemetryBaseEvent {
+    type: 'plan:auto-refresh';
+    action: 'queued' | 'triggered' | 'completed' | 'skipped' | 'failed';
+    reason?: ParseratorAutoRefreshReason;
+    skipReason?: ParseratorPlanAutoRefreshSkipReason;
+    confidence?: number;
+    threshold?: number;
+    minConfidence?: number;
+    maxParses?: number;
+    parsesSinceRefresh?: number;
+    lowConfidenceRuns?: number;
+    cooldownMs?: number;
+    pending: boolean;
+    seedProvided?: boolean;
+    error?: string;
+}
+export type ParseratorTelemetryEvent = ParseratorParseStartEvent | ParseratorParseStageEvent | ParseratorParseSuccessEvent | ParseratorParseFailureEvent | ParseratorPlanReadyEvent | ParseratorPlanCacheEvent | ParseratorPlanAutoRefreshEvent;
 export type ParseratorTelemetryListener = (event: ParseratorTelemetryEvent) => void | Promise<void>;
 export interface ParseratorTelemetry {
     emit(event: ParseratorTelemetryEvent): void;

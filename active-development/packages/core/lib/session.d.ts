@@ -44,6 +44,9 @@ export declare class ParseratorSession {
     private lastAutoRefreshAttemptAt?;
     private lastAutoRefreshReason?;
     private autoRefreshPending;
+    private emitPlanCacheTelemetry;
+    private readonly planCacheQueue;
+    private readonly autoRefreshTasks;
     constructor(deps: ParseratorSessionDependencies);
     parse(inputData: string, overrides?: SessionParseOverrides): Promise<ParseResponse>;
     snapshot(): ParseratorSessionSnapshot;
@@ -53,11 +56,13 @@ export declare class ParseratorSession {
     private getPostprocessors;
     private resolvePlanCacheKey;
     private queuePlanCachePersist;
+    private emitAutoRefreshTelemetry;
     private runBeforeInterceptors;
     private executePreprocessorsForRequest;
     private executePostprocessorsForResponse;
     private runAfterInterceptors;
     private runFailureInterceptors;
+    private scheduleAutoRefreshPostParse;
     private handleAutoRefreshPostParse;
     getAutoRefreshState(): ParseratorAutoRefreshState | undefined;
     private getConfig;
@@ -65,6 +70,9 @@ export declare class ParseratorSession {
     private isAutoRefreshCoolingDown;
     private triggerAutoRefresh;
     private resetAutoRefreshState;
+    private trackAutoRefreshTask;
+    private waitForAutoRefreshIdle;
+    waitForIdleTasks(): Promise<void>;
     private normaliseAutoRefresh;
     private ensurePlan;
     getPlanState(options?: {
