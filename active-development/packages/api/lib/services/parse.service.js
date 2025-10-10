@@ -7,6 +7,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ParseService = exports.ParseError = void 0;
 const core_1 = require("@parserator/core");
+const lean_llm_client_1 = require("./lean-llm-client");
 /**
  * Error thrown when Parse service encounters issues
  */
@@ -26,8 +27,36 @@ exports.ParseError = ParseError;
 class ParseService {
     constructor(geminiService, config, logger) {
         this.geminiService = geminiService;
-        this.config = { ...ParseService.DEFAULT_CONFIG, ...config };
+        const mergedConfig = { ...ParseService.DEFAULT_CONFIG, ...config };
+        const baseLeanLLM = {
+            ...(ParseService.DEFAULT_CONFIG.leanLLM ?? { enabled: false }),
+            ...(config?.leanLLM ?? {})
+        };
+        this.config = {
+            ...mergedConfig,
+            leanLLM: baseLeanLLM
+        };
         this.logger = logger || console;
+        let leanFallback;
+        const leanLLM = this.config.leanLLM;
+        if (leanLLM?.enabled) {
+            const leanOptions = {
+                model: leanLLM.model,
+                maxTokens: leanLLM.maxTokens,
+                temperature: leanLLM.temperature,
+                promptPreamble: leanLLM.promptPreamble
+            };
+            const client = new lean_llm_client_1.LeanLLMClient(this.geminiService, leanOptions, this.logger);
+            this.leanLLMClient = client;
+            leanFallback = {
+                client,
+                allowOptionalFields: leanLLM.allowOptionalFields,
+                maxInputCharacters: leanLLM.maxInputCharacters,
+                defaultConfidence: leanLLM.defaultConfidence,
+                name: leanLLM.resolverName,
+                position: leanLLM.resolverPosition
+            };
+        }
         this.core = new core_1.ParseratorCore({
             apiKey: this.config.coreApiKey ?? 'api-internal',
             logger: this.createCoreLogger(),
@@ -38,7 +67,8 @@ class ParseService {
                 minConfidence: this.config.minOverallConfidence,
                 enableFieldFallbacks: this.config.enableFallbacks,
                 defaultStrategy: this.config.coreStrategy ?? 'sequential'
-            }
+            },
+            llmFallback: leanFallback
         });
         this.logger.info('ParseService initialised with @parserator/core', {
             maxInputLength: this.config.maxInputLength,
@@ -48,6 +78,16 @@ class ParseService {
             coreProfile: this.core.getProfile(),
             service: 'parse'
         });
+        if (leanLLM?.enabled && this.leanLLMClient) {
+            this.logger.info('Lean LLM fallback enabled', {
+                resolver: leanLLM.resolverName ?? `${this.leanLLMClient.name}-fallback`,
+                model: leanLLM.model,
+                maxTokens: leanLLM.maxTokens,
+                temperature: leanLLM.temperature,
+                allowOptionalFields: leanLLM.allowOptionalFields,
+                position: leanLLM.resolverPosition ?? 'append'
+            });
+        }
     }
     /**
      * Main parsing method that delegates to the core pipeline
@@ -205,13 +245,21 @@ class ParseService {
         };
     }
     normaliseCoreResult(coreResult, requestId) {
+        const fallbacks = coreResult.metadata.fallbacks
+            ? {
+                ...coreResult.metadata.fallbacks,
+                fields: [...coreResult.metadata.fallbacks.fields],
+                resolvers: [...coreResult.metadata.fallbacks.resolvers]
+            }
+            : undefined;
         return {
             ...coreResult,
             metadata: {
                 ...coreResult.metadata,
                 requestId,
                 diagnostics: [...coreResult.metadata.diagnostics],
-                stageBreakdown: { ...coreResult.metadata.stageBreakdown }
+                stageBreakdown: { ...coreResult.metadata.stageBreakdown },
+                fallbacks
             }
         };
     }
@@ -236,6 +284,16 @@ class ParseService {
                 errorCode: result.error?.code,
                 errorMessage: result.error?.message,
                 stage: result.error?.stage
+            });
+        }
+        if (result.metadata.fallbacks) {
+            this.logger.info('Lean LLM fallback usage', {
+                requestId: result.metadata.requestId,
+                calls: result.metadata.fallbacks.calls,
+                successfulCalls: result.metadata.fallbacks.successfulCalls,
+                tokensUsed: result.metadata.fallbacks.tokensUsed,
+                fields: result.metadata.fallbacks.fields,
+                resolvers: result.metadata.fallbacks.resolvers
             });
         }
     }
@@ -295,8 +353,14 @@ class ParseService {
      */
     validateParseRequest(request) {
         // Validate input data
-        if (!request.inputData || typeof request.inputData !== 'string') {
+        if (request.inputData === undefined || request.inputData === null) {
             throw new ParseError('Input data must be a non-empty string', 'INVALID_INPUT_DATA', 'validation');
+        }
+        if (typeof request.inputData !== 'string') {
+            throw new ParseError('Input data must be provided as a string', 'INVALID_INPUT_DATA', 'validation');
+        }
+        if (request.inputData.length === 0) {
+            throw new ParseError('Input data cannot be empty or only whitespace', 'EMPTY_INPUT_DATA', 'validation');
         }
         if (request.inputData.trim().length === 0) {
             throw new ParseError('Input data cannot be empty or only whitespace', 'EMPTY_INPUT_DATA', 'validation');
@@ -337,6 +401,17 @@ ParseService.DEFAULT_CONFIG = {
     timeoutMs: 60000, // 1 minute total timeout (not currently enforced by core)
     enableFallbacks: true,
     minOverallConfidence: 0.55,
-    coreStrategy: 'sequential'
+    coreStrategy: 'sequential',
+    leanLLM: {
+        enabled: false,
+        model: 'gemini-1.5-flash',
+        maxTokens: 320,
+        temperature: 0.1,
+        allowOptionalFields: false,
+        maxInputCharacters: 2400,
+        defaultConfidence: 0.62,
+        promptPreamble: undefined,
+        resolverPosition: 'append'
+    }
 };
 //# sourceMappingURL=parse.service.js.map

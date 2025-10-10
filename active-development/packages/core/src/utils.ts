@@ -6,6 +6,7 @@ import {
   ParseResponse,
   ParseratorCoreConfig,
   ParseratorPlanCacheKeyInput,
+  ParseratorFallbackUsage,
   SearchPlan
 } from './types';
 import { detectFormat, humaniseKey } from './heuristics';
@@ -63,6 +64,7 @@ export interface FailureResponseOptions {
   architectTokens?: number;
   extractorTokens?: number;
   stageBreakdown?: ParseMetadata['stageBreakdown'];
+  fallbacks?: ParseratorFallbackUsage;
 }
 
 export function createFailureResponse(options: FailureResponseOptions): ParseResponse {
@@ -90,7 +92,8 @@ export function createFailureResponse(options: FailureResponseOptions): ParseRes
           tokens: options.extractorTokens ?? 0,
           confidence: 0
         }
-      }
+      },
+    fallbacks: options.fallbacks
   };
 
   return {

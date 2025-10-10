@@ -13,6 +13,7 @@ export interface SearchStep {
     validationType: ValidationType;
     isRequired: boolean;
 }
+export type SearchPlanOrigin = 'heuristic' | 'model' | 'cached' | (string & {});
 export interface SearchPlan {
     id: string;
     version: string;
@@ -23,8 +24,23 @@ export interface SearchPlan {
         detectedFormat: string;
         complexity: 'low' | 'medium' | 'high';
         estimatedTokens: number;
-        origin: 'heuristic' | 'model' | 'cached';
+        origin: SearchPlanOrigin;
+        context?: DetectedSystemContext;
     };
+}
+export interface DetectedSystemContext {
+    /** Machine-readable identifier for the detected system. */
+    id: string;
+    /** Human friendly label for presentation and logging. */
+    label: string;
+    /** Confidence score between 0-1 derived from heuristic matches. */
+    confidence: number;
+    /** Schema field keys that contributed to the match. */
+    matchedFields: string[];
+    /** Instruction keywords that contributed to the match. */
+    matchedInstructionTerms: string[];
+    /** Additional notes that explain why the context was selected. */
+    rationale: string[];
 }
 export interface ParseOptions {
     timeout?: number;
@@ -70,6 +86,13 @@ export interface StageMetrics {
     confidence: number;
     runs?: number;
 }
+export interface ParseratorFallbackUsage {
+    calls: number;
+    successfulCalls: number;
+    tokensUsed: number;
+    fields: string[];
+    resolvers: string[];
+}
 export interface ParseMetadata {
     architectPlan: SearchPlan;
     confidence: number;
@@ -86,6 +109,7 @@ export interface ParseMetadata {
         extractor: StageMetrics;
         postprocess?: StageMetrics;
     };
+    fallbacks?: ParseratorFallbackUsage;
 }
 export interface ParseResponse {
     success: boolean;
@@ -105,11 +129,52 @@ export interface FieldResolutionResult {
     confidence: number;
     diagnostics: ParseDiagnostic[];
     resolver?: string;
+    tokensUsed?: number;
 }
 export interface FieldResolver {
     name: string;
     supports(step: SearchStep): boolean;
     resolve(context: FieldResolutionContext): Promise<FieldResolutionResult | undefined> | FieldResolutionResult | undefined;
+}
+export interface LightweightLLMExtractionPlanContext {
+    id: string;
+    version: string;
+    strategy: SearchPlan['strategy'];
+    origin: SearchPlanOrigin;
+    systemContext?: DetectedSystemContext;
+}
+export interface LightweightLLMExtractionRequest {
+    field: string;
+    description: string;
+    instruction: string;
+    validationType: ValidationType;
+    input: string;
+    plan?: LightweightLLMExtractionPlanContext;
+}
+export interface LightweightLLMExtractionResponse {
+    value?: unknown;
+    confidence?: number;
+    reason?: string;
+    tokensUsed?: number;
+    metadata?: Record<string, unknown>;
+}
+export interface LightweightLLMClient {
+    readonly name: string;
+    extractField(request: LightweightLLMExtractionRequest): Promise<LightweightLLMExtractionResponse>;
+}
+export interface LeanLLMRequestContext {
+    plan?: SearchPlan;
+    step: SearchStep;
+    inputData: string;
+}
+export interface LeanLLMResolverConfig {
+    client: LightweightLLMClient;
+    allowOptionalFields?: boolean;
+    defaultConfidence?: number;
+    maxInputCharacters?: number;
+    name?: string;
+    requestFormatter?: (context: LeanLLMRequestContext) => LightweightLLMExtractionRequest;
+    position?: 'append' | 'prepend';
 }
 export interface CoreLogger {
     debug: (...args: unknown[]) => void;
@@ -153,6 +218,7 @@ export interface ExtractorResult {
     confidence: number;
     diagnostics: ParseDiagnostic[];
     error?: ParseError;
+    fallbackUsage?: ParseratorFallbackUsage;
 }
 export interface ArchitectAgent {
     createPlan(context: ArchitectContext): Promise<ArchitectResult>;
@@ -279,6 +345,7 @@ export interface ParseratorCoreOptions {
     architect?: ArchitectAgent;
     extractor?: ExtractorAgent;
     resolvers?: FieldResolver[];
+    llmFallback?: LeanLLMResolverConfig;
     profile?: ParseratorProfileOption;
     telemetry?: ParseratorTelemetry | ParseratorTelemetryListener | ParseratorTelemetryListener[];
     interceptors?: ParseratorInterceptor | ParseratorInterceptor[];
@@ -441,7 +508,19 @@ export interface ParseratorPlanReadyEvent extends ParseratorTelemetryBaseEvent {
     processingTimeMs: number;
     confidence: number;
 }
-export type ParseratorTelemetryEvent = ParseratorParseStartEvent | ParseratorParseStageEvent | ParseratorParseSuccessEvent | ParseratorParseFailureEvent | ParseratorPlanReadyEvent;
+export interface ParseratorPlanCacheEvent extends ParseratorTelemetryBaseEvent {
+    type: 'plan:cache';
+    action: 'hit' | 'miss' | 'store' | 'delete' | 'clear';
+    key?: string;
+    scope?: string;
+    planId?: string;
+    confidence?: number;
+    tokensUsed?: number;
+    processingTimeMs?: number;
+    reason?: string;
+    error?: string;
+}
+export type ParseratorTelemetryEvent = ParseratorParseStartEvent | ParseratorParseStageEvent | ParseratorParseSuccessEvent | ParseratorParseFailureEvent | ParseratorPlanReadyEvent | ParseratorPlanCacheEvent;
 export type ParseratorTelemetryListener = (event: ParseratorTelemetryEvent) => void | Promise<void>;
 export interface ParseratorTelemetry {
     emit(event: ParseratorTelemetryEvent): void;

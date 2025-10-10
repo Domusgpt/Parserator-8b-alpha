@@ -1,15 +1,19 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ResolverRegistry = void 0;
+exports.LeanLLMResolver = exports.ResolverRegistry = exports.PLAN_SHARED_STATE_KEY = exports.LEAN_LLM_USAGE_KEY = void 0;
 exports.createDefaultResolvers = createDefaultResolvers;
 exports.createLooseKeyValueResolver = createLooseKeyValueResolver;
 const heuristics_1 = require("./heuristics");
 const utils_1 = require("./utils");
+const logger_1 = require("./logger");
 const JSON_PAYLOAD_KEY = 'resolver:json:payload';
 const JSON_PAYLOAD_ERROR_KEY = 'resolver:json:error';
 const JSON_PAYLOAD_DIAG_KEY = 'resolver:json:diagnosed';
 const SECTION_CACHE_KEY = 'resolver:sections:cache';
 const LOOSE_KEY_VALUE_CACHE_KEY = 'resolver:loosekv:cache';
+const LEAN_LLM_ATTEMPTED_KEY = 'resolver:leanllm:attempted';
+exports.LEAN_LLM_USAGE_KEY = 'resolver:leanllm:usage';
+exports.PLAN_SHARED_STATE_KEY = 'parserator:plan:active';
 class ResolverRegistry {
     constructor(resolvers = [], logger) {
         this.logger = logger;
@@ -46,7 +50,8 @@ class ResolverRegistry {
                     value: result.value,
                     confidence: result.confidence,
                     diagnostics: [...diagnostics],
-                    resolver: result.resolver ?? resolver.name
+                    resolver: result.resolver ?? resolver.name,
+                    ...(result.tokensUsed !== undefined ? { tokensUsed: result.tokensUsed } : {})
                 };
                 if (result.value !== undefined) {
                     break;
@@ -324,6 +329,182 @@ class DefaultFieldResolver {
         };
     }
 }
+class LeanLLMResolver {
+    constructor(options) {
+        this.options = options;
+        this.logger = options.logger ?? (0, logger_1.createDefaultLogger)();
+        this.client = options.client;
+        this.allowOptionalFields = options.allowOptionalFields ?? false;
+        this.defaultConfidence = options.defaultConfidence ?? 0.6;
+        this.maxInputCharacters = options.maxInputCharacters;
+        this.requestFormatter = options.requestFormatter;
+        this.clientName = this.client.name ?? 'lean-llm';
+        this.name = options.name ?? `${this.clientName}-fallback`;
+        if (!options.client) {
+            throw new Error('LeanLLMResolver requires a client implementation');
+        }
+    }
+    supports() {
+        return true;
+    }
+    async resolve(context) {
+        if (!context.config.enableFieldFallbacks) {
+            return undefined;
+        }
+        if (!this.allowOptionalFields && !context.step.isRequired) {
+            return undefined;
+        }
+        const attempted = this.ensureAttemptedSet(context.shared);
+        const usage = this.ensureUsageState(context.shared);
+        if (attempted.has(context.step.targetKey)) {
+            return undefined;
+        }
+        attempted.add(context.step.targetKey);
+        context.shared.set(LEAN_LLM_ATTEMPTED_KEY, attempted);
+        usage.fields.add(context.step.targetKey);
+        usage.resolvers.add(this.name);
+        const plan = context.shared.get(exports.PLAN_SHARED_STATE_KEY);
+        const inputData = this.trimInput(context.inputData);
+        const request = this.buildRequest({ plan, step: context.step, inputData }, context);
+        this.logger.debug?.('parserator-core:lean-llm-resolver-invoked', {
+            field: context.step.targetKey,
+            required: context.step.isRequired,
+            client: this.clientName,
+            planId: plan?.id
+        });
+        try {
+            usage.calls += 1;
+            const response = await this.client.extractField(request);
+            const result = this.toResolution(context, response);
+            if (typeof response.tokensUsed === 'number') {
+                usage.tokensUsed += response.tokensUsed;
+            }
+            if (response.value !== undefined) {
+                usage.successful += 1;
+            }
+            this.logger.info?.('parserator-core:lean-llm-resolver-complete', {
+                field: context.step.targetKey,
+                resolved: response.value !== undefined,
+                confidence: result.confidence,
+                client: this.clientName,
+                tokensUsed: response.tokensUsed
+            });
+            return result;
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown lean LLM error';
+            this.logger.warn?.('parserator-core:lean-llm-resolver-error', {
+                field: context.step.targetKey,
+                client: this.clientName,
+                error: message
+            });
+            return {
+                value: undefined,
+                confidence: 0,
+                diagnostics: [
+                    {
+                        field: context.step.targetKey,
+                        stage: 'extractor',
+                        message: `Lean LLM fallback ${this.clientName} failed: ${message}`,
+                        severity: 'warning'
+                    }
+                ],
+                resolver: this.name
+            };
+        }
+    }
+    buildRequest(context, resolutionContext) {
+        if (this.requestFormatter) {
+            return this.requestFormatter(context);
+        }
+        return {
+            field: resolutionContext.step.targetKey,
+            description: resolutionContext.step.description,
+            instruction: resolutionContext.step.searchInstruction,
+            validationType: resolutionContext.step.validationType,
+            input: context.inputData,
+            plan: context.plan
+                ? {
+                    id: context.plan.id,
+                    version: context.plan.version,
+                    strategy: context.plan.strategy,
+                    origin: context.plan.metadata.origin,
+                    systemContext: context.plan.metadata.context
+                }
+                : undefined
+        };
+    }
+    toResolution(context, response) {
+        const baseConfidence = (0, utils_1.clamp)(response.confidence ?? this.defaultConfidence, 0, 1);
+        const confidence = response.value === undefined ? Math.min(baseConfidence, 0.45) : baseConfidence;
+        const diagnostics = [
+            {
+                field: context.step.targetKey,
+                stage: 'extractor',
+                message: this.composeOutcomeMessage(context.step.targetKey, response, confidence),
+                severity: response.value === undefined ? 'warning' : 'info'
+            }
+        ];
+        if (response.reason) {
+            diagnostics.push({
+                field: context.step.targetKey,
+                stage: 'extractor',
+                message: `Lean LLM rationale: ${response.reason}`,
+                severity: 'info'
+            });
+        }
+        return {
+            value: response.value,
+            confidence,
+            diagnostics,
+            resolver: this.name,
+            tokensUsed: response.tokensUsed
+        };
+    }
+    composeOutcomeMessage(field, response, confidence) {
+        const outcome = response.value === undefined ? 'examined' : 'resolved';
+        let message = `Lean LLM fallback ${this.clientName} ${outcome} ${field}`;
+        if (!Number.isNaN(confidence)) {
+            message += ` (confidence ${confidence.toFixed(2)})`;
+        }
+        if (typeof response.tokensUsed === 'number') {
+            message += ` using ${response.tokensUsed} tokens`;
+        }
+        return message;
+    }
+    ensureAttemptedSet(shared) {
+        const existing = shared.get(LEAN_LLM_ATTEMPTED_KEY);
+        if (existing instanceof Set) {
+            return existing;
+        }
+        const created = new Set();
+        shared.set(LEAN_LLM_ATTEMPTED_KEY, created);
+        return created;
+    }
+    ensureUsageState(shared) {
+        const existing = shared.get(exports.LEAN_LLM_USAGE_KEY);
+        if (existing) {
+            return existing;
+        }
+        const created = {
+            fields: new Set(),
+            resolvers: new Set(),
+            tokensUsed: 0,
+            calls: 0,
+            successful: 0
+        };
+        shared.set(exports.LEAN_LLM_USAGE_KEY, created);
+        return created;
+    }
+    trimInput(input) {
+        if (!this.maxInputCharacters || input.length <= this.maxInputCharacters) {
+            return input;
+        }
+        const slice = input.slice(0, this.maxInputCharacters);
+        return `${slice}\n... [truncated ${input.length - slice.length} chars]`;
+    }
+}
+exports.LeanLLMResolver = LeanLLMResolver;
 function buildLooseKeyValueMap(input) {
     const map = new Map();
     const lines = input.split(/\r?\n/);
@@ -509,13 +690,65 @@ function matchAddress(input) {
 }
 function matchName(input) {
     const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    const candidate = lines.find(line => /^([A-Z][a-z]+\s+){0,3}[A-Z][a-z]+$/.test(line));
-    if (candidate) {
-        return candidate;
+    const csvCandidate = extractNameFromCsv(lines);
+    if (csvCandidate) {
+        return csvCandidate;
     }
-    const namePattern = /[A-Z][a-z]+\s+[A-Z][a-z]+/;
-    const match = input.match(namePattern);
-    return match ? match[0] : undefined;
+    const labelledMatch = input.match(/(?:^|\b)(?:name|customer|contact)\s*[:\-]\s*([^\n\r]+)/i);
+    if (labelledMatch) {
+        const value = labelledMatch[1].split(/[\r\n,]/)[0]?.trim();
+        if (value) {
+            return value;
+        }
+    }
+    const introductionMatch = input.match(/\bmy name is\s+([A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*){0,3})/i);
+    if (introductionMatch) {
+        return introductionMatch[1].trim();
+    }
+    const multiWordLine = lines.find(line => /^[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}$/.test(line));
+    if (multiWordLine) {
+        return multiWordLine;
+    }
+    const multiWordMatches = input.match(/[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+)+/g);
+    if (multiWordMatches && multiWordMatches.length) {
+        return multiWordMatches.sort((a, b) => b.length - a.length)[0].trim();
+    }
+    const singleWordLine = lines.find(line => /^[A-Z][a-z]+$/.test(line));
+    return singleWordLine ?? undefined;
+}
+function extractNameFromCsv(lines) {
+    if (lines.length < 2 || !lines.some(line => line.includes(','))) {
+        return undefined;
+    }
+    const [headerLine, ...dataLines] = lines;
+    if (!headerLine.includes(',')) {
+        return undefined;
+    }
+    const headers = headerLine.split(',').map(part => part.trim()).filter(Boolean);
+    const nameIndex = headers.findIndex(header => {
+        const normalised = (0, heuristics_1.normaliseKey)(header);
+        return normalised === 'name' || normalised.includes('name');
+    });
+    if (nameIndex === -1) {
+        return undefined;
+    }
+    for (const line of dataLines) {
+        if (!line.includes(',')) {
+            continue;
+        }
+        const values = line.split(',').map(part => part.trim());
+        const value = values[nameIndex];
+        if (!value) {
+            continue;
+        }
+        if (/^[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}$/.test(value)) {
+            return value;
+        }
+        if (value) {
+            return value;
+        }
+    }
+    return undefined;
 }
 function findBestSectionMatch(sections, targetKey) {
     const target = (0, heuristics_1.normaliseKey)(targetKey);

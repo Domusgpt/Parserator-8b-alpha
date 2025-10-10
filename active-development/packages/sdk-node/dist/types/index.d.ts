@@ -25,10 +25,11 @@ export interface StageBreakdownMetrics {
     timeMs: number;
     tokens: number;
     confidence: number;
+    runs?: number;
 }
 export interface ParseDiagnostic {
     field: string;
-    stage: 'architect' | 'extractor' | 'validation';
+    stage: 'preprocess' | 'validation' | 'architect' | 'extractor' | 'postprocess';
     message: string;
     severity: 'info' | 'warning' | 'error';
 }
@@ -43,8 +44,10 @@ export interface ParseMetadata {
     timestamp: string;
     diagnostics: ParseDiagnostic[];
     stageBreakdown: {
+        preprocess?: StageBreakdownMetrics;
         architect: StageBreakdownMetrics;
         extractor: StageBreakdownMetrics;
+        postprocess?: StageBreakdownMetrics;
     };
 }
 export interface SearchStep {
@@ -71,7 +74,7 @@ export type ValidationType = 'string' | 'number' | 'boolean' | 'email' | 'phone'
 export interface ParseError {
     code: ErrorCode;
     message: string;
-    stage?: 'validation' | 'architect' | 'extractor' | 'orchestration';
+    stage?: 'validation' | 'preprocess' | 'architect' | 'extractor' | 'postprocess' | 'orchestration';
     details?: Record<string, any>;
     suggestion?: string;
 }

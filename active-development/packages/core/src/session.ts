@@ -302,7 +302,8 @@ export class ParseratorSession {
           processingTimeMs: Date.now() - startTime,
           architectTokens: architectTokensForCall,
           extractorTokens: extractorResult.tokensUsed,
-          stageBreakdown
+          stageBreakdown,
+          fallbacks: extractorResult.fallbackUsage
         }),
         request
       );
@@ -333,7 +334,8 @@ export class ParseratorSession {
           tokens: extractorResult.tokensUsed,
           confidence: extractorResult.confidence
         }
-      }
+      },
+      fallbacks: extractorResult.fallbackUsage
     };
     if (hasPreprocessStage) {
       metadata.stageBreakdown.preprocess = preprocessMetrics;
@@ -352,6 +354,9 @@ export class ParseratorSession {
       (postprocessMetrics.runs ?? 0) > 0 || postprocessDiagnostics.length > 0;
 
     metadata = postprocessOutcome.metadata;
+    if (!metadata.fallbacks && extractorResult.fallbackUsage) {
+      metadata.fallbacks = extractorResult.fallbackUsage;
+    }
     if (hasPreprocessStage && !metadata.stageBreakdown.preprocess) {
       metadata.stageBreakdown.preprocess = preprocessMetrics;
     }
