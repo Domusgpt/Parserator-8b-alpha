@@ -104,6 +104,35 @@ class FakePlanCache implements ParseratorPlanCache {
   }
 }
 
+class PausingPlanCache extends FakePlanCache {
+  constructor(private readonly gate: ReturnType<typeof createDeferred<void>>) {
+    super();
+  }
+
+  async set(key: string, entry: ParseratorPlanCacheEntry): Promise<void> {
+    await super.set(key, entry);
+    await this.gate.promise;
+  }
+}
+
+class FlakyPlanCache extends FakePlanCache {
+  private failuresRemaining: number;
+
+  constructor(private readonly errorMessage: string, failureCount = 1) {
+    super();
+    this.failuresRemaining = failureCount;
+  }
+
+  async set(key: string, entry: ParseratorPlanCacheEntry): Promise<void> {
+    if (this.failuresRemaining > 0) {
+      this.failuresRemaining -= 1;
+      throw new Error(this.errorMessage);
+    }
+
+    await super.set(key, entry);
+  }
+}
+
 function createTelemetryRecorder() {
   const events: ParseratorTelemetryEvent[] = [];
   const telemetry: ParseratorTelemetry = {
@@ -781,6 +810,113 @@ describe('ParseratorSession auto refresh telemetry', () => {
     expect(failures).toHaveLength(1);
     expect(failures[0].error).toBe('refresh-broken');
     expect(session.snapshot().autoRefresh?.pending).toBe(false);
+
+    refreshSpy.mockRestore();
+  });
+});
+
+describe('ParseratorSession background activity reporting', () => {
+  it('tracks plan cache queue progress during asynchronous persistence', async () => {
+    const deferred = createDeferred<void>();
+    const planCache = new PausingPlanCache(deferred);
+    const core = new ParseratorCore({
+      ...createCoreOptions(),
+      architect: new FakeArchitect(),
+      extractor: new FakeExtractor(),
+      planCache,
+    });
+
+    const session = core.createSession({
+      outputSchema: { foo: 'string' },
+      seedInput: 'seed-doc',
+    });
+
+    await session.parse('document-1');
+
+    const inFlight = session.getBackgroundTaskState();
+    expect(inFlight.planCache.pendingWrites).toBe(1);
+    expect(inFlight.planCache.idle).toBe(false);
+    expect(inFlight.planCache.lastAttemptAt).toBeDefined();
+    expect(inFlight.planCache.lastPersistAt).toBeUndefined();
+    expect(inFlight.planCache.lastPersistReason).toBe('ensure');
+
+    deferred.resolve();
+    await session.waitForIdleTasks();
+
+    const settled = session.getBackgroundTaskState();
+    expect(settled.planCache.pendingWrites).toBe(0);
+    expect(settled.planCache.idle).toBe(true);
+    expect(settled.planCache.lastPersistAt).toBeDefined();
+    expect(settled.planCache.lastPersistReason).toBe('ensure');
+    expect(settled.planCache.lastPersistError).toBeUndefined();
+  });
+
+  it('records last plan cache error and clears after recovery', async () => {
+    const planCache = new FlakyPlanCache('persist-failure');
+    const core = new ParseratorCore({
+      ...createCoreOptions(),
+      architect: new FakeArchitect(),
+      extractor: new FakeExtractor(),
+      planCache,
+    });
+
+    const session = core.createSession({
+      outputSchema: { foo: 'string' },
+      seedInput: 'seed-doc',
+    });
+
+    await session.parse('document-1');
+    await session.waitForIdleTasks();
+
+    const afterFailure = session.getBackgroundTaskState();
+    expect(afterFailure.planCache.pendingWrites).toBe(0);
+    expect(afterFailure.planCache.lastPersistError).toBe('persist-failure');
+    expect(afterFailure.planCache.lastPersistAt).toBeUndefined();
+    expect(afterFailure.planCache.lastPersistReason).toBe('ensure');
+
+    const refresh = await session.refreshPlan({ force: true, seedInput: 'seed-doc' });
+    expect(refresh.success).toBe(true);
+    await session.waitForIdleTasks();
+
+    const afterRecovery = session.getBackgroundTaskState();
+    expect(afterRecovery.planCache.pendingWrites).toBe(0);
+    expect(afterRecovery.planCache.lastPersistError).toBeUndefined();
+    expect(afterRecovery.planCache.lastPersistReason).toBe('refresh');
+    expect(afterRecovery.planCache.lastPersistAt).toBeDefined();
+  });
+
+  it('exposes auto refresh in-flight tasks for diagnostics', async () => {
+    const { telemetry } = createTelemetryRecorder();
+    const core = new ParseratorCore({
+      ...createCoreOptions(),
+      architect: new FakeArchitect(),
+      extractor: new FakeExtractor(),
+      telemetry,
+    });
+
+    const session = core.createSession({
+      outputSchema: { foo: 'string' },
+      seedInput: 'seed-doc',
+      autoRefresh: { maxParses: 1 },
+    });
+
+    const deferred = createDeferred<ParseratorPlanRefreshResult>();
+    const refreshSpy = jest
+      .spyOn(session, 'refreshPlan')
+      .mockImplementation(() => deferred.promise);
+
+    await session.parse('document-1');
+
+    const pending = session.getBackgroundTaskState();
+    expect(pending.autoRefresh?.pending).toBe(true);
+    expect(pending.autoRefresh?.inFlight).toBe(1);
+
+    deferred.resolve({ success: true, state: session.getPlanState() });
+    await session.waitForIdleTasks();
+
+    const settled = session.getBackgroundTaskState();
+    expect(settled.autoRefresh?.pending).toBe(false);
+    expect(settled.autoRefresh?.inFlight).toBe(0);
 
     refreshSpy.mockRestore();
   });

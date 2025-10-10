@@ -368,6 +368,28 @@ class ParseratorSession {
             autoRefresh: this.getAutoRefreshState()
         };
     }
+    getBackgroundTaskState() {
+        const pendingWrites = this.planCacheQueue.size();
+        const planCacheState = {
+            pendingWrites,
+            idle: pendingWrites === 0,
+            lastAttemptAt: this.planCacheLastPersistAttemptAt,
+            lastPersistAt: this.planCacheLastPersistAt,
+            lastPersistReason: this.planCacheLastPersistReason,
+            lastPersistError: this.planCacheLastPersistError
+        };
+        const autoRefresh = this.getAutoRefreshState();
+        if (!autoRefresh) {
+            return { planCache: planCacheState };
+        }
+        return {
+            planCache: planCacheState,
+            autoRefresh: {
+                ...autoRefresh,
+                inFlight: this.autoRefreshTasks.size
+            }
+        };
+    }
     exportInit(overrides = {}) {
         const baseOptions = this.deps.init.options;
         const overrideOptions = overrides.options;
@@ -455,8 +477,12 @@ class ParseratorSession {
             profile: this.profileName
         };
         void this.planCacheQueue.enqueue(async () => {
+            this.planCacheLastPersistAttemptAt = new Date().toISOString();
+            this.planCacheLastPersistReason = reason;
             try {
                 await this.planCache.set(this.planCacheKey, entry);
+                this.planCacheLastPersistAt = new Date().toISOString();
+                this.planCacheLastPersistError = undefined;
                 this.emitPlanCacheTelemetry({
                     action: 'store',
                     requestId: context.requestId,
@@ -469,6 +495,8 @@ class ParseratorSession {
                 });
             }
             catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                this.planCacheLastPersistError = errorMessage;
                 this.deps.logger.warn?.('parserator-core:session-plan-cache-set-failed', {
                     error: error instanceof Error ? error.message : error,
                     sessionId: this.id,

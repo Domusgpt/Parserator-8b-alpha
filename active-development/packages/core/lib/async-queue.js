@@ -71,6 +71,9 @@ function createAsyncTaskQueue() {
                 });
             }
             return idlePromise;
+        },
+        size() {
+            return tasks.length + (processing ? 1 : 0);
         }
     };
 }

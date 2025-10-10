@@ -29,6 +29,7 @@ import {
   ParseratorAutoRefreshState,
   ParseratorAutoRefreshReason,
   ParseratorPlanCache,
+  ParseratorSessionBackgroundState,
   ParseratorPlanAutoRefreshEvent,
   StageMetrics
 } from './types';
@@ -90,6 +91,10 @@ export class ParseratorSession {
   private planCache?: ParseratorPlanCache;
   private planCacheKey?: string;
   private planUpdatedAt?: string;
+  private planCacheLastPersistAt?: string;
+  private planCacheLastPersistReason?: string;
+  private planCacheLastPersistAttemptAt?: string;
+  private planCacheLastPersistError?: string;
   private lastSeedInput?: string;
   private autoRefreshConfig?: ParseratorPlanAutoRefreshConfig;
   private autoRefresh?: NormalizedAutoRefreshConfig;
@@ -488,6 +493,31 @@ export class ParseratorSession {
     };
   }
 
+  getBackgroundTaskState(): ParseratorSessionBackgroundState {
+    const pendingWrites = this.planCacheQueue.size();
+    const planCacheState = {
+      pendingWrites,
+      idle: pendingWrites === 0,
+      lastAttemptAt: this.planCacheLastPersistAttemptAt,
+      lastPersistAt: this.planCacheLastPersistAt,
+      lastPersistReason: this.planCacheLastPersistReason,
+      lastPersistError: this.planCacheLastPersistError
+    };
+
+    const autoRefresh = this.getAutoRefreshState();
+    if (!autoRefresh) {
+      return { planCache: planCacheState };
+    }
+
+    return {
+      planCache: planCacheState,
+      autoRefresh: {
+        ...autoRefresh,
+        inFlight: this.autoRefreshTasks.size
+      }
+    };
+  }
+
   exportInit(overrides: Partial<ParseratorSessionInit> = {}): ParseratorSessionInit {
     const baseOptions = this.deps.init.options;
     const overrideOptions = overrides.options;
@@ -585,8 +615,12 @@ export class ParseratorSession {
     };
 
     void this.planCacheQueue.enqueue(async () => {
+      this.planCacheLastPersistAttemptAt = new Date().toISOString();
+      this.planCacheLastPersistReason = reason;
       try {
         await this.planCache!.set(this.planCacheKey!, entry);
+        this.planCacheLastPersistAt = new Date().toISOString();
+        this.planCacheLastPersistError = undefined;
         this.emitPlanCacheTelemetry({
           action: 'store',
           requestId: context.requestId,
@@ -598,6 +632,8 @@ export class ParseratorSession {
           processingTimeMs: entry.processingTimeMs
         });
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.planCacheLastPersistError = errorMessage;
         this.deps.logger.warn?.('parserator-core:session-plan-cache-set-failed', {
           error: error instanceof Error ? error.message : error,
           sessionId: this.id,

@@ -427,6 +427,24 @@ export interface ParseratorAutoRefreshState {
   pending: boolean;
 }
 
+export interface ParseratorPlanCacheBackgroundState {
+  pendingWrites: number;
+  idle: boolean;
+  lastAttemptAt?: string;
+  lastPersistAt?: string;
+  lastPersistReason?: string;
+  lastPersistError?: string;
+}
+
+export interface ParseratorAutoRefreshBackgroundState extends ParseratorAutoRefreshState {
+  inFlight: number;
+}
+
+export interface ParseratorSessionBackgroundState {
+  planCache: ParseratorPlanCacheBackgroundState;
+  autoRefresh?: ParseratorAutoRefreshBackgroundState;
+}
+
 export interface ParseratorInterceptorContext {
   request: ParseRequest;
   requestId: string;
