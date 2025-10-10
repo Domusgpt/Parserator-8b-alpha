@@ -12,10 +12,12 @@ import {
   SearchPlan,
   CoreLogger,
   ParseDiagnostic,
-  ParseratorProfileOption
+  ParseratorProfileOption,
+  LeanLLMResolverConfig
 } from '@parserator/core';
 
 import { GeminiService } from './llm.service';
+import { LeanLLMClient, LeanLLMClientOptions } from './lean-llm-client';
 
 /**
  * Configuration for Parse operations
@@ -47,6 +49,19 @@ export interface IParseConfig {
 
   /** Optional profile to seed the core pipeline */
   coreProfile?: ParseratorProfileOption;
+
+  /** Configuration for the lean LLM fallback resolver */
+  leanLLM?: ILeanLLMConfig;
+}
+
+export interface ILeanLLMConfig extends LeanLLMClientOptions {
+  enabled: boolean;
+  allowOptionalFields?: boolean;
+  maxInputCharacters?: number;
+  defaultConfidence?: number;
+  resolverName?: string;
+  resolverPosition?: 'append' | 'prepend';
+  planConfidenceGate?: number;
 }
 
 /**
@@ -96,6 +111,7 @@ export class ParseService {
   private config: IParseConfig;
   private logger: Console;
   private readonly core: ParseratorCore;
+  private leanLLMClient?: LeanLLMClient;
 
   // Default configuration optimised for production use
   private static readonly DEFAULT_CONFIG: IParseConfig = {
@@ -104,7 +120,19 @@ export class ParseService {
     timeoutMs: 60000, // 1 minute total timeout (not currently enforced by core)
     enableFallbacks: true,
     minOverallConfidence: 0.55,
-    coreStrategy: 'sequential'
+    coreStrategy: 'sequential',
+    leanLLM: {
+      enabled: false,
+      model: 'gemini-1.5-flash',
+      maxTokens: 320,
+      temperature: 0.1,
+      allowOptionalFields: false,
+      maxInputCharacters: 2400,
+      defaultConfidence: 0.62,
+      promptPreamble: undefined,
+      resolverPosition: 'append',
+      planConfidenceGate: 0.86
+    }
   };
 
   constructor(
@@ -112,8 +140,39 @@ export class ParseService {
     config?: Partial<IParseConfig>,
     logger?: Console
   ) {
-    this.config = { ...ParseService.DEFAULT_CONFIG, ...config };
+    const mergedConfig = { ...ParseService.DEFAULT_CONFIG, ...config };
+    const baseLeanLLM: ILeanLLMConfig = {
+      ...(ParseService.DEFAULT_CONFIG.leanLLM ?? { enabled: false }),
+      ...(config?.leanLLM ?? {})
+    };
+
+    this.config = {
+      ...mergedConfig,
+      leanLLM: baseLeanLLM
+    };
     this.logger = logger || console;
+
+    let leanFallback: LeanLLMResolverConfig | undefined;
+    const leanLLM = this.config.leanLLM;
+    if (leanLLM?.enabled) {
+      const leanOptions: LeanLLMClientOptions = {
+        model: leanLLM.model,
+        maxTokens: leanLLM.maxTokens,
+        temperature: leanLLM.temperature,
+        promptPreamble: leanLLM.promptPreamble
+      };
+      const client = new LeanLLMClient(this.geminiService, leanOptions, this.logger);
+      this.leanLLMClient = client;
+      leanFallback = {
+        client,
+        allowOptionalFields: leanLLM.allowOptionalFields,
+        maxInputCharacters: leanLLM.maxInputCharacters,
+        defaultConfidence: leanLLM.defaultConfidence,
+        name: leanLLM.resolverName,
+        position: leanLLM.resolverPosition,
+        planConfidenceGate: leanLLM.planConfidenceGate
+      };
+    }
 
     this.core = new ParseratorCore({
       apiKey: this.config.coreApiKey ?? 'api-internal',
@@ -125,7 +184,8 @@ export class ParseService {
         minConfidence: this.config.minOverallConfidence,
         enableFieldFallbacks: this.config.enableFallbacks,
         defaultStrategy: this.config.coreStrategy ?? 'sequential'
-      }
+      },
+      llmFallback: leanFallback
     });
 
     this.logger.info('ParseService initialised with @parserator/core', {
@@ -136,6 +196,17 @@ export class ParseService {
       coreProfile: this.core.getProfile(),
       service: 'parse'
     });
+
+    if (leanLLM?.enabled && this.leanLLMClient) {
+      this.logger.info('Lean LLM fallback enabled', {
+        resolver: leanLLM.resolverName ?? `${this.leanLLMClient.name}-fallback`,
+        model: leanLLM.model,
+        maxTokens: leanLLM.maxTokens,
+        temperature: leanLLM.temperature,
+        allowOptionalFields: leanLLM.allowOptionalFields,
+        position: leanLLM.resolverPosition ?? 'append'
+      });
+    }
   }
 
   /**
@@ -424,10 +495,26 @@ export class ParseService {
    */
   private validateParseRequest(request: IParseRequest): void {
     // Validate input data
-    if (!request.inputData || typeof request.inputData !== 'string') {
+    if (request.inputData === undefined || request.inputData === null) {
       throw new ParseError(
         'Input data must be a non-empty string',
         'INVALID_INPUT_DATA',
+        'validation'
+      );
+    }
+
+    if (typeof request.inputData !== 'string') {
+      throw new ParseError(
+        'Input data must be provided as a string',
+        'INVALID_INPUT_DATA',
+        'validation'
+      );
+    }
+
+    if (request.inputData.length === 0) {
+      throw new ParseError(
+        'Input data cannot be empty or only whitespace',
+        'EMPTY_INPUT_DATA',
         'validation'
       );
     }
