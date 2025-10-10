@@ -29,6 +29,7 @@ import {
   ParseratorAutoRefreshState,
   ParseratorAutoRefreshReason,
   ParseratorPlanCache,
+  ParseratorPlanAutoRefreshEvent,
   StageMetrics
 } from './types';
 import {
@@ -42,6 +43,7 @@ import {
 } from './utils';
 import { executePreprocessors } from './preprocessors';
 import { executePostprocessors } from './postprocessors';
+import { createPlanCacheTelemetryEmitter } from './telemetry';
 
 interface ParseratorSessionDependencies {
   architect: ArchitectAgent;
@@ -96,6 +98,7 @@ export class ParseratorSession {
   private lastAutoRefreshAttemptAt?: number;
   private lastAutoRefreshReason?: ParseratorAutoRefreshReason;
   private autoRefreshPending = false;
+  private emitPlanCacheTelemetry: ReturnType<typeof createPlanCacheTelemetryEmitter>;
 
   constructor(private readonly deps: ParseratorSessionDependencies) {
     this.id = deps.init.sessionId ?? uuidv4();
@@ -110,6 +113,16 @@ export class ParseratorSession {
     this.deps.init.autoRefresh = this.autoRefreshConfig;
     this.planCache = deps.planCache;
     this.planCacheKey = deps.planCacheKey ?? this.resolvePlanCacheKey(deps.init);
+    this.emitPlanCacheTelemetry = createPlanCacheTelemetryEmitter({
+      telemetry: this.telemetry,
+      source: 'session',
+      resolveProfile: () => this.profileName,
+      resolveSessionId: () => this.id,
+      resolveKey: () => this.planCacheKey,
+      resolvePlanId: () => this.plan?.id,
+      requestIdFactory: uuidv4,
+      logger: this.deps.logger
+    });
 
     if (deps.init.plan) {
       this.plan = clonePlan(deps.init.plan, 'cached');
@@ -435,12 +448,13 @@ export class ParseratorSession {
       });
     }
 
-    await this.handleAutoRefreshPostParse({
+    this.scheduleAutoRefreshPostParse({
       request,
       response,
       confidence: metadata.confidence,
       threshold,
-      overrides
+      overrides,
+      requestId
     });
 
     return response;
@@ -552,7 +566,7 @@ export class ParseratorSession {
     }
   }
 
-  private queuePlanCachePersist(reason: string): void {
+  private queuePlanCachePersist(reason: string, context: { requestId?: string } = {}): void {
     if (!this.planCache || !this.planCacheKey || !this.plan) {
       return;
     }
@@ -567,12 +581,47 @@ export class ParseratorSession {
       profile: this.profileName
     };
 
-    Promise.resolve(this.planCache.set(this.planCacheKey, entry)).catch(error => {
-      this.deps.logger.warn?.('parserator-core:session-plan-cache-set-failed', {
-        error: error instanceof Error ? error.message : error,
-        sessionId: this.id,
-        reason
-      });
+    void (async () => {
+      try {
+        await this.planCache!.set(this.planCacheKey!, entry);
+        this.emitPlanCacheTelemetry({
+          action: 'store',
+          requestId: context.requestId,
+          reason,
+          key: this.planCacheKey!,
+          planId: entry.plan.id,
+          confidence: entry.confidence,
+          tokensUsed: entry.tokensUsed,
+          processingTimeMs: entry.processingTimeMs
+        });
+      } catch (error) {
+        this.deps.logger.warn?.('parserator-core:session-plan-cache-set-failed', {
+          error: error instanceof Error ? error.message : error,
+          sessionId: this.id,
+          reason
+        });
+        this.emitPlanCacheTelemetry({
+          action: 'store',
+          requestId: context.requestId,
+          reason,
+          key: this.planCacheKey!,
+          planId: entry.plan.id,
+          error
+        });
+      }
+    })();
+  }
+
+  private emitAutoRefreshTelemetry(
+    event: Omit<ParseratorPlanAutoRefreshEvent, 'type' | 'timestamp' | 'source' | 'profile' | 'sessionId'>
+  ): void {
+    this.telemetry.emit({
+      type: 'plan:auto-refresh',
+      source: 'session',
+      timestamp: new Date().toISOString(),
+      profile: this.profileName,
+      sessionId: this.id,
+      ...event
     });
   }
 
@@ -699,12 +748,34 @@ export class ParseratorSession {
     }
   }
 
+  private scheduleAutoRefreshPostParse(params: {
+    request: ParseRequest;
+    response: ParseResponse;
+    confidence: number;
+    threshold: number;
+    overrides: SessionParseOverrides;
+    requestId: string;
+  }): void {
+    if (!this.autoRefresh) {
+      return;
+    }
+
+    void this.handleAutoRefreshPostParse(params).catch(error => {
+      this.deps.logger.warn?.('parserator-core:session-auto-refresh-unhandled', {
+        error: error instanceof Error ? error.message : error,
+        sessionId: this.id,
+        requestId: params.requestId
+      });
+    });
+  }
+
   private async handleAutoRefreshPostParse(params: {
     request: ParseRequest;
     response: ParseResponse;
     confidence: number;
     threshold: number;
     overrides: SessionParseOverrides;
+    requestId: string;
   }): Promise<void> {
     if (!this.autoRefresh || !this.plan) {
       return;
@@ -742,6 +813,19 @@ export class ParseratorSession {
     if (!trigger) {
       return;
     }
+
+    this.emitAutoRefreshTelemetry({
+      requestId: params.requestId,
+      action: 'queued',
+      reason: trigger,
+      confidence: params.confidence,
+      threshold: params.threshold,
+      minConfidence: this.autoRefresh.minConfidence,
+      maxParses: this.autoRefresh.maxParses,
+      parsesSinceRefresh: this.parsesSinceRefresh,
+      lowConfidenceRuns: this.lowConfidenceRuns,
+      pending: this.autoRefreshPending
+    });
 
     await this.triggerAutoRefresh({
       reason: trigger,
@@ -819,7 +903,25 @@ export class ParseratorSession {
     confidence: number;
     threshold: number;
   }): Promise<void> {
-    if (!this.autoRefresh || this.autoRefreshPending) {
+    if (!this.autoRefresh) {
+      return;
+    }
+
+    if (this.autoRefreshPending) {
+      this.emitAutoRefreshTelemetry({
+        requestId: params.response.metadata.requestId,
+        action: 'skipped',
+        reason: params.reason,
+        skipReason: 'pending',
+        confidence: params.confidence,
+        threshold: params.threshold,
+        minConfidence: this.autoRefresh.minConfidence,
+        maxParses: this.autoRefresh.maxParses,
+        parsesSinceRefresh: this.parsesSinceRefresh,
+        lowConfidenceRuns: this.lowConfidenceRuns,
+        cooldownMs: this.autoRefresh.minIntervalMs,
+        pending: true
+      });
       return;
     }
 
@@ -832,6 +934,20 @@ export class ParseratorSession {
           ? new Date(this.lastAutoRefreshAt).toISOString()
           : undefined
       });
+      this.emitAutoRefreshTelemetry({
+        requestId: params.response.metadata.requestId,
+        action: 'skipped',
+        reason: params.reason,
+        skipReason: 'cooldown',
+        confidence: params.confidence,
+        threshold: params.threshold,
+        minConfidence: this.autoRefresh.minConfidence,
+        maxParses: this.autoRefresh.maxParses,
+        parsesSinceRefresh: this.parsesSinceRefresh,
+        lowConfidenceRuns: this.lowConfidenceRuns,
+        cooldownMs: this.autoRefresh.minIntervalMs,
+        pending: false
+      });
       return;
     }
 
@@ -839,6 +955,8 @@ export class ParseratorSession {
       params.reason === 'usage'
         ? this.defaultSeedInput ?? this.lastSeedInput ?? params.request.inputData
         : params.overrides.seedInput ?? params.request.inputData;
+
+    const seedProvided = Boolean(seedInput);
 
     this.autoRefreshPending = true;
     this.lastAutoRefreshAttemptAt = Date.now();
@@ -852,7 +970,22 @@ export class ParseratorSession {
         minConfidence: this.autoRefresh.minConfidence,
         parsesSinceRefresh: this.parsesSinceRefresh,
         maxParses: this.autoRefresh.maxParses,
-        seedProvided: Boolean(seedInput)
+        seedProvided
+      });
+
+      this.emitAutoRefreshTelemetry({
+        requestId: params.response.metadata.requestId,
+        action: 'triggered',
+        reason: params.reason,
+        confidence: params.confidence,
+        threshold: params.threshold,
+        minConfidence: this.autoRefresh.minConfidence,
+        maxParses: this.autoRefresh.maxParses,
+        parsesSinceRefresh: this.parsesSinceRefresh,
+        lowConfidenceRuns: this.lowConfidenceRuns,
+        cooldownMs: this.autoRefresh.minIntervalMs,
+        pending: true,
+        seedProvided
       });
 
       const result = await this.refreshPlan({
@@ -870,6 +1003,21 @@ export class ParseratorSession {
           error: result.failure?.error?.message ?? 'unknown',
           requestId: params.response.metadata.requestId
         });
+        this.emitAutoRefreshTelemetry({
+          requestId: params.response.metadata.requestId,
+          action: 'failed',
+          reason: params.reason,
+          confidence: params.confidence,
+          threshold: params.threshold,
+          minConfidence: this.autoRefresh.minConfidence,
+          maxParses: this.autoRefresh.maxParses,
+          parsesSinceRefresh: this.parsesSinceRefresh,
+          lowConfidenceRuns: this.lowConfidenceRuns,
+          cooldownMs: this.autoRefresh.minIntervalMs,
+          pending: false,
+          seedProvided,
+          error: result.failure?.error?.message ?? 'unknown'
+        });
         return;
       }
 
@@ -877,11 +1025,42 @@ export class ParseratorSession {
         this.lastAutoRefreshAt = Date.now();
         this.lastAutoRefreshReason = params.reason;
       }
+
+      this.emitAutoRefreshTelemetry({
+        requestId: params.response.metadata.requestId,
+        action: 'completed',
+        reason: params.reason,
+        confidence: params.confidence,
+        threshold: params.threshold,
+        minConfidence: this.autoRefresh.minConfidence,
+        maxParses: this.autoRefresh.maxParses,
+        parsesSinceRefresh: this.parsesSinceRefresh,
+        lowConfidenceRuns: this.lowConfidenceRuns,
+        cooldownMs: this.autoRefresh.minIntervalMs,
+        pending: false,
+        seedProvided
+      });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this.deps.logger.warn?.('parserator-core:session-auto-refresh-error', {
         sessionId: this.id,
         reason: params.reason,
-        error: error instanceof Error ? error.message : error
+        error: errorMessage
+      });
+      this.emitAutoRefreshTelemetry({
+        requestId: params.response.metadata.requestId,
+        action: 'failed',
+        reason: params.reason,
+        confidence: params.confidence,
+        threshold: params.threshold,
+        minConfidence: this.autoRefresh.minConfidence,
+        maxParses: this.autoRefresh.maxParses,
+        parsesSinceRefresh: this.parsesSinceRefresh,
+        lowConfidenceRuns: this.lowConfidenceRuns,
+        cooldownMs: this.autoRefresh.minIntervalMs,
+        pending: false,
+        seedProvided,
+        error: errorMessage
       });
     } finally {
       this.autoRefreshPending = false;
@@ -979,6 +1158,16 @@ export class ParseratorSession {
       try {
         const cached = await this.planCache.get(this.planCacheKey);
         if (cached?.plan) {
+          this.emitPlanCacheTelemetry({
+            action: 'hit',
+            requestId: params.requestId,
+            reason: params.reason,
+            key: this.planCacheKey,
+            planId: cached.plan.id,
+            confidence: cached.confidence,
+            tokensUsed: cached.tokensUsed,
+            processingTimeMs: cached.processingTimeMs
+          });
           this.plan = clonePlan(cached.plan, 'cached');
           this.planDiagnostics = [...cached.diagnostics];
           this.planConfidence = clamp(cached.confidence ?? this.planConfidence, 0, 1);
@@ -1011,14 +1200,27 @@ export class ParseratorSession {
             strategy: this.plan.strategy
           });
 
-          this.queuePlanCachePersist('reuse');
+          this.queuePlanCachePersist('reuse', { requestId: params.requestId });
 
           return undefined;
         }
+        this.emitPlanCacheTelemetry({
+          action: 'miss',
+          requestId: params.requestId,
+          reason: params.reason,
+          key: this.planCacheKey
+        });
       } catch (error) {
         this.deps.logger.warn?.('parserator-core:session-plan-cache-get-failed', {
           error: error instanceof Error ? error.message : error,
           sessionId: this.id
+        });
+        this.emitPlanCacheTelemetry({
+          action: 'miss',
+          requestId: params.requestId,
+          reason: params.reason,
+          key: this.planCacheKey,
+          error
         });
       }
     }
@@ -1122,7 +1324,7 @@ export class ParseratorSession {
       confidence: this.planConfidence
     });
 
-    this.queuePlanCachePersist(params.reason);
+    this.queuePlanCachePersist(params.reason, { requestId: params.requestId });
 
     return undefined;
   }
