@@ -52,6 +52,7 @@ export declare class ParseratorSession {
     private getPreprocessors;
     private getPostprocessors;
     private resolvePlanCacheKey;
+    private emitPlanCacheEvent;
     private queuePlanCachePersist;
     private runBeforeInterceptors;
     private executePreprocessorsForRequest;
