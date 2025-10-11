@@ -8,7 +8,7 @@ import { ParseRequest, ParseOptions, ParseratorConfig, ValidationType } from './
 // Validation schemas using Joi
 export const parseRequestSchema = Joi.object({
   inputData: Joi.string().required().min(1).max(1000000),
-  outputSchema: Joi.object().required(),
+  outputSchema: Joi.object().min(1).required(),
   instructions: Joi.string().optional().max(10000),
   options: Joi.object({
     timeout: Joi.number().min(1000).max(300000).default(30000),
