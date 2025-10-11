@@ -23,6 +23,9 @@ class ResolverRegistry {
             this.resolvers = [...this.resolvers, resolver];
         }
     }
+    removeByName(name) {
+        this.resolvers = this.resolvers.filter(resolver => resolver.name !== name);
+    }
     replaceAll(resolvers) {
         this.resolvers = [...resolvers];
     }

@@ -130,6 +130,9 @@ export interface ArchitectContext {
     instructions?: string;
     options?: ParseOptions;
     config: ParseratorCoreConfig;
+    profile?: string;
+    requestId?: string;
+    sessionId?: string;
 }
 export interface ArchitectResult {
     success: boolean;
@@ -144,6 +147,11 @@ export interface ExtractorContext {
     inputData: string;
     plan: SearchPlan;
     config: ParseratorCoreConfig;
+    instructions?: string;
+    outputSchema?: Record<string, unknown>;
+    requestId?: string;
+    sessionId?: string;
+    profile?: string;
 }
 export interface ExtractorResult {
     success: boolean;
@@ -154,11 +162,72 @@ export interface ExtractorResult {
     diagnostics: ParseDiagnostic[];
     error?: ParseError;
 }
+export interface ParseratorLeanLLMPlanRewriteQueueState {
+    pending: number;
+    inFlight: number;
+    completed: number;
+    failed: number;
+    size: number;
+    lastDurationMs?: number;
+    lastError?: string;
+}
+export interface ParseratorLeanLLMPlanRewriteUsage {
+    tokensUsed?: number;
+    latencyMs?: number;
+    model?: string;
+}
+export interface ParseratorLeanLLMPlanRewriteState {
+    enabled: boolean;
+    minHeuristicConfidence?: number;
+    cooldownMs?: number;
+    concurrency: number;
+    pendingCooldown: boolean;
+    lastAttemptAt?: string;
+    lastSuccessAt?: string;
+    lastFailureAt?: string;
+    lastError?: string;
+    lastUsage?: ParseratorLeanLLMPlanRewriteUsage;
+    queue: ParseratorLeanLLMPlanRewriteQueueState;
+}
 export interface ArchitectAgent {
     createPlan(context: ArchitectContext): Promise<ArchitectResult>;
+    getPlanRewriteState?(): ParseratorLeanLLMPlanRewriteState | undefined;
 }
 export interface ExtractorAgent {
     execute(context: ExtractorContext): Promise<ExtractorResult>;
+}
+export interface LeanLLMPlanRewriteRequest {
+    inputData: string;
+    outputSchema: Record<string, unknown>;
+    instructions?: string;
+    heuristicPlan: SearchPlan;
+    diagnostics: ParseDiagnostic[];
+    context: {
+        profile?: string;
+        requestId?: string;
+        sessionId?: string;
+    };
+}
+export interface LeanLLMPlanRewriteResponse {
+    plan?: SearchPlan;
+    confidence?: number;
+    diagnostics?: ParseDiagnostic[];
+    usage?: {
+        tokensUsed?: number;
+        latencyMs?: number;
+        model?: string;
+    };
+    raw?: unknown;
+}
+export interface LeanLLMPlanClient {
+    rewrite(request: LeanLLMPlanRewriteRequest): Promise<LeanLLMPlanRewriteResponse>;
+}
+export interface ParseratorLeanLLMPlanRewriteOptions {
+    client: LeanLLMPlanClient;
+    minHeuristicConfidence?: number;
+    concurrency?: number;
+    cooldownMs?: number;
+    logger?: CoreLogger;
 }
 export interface ParseratorPreprocessContext {
     request: ParseRequest;
@@ -279,6 +348,7 @@ export interface ParseratorCoreOptions {
     architect?: ArchitectAgent;
     extractor?: ExtractorAgent;
     resolvers?: FieldResolver[];
+    leanLLMPlanRewrite?: ParseratorLeanLLMPlanRewriteOptions;
     profile?: ParseratorProfileOption;
     telemetry?: ParseratorTelemetry | ParseratorTelemetryListener | ParseratorTelemetryListener[];
     interceptors?: ParseratorInterceptor | ParseratorInterceptor[];
@@ -361,6 +431,27 @@ export interface ParseratorAutoRefreshState {
     coolingDown: boolean;
     pending: boolean;
 }
+export interface ParseratorPlanCacheBackgroundState {
+    pendingWrites: number;
+    pending: number;
+    inFlight: number;
+    completed: number;
+    failed: number;
+    idle: boolean;
+    lastAttemptAt?: string;
+    lastPersistAt?: string;
+    lastPersistReason?: string;
+    lastPersistError?: string;
+    lastPersistDurationMs?: number;
+    attempts: number;
+}
+export interface ParseratorAutoRefreshBackgroundState extends ParseratorAutoRefreshState {
+    inFlight: number;
+}
+export interface ParseratorSessionBackgroundState {
+    planCache: ParseratorPlanCacheBackgroundState;
+    autoRefresh?: ParseratorAutoRefreshBackgroundState;
+}
 export interface ParseratorInterceptorContext {
     request: ParseRequest;
     requestId: string;
@@ -441,7 +532,49 @@ export interface ParseratorPlanReadyEvent extends ParseratorTelemetryBaseEvent {
     processingTimeMs: number;
     confidence: number;
 }
-export type ParseratorTelemetryEvent = ParseratorParseStartEvent | ParseratorParseStageEvent | ParseratorParseSuccessEvent | ParseratorParseFailureEvent | ParseratorPlanReadyEvent;
+export interface ParseratorPlanCacheEvent extends ParseratorTelemetryBaseEvent {
+    type: 'plan:cache';
+    action: 'hit' | 'miss' | 'store' | 'delete' | 'clear';
+    key?: string;
+    scope?: string;
+    planId?: string;
+    confidence?: number;
+    tokensUsed?: number;
+    processingTimeMs?: number;
+    reason?: string;
+    error?: string;
+}
+export type ParseratorPlanAutoRefreshSkipReason = 'cooldown' | 'pending';
+export interface ParseratorPlanAutoRefreshEvent extends ParseratorTelemetryBaseEvent {
+    type: 'plan:auto-refresh';
+    action: 'queued' | 'triggered' | 'completed' | 'skipped' | 'failed';
+    reason?: ParseratorAutoRefreshReason;
+    skipReason?: ParseratorPlanAutoRefreshSkipReason;
+    confidence?: number;
+    threshold?: number;
+    minConfidence?: number;
+    maxParses?: number;
+    parsesSinceRefresh?: number;
+    lowConfidenceRuns?: number;
+    cooldownMs?: number;
+    pending: boolean;
+    seedProvided?: boolean;
+    error?: string;
+}
+export type ParseratorPlanRewriteSkipReason = 'cooldown' | 'threshold' | 'empty-plan' | 'error';
+export interface ParseratorPlanRewriteEvent extends ParseratorTelemetryBaseEvent {
+    type: 'plan:rewrite';
+    action: 'queued' | 'started' | 'applied' | 'skipped' | 'failed';
+    heuristicsConfidence?: number;
+    requestedThreshold?: number;
+    rewriteConfidence?: number;
+    cooldownMs?: number;
+    usage?: ParseratorLeanLLMPlanRewriteUsage;
+    queue?: ParseratorLeanLLMPlanRewriteQueueState;
+    skipReason?: ParseratorPlanRewriteSkipReason;
+    error?: string;
+}
+export type ParseratorTelemetryEvent = ParseratorParseStartEvent | ParseratorParseStageEvent | ParseratorParseSuccessEvent | ParseratorParseFailureEvent | ParseratorPlanReadyEvent | ParseratorPlanCacheEvent | ParseratorPlanAutoRefreshEvent | ParseratorPlanRewriteEvent;
 export type ParseratorTelemetryListener = (event: ParseratorTelemetryEvent) => void | Promise<void>;
 export interface ParseratorTelemetry {
     emit(event: ParseratorTelemetryEvent): void;

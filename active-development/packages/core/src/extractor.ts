@@ -7,6 +7,15 @@ import {
   ParseError
 } from './types';
 import { ResolverRegistry, createDefaultResolvers } from './resolvers';
+import {
+  SHARED_INSTRUCTIONS_KEY,
+  SHARED_PLAN_KEY,
+  SHARED_PROFILE_KEY,
+  SHARED_REQUEST_ID_KEY,
+  SHARED_RESOLVED_FIELD_PREFIX,
+  SHARED_SCHEMA_KEY,
+  SHARED_SESSION_ID_KEY
+} from './resolver-constants';
 import { clamp } from './utils';
 
 export class RegexExtractor implements ExtractorAgent {
@@ -29,6 +38,22 @@ export class RegexExtractor implements ExtractorAgent {
     let aggregatedConfidence = 0;
 
     const sharedState = new Map<string, unknown>();
+    sharedState.set(SHARED_PLAN_KEY, context.plan);
+    if (context.instructions) {
+      sharedState.set(SHARED_INSTRUCTIONS_KEY, context.instructions);
+    }
+    if (context.outputSchema) {
+      sharedState.set(SHARED_SCHEMA_KEY, context.outputSchema);
+    }
+    if (context.requestId) {
+      sharedState.set(SHARED_REQUEST_ID_KEY, context.requestId);
+    }
+    if (context.sessionId) {
+      sharedState.set(SHARED_SESSION_ID_KEY, context.sessionId);
+    }
+    if (context.profile) {
+      sharedState.set(SHARED_PROFILE_KEY, context.profile);
+    }
 
     for (const step of context.plan.steps) {
       if (step.isRequired) {
@@ -50,6 +75,7 @@ export class RegexExtractor implements ExtractorAgent {
           if (step.isRequired) {
             resolvedRequired += 1;
           }
+          sharedState.set(`${SHARED_RESOLVED_FIELD_PREFIX}${step.targetKey}`, resolution.value);
         }
         aggregatedConfidence += computeStepConfidence(step.isRequired, resolution.confidence, resolution.value);
       } else {
