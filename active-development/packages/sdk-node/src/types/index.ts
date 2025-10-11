@@ -56,6 +56,7 @@ export interface ParseMetadata {
     extractor: StageBreakdownMetrics;
     postprocess?: StageBreakdownMetrics;
   };
+  fallback?: ParserFallbackSummary;
 }
 
 // Architect-Extractor Pattern Types
@@ -78,7 +79,56 @@ export interface SearchPlan {
     complexity: 'low' | 'medium' | 'high';
     estimatedTokens: number;
     origin: 'heuristic' | 'model' | 'cached';
+    context?: DetectedSystemContext;
+    plannerConfidence?: number;
   };
+}
+
+export interface DetectedSystemContext {
+  id: string;
+  label: string;
+  confidence: number;
+  matchedFields: string[];
+  matchedInstructionTerms: string[];
+  rationale: string[];
+}
+
+export type LeanLLMFallbackUsageAction = 'invoked' | 'reused' | 'skipped';
+
+export interface LeanLLMFallbackFieldUsage {
+  field: string;
+  action: LeanLLMFallbackUsageAction;
+  resolved?: boolean;
+  confidence?: number;
+  tokensUsed?: number;
+  reason?: string;
+  sourceField?: string;
+  sharedKeys?: string[];
+  plannerConfidence?: number;
+  gate?: number;
+  error?: string;
+  limitType?: 'invocations' | 'tokens';
+  limit?: number;
+  currentInvocations?: number;
+  currentTokens?: number;
+}
+
+export interface LeanLLMFallbackUsageSummary {
+  totalInvocations: number;
+  resolvedFields: number;
+  reusedResolutions: number;
+  skippedByPlanConfidence: number;
+  skippedByLimits: number;
+  sharedExtractions: number;
+  totalTokens: number;
+  planConfidenceGate?: number;
+  maxInvocationsPerParse?: number;
+  maxTokensPerParse?: number;
+  fields: LeanLLMFallbackFieldUsage[];
+}
+
+export interface ParserFallbackSummary {
+  leanLLM?: LeanLLMFallbackUsageSummary;
 }
 
 export type ValidationType = 

@@ -10,7 +10,8 @@ class HeuristicArchitect {
     async createPlan(context) {
         const start = Date.now();
         const diagnostics = [];
-        const steps = (0, heuristics_1.buildPlannerSteps)(context.outputSchema, context.instructions, context.options, context.config).map(step => {
+        const systemContext = (0, heuristics_1.detectSystemContext)(context.outputSchema, context.instructions);
+        const steps = (0, heuristics_1.buildPlannerSteps)(context.outputSchema, context.instructions, context.options, context.config, systemContext).map(step => {
             if (!step.isRequired) {
                 diagnostics.push({
                     field: step.targetKey,
@@ -21,6 +22,24 @@ class HeuristicArchitect {
             }
             return step;
         });
+        if (systemContext) {
+            diagnostics.push({
+                field: '*',
+                stage: 'architect',
+                message: `Detected ${systemContext.label} context (${Math.round(systemContext.confidence * 100)}% confidence).`,
+                severity: 'info'
+            });
+            const rationale = systemContext.rationale[0];
+            if (rationale) {
+                diagnostics.push({
+                    field: '*',
+                    stage: 'architect',
+                    message: rationale,
+                    severity: 'info'
+                });
+            }
+        }
+        const confidence = steps.length > 0 ? (0, utils_1.clamp)(0.68 + steps.length * 0.01, 0, 0.92) : 0.65;
         const plan = {
             id: `plan_${Date.now().toString(36)}`,
             version: '1.0',
@@ -31,10 +50,11 @@ class HeuristicArchitect {
                 detectedFormat: (0, heuristics_1.detectFormat)(context.inputData),
                 complexity: (0, heuristics_1.estimateComplexity)(steps.length, context.inputData.length),
                 estimatedTokens: (0, heuristics_1.estimateTokenCost)(steps.length, context.inputData.length),
-                origin: 'heuristic'
+                origin: 'heuristic',
+                context: systemContext,
+                plannerConfidence: confidence
             }
         };
-        const confidence = steps.length > 0 ? (0, utils_1.clamp)(0.68 + steps.length * 0.01, 0, 0.92) : 0.65;
         this.logger.debug?.('parserator-core:architect-plan', {
             fields: steps.length,
             strategy: plan.strategy,
