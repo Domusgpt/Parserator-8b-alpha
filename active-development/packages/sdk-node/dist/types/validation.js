@@ -20,14 +20,22 @@ const joi_1 = __importDefault(require("joi"));
 // Validation schemas using Joi
 exports.parseRequestSchema = joi_1.default.object({
     inputData: joi_1.default.string().required().min(1).max(1000000),
-    outputSchema: joi_1.default.object().required(),
+    outputSchema: joi_1.default.object().min(1).required(),
     instructions: joi_1.default.string().optional().max(10000),
     options: joi_1.default.object({
         timeout: joi_1.default.number().min(1000).max(300000).default(30000),
         retries: joi_1.default.number().min(0).max(5).default(3),
         validateOutput: joi_1.default.boolean().default(true),
         includeMetadata: joi_1.default.boolean().default(true),
-        confidenceThreshold: joi_1.default.number().min(0).max(1).default(0.8)
+        confidenceThreshold: joi_1.default.number().min(0).max(1).default(0.8),
+        leanLLM: joi_1.default.object({
+            allowOptionalFields: joi_1.default.boolean(),
+            defaultConfidence: joi_1.default.number().min(0).max(1),
+            maxInputCharacters: joi_1.default.number().integer().min(1).max(120000),
+            planConfidenceGate: joi_1.default.number().min(0).max(1),
+            maxInvocationsPerParse: joi_1.default.number().integer().min(0).max(256),
+            maxTokensPerParse: joi_1.default.number().integer().min(0)
+        }).optional()
     }).optional()
 }).required();
 exports.configSchema = joi_1.default.object({

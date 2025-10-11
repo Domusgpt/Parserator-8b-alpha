@@ -3,7 +3,16 @@ import {
   FieldResolutionContext,
   FieldResolutionResult,
   FieldResolver,
+  LeanLLMRequestContext,
+  LeanLLMResolverConfig,
+  LeanLLMSharedExtraction,
+  LeanLLMFallbackFieldUsage,
+  LeanLLMFallbackUsageSummary,
+  LightweightLLMClient,
+  LightweightLLMExtractionRequest,
+  LightweightLLMExtractionResponse,
   ParseDiagnostic,
+  SearchPlan,
   ValidationType
 } from './types';
 import {
@@ -14,12 +23,31 @@ import {
   segmentStructuredText
 } from './heuristics';
 import { clamp } from './utils';
+import { createDefaultLogger } from './logger';
 
 const JSON_PAYLOAD_KEY = 'resolver:json:payload';
 const JSON_PAYLOAD_ERROR_KEY = 'resolver:json:error';
 const JSON_PAYLOAD_DIAG_KEY = 'resolver:json:diagnosed';
 const SECTION_CACHE_KEY = 'resolver:sections:cache';
 const LOOSE_KEY_VALUE_CACHE_KEY = 'resolver:loosekv:cache';
+const LEAN_LLM_ATTEMPTED_KEY = 'resolver:leanllm:attempted';
+const LEAN_LLM_SHARED_RESULTS_KEY = 'resolver:leanllm:shared-results';
+export const LEAN_LLM_USAGE_KEY = 'resolver:leanllm:usage';
+
+export const PLAN_SHARED_STATE_KEY = 'parserator:plan:active';
+
+type LeanLLMResolverOptions = Omit<LeanLLMResolverConfig, 'position'> & {
+  logger?: CoreLogger;
+};
+
+type LeanLLMEffectiveConfig = {
+  allowOptionalFields: boolean;
+  defaultConfidence: number;
+  maxInputCharacters?: number;
+  planConfidenceGate?: number;
+  maxInvocationsPerParse?: number;
+  maxTokensPerParse?: number;
+};
 
 export class ResolverRegistry {
   private resolvers: FieldResolver[];
@@ -34,6 +62,21 @@ export class ResolverRegistry {
     } else {
       this.resolvers = [...this.resolvers, resolver];
     }
+  }
+
+  unregister(resolver: FieldResolver | string): boolean {
+    const originalLength = this.resolvers.length;
+
+    if (typeof resolver !== 'string') {
+      this.resolvers = this.resolvers.filter(existing => existing !== resolver);
+      if (this.resolvers.length !== originalLength) {
+        return true;
+      }
+      resolver = resolver.name;
+    }
+
+    this.resolvers = this.resolvers.filter(existing => existing.name !== resolver);
+    return this.resolvers.length !== originalLength;
   }
 
   replaceAll(resolvers: FieldResolver[]): void {
@@ -384,6 +427,701 @@ class DefaultFieldResolver implements FieldResolver {
   }
 }
 
+export class LeanLLMResolver implements FieldResolver {
+  readonly name: string;
+
+  private readonly logger: CoreLogger;
+  private readonly client: LightweightLLMClient;
+  private readonly allowOptionalFields: boolean;
+  private readonly defaultConfidence: number;
+  private readonly maxInputCharacters?: number;
+  private readonly clientName: string;
+  private readonly planConfidenceGate?: number;
+  private readonly maxInvocationsPerParse?: number;
+  private readonly maxTokensPerParse?: number;
+  private readonly requestFormatter?: (
+    context: LeanLLMRequestContext
+  ) => LightweightLLMExtractionRequest;
+
+  constructor(private readonly options: LeanLLMResolverOptions) {
+    this.logger = options.logger ?? createDefaultLogger();
+    this.client = options.client;
+    this.allowOptionalFields = options.allowOptionalFields ?? false;
+    this.defaultConfidence = options.defaultConfidence ?? 0.6;
+    this.maxInputCharacters = options.maxInputCharacters;
+    this.requestFormatter = options.requestFormatter;
+    this.clientName = this.client.name ?? 'lean-llm';
+    this.planConfidenceGate = options.planConfidenceGate;
+    this.maxInvocationsPerParse = options.maxInvocationsPerParse;
+    this.maxTokensPerParse = options.maxTokensPerParse;
+    this.name = options.name ?? `${this.clientName}-fallback`;
+
+    if (!options.client) {
+      throw new Error('LeanLLMResolver requires a client implementation');
+    }
+  }
+
+  supports(): boolean {
+    return true;
+  }
+
+  private resolveRuntimeConfig(context: FieldResolutionContext): LeanLLMEffectiveConfig {
+    const overrides = context.options?.leanLLM;
+
+    return {
+      allowOptionalFields: overrides?.allowOptionalFields ?? this.allowOptionalFields,
+      defaultConfidence: overrides?.defaultConfidence ?? this.defaultConfidence,
+      maxInputCharacters: overrides?.maxInputCharacters ?? this.maxInputCharacters,
+      planConfidenceGate: overrides?.planConfidenceGate ?? this.planConfidenceGate,
+      maxInvocationsPerParse:
+        overrides?.maxInvocationsPerParse ?? this.maxInvocationsPerParse,
+      maxTokensPerParse: overrides?.maxTokensPerParse ?? this.maxTokensPerParse
+    };
+  }
+
+  async resolve(context: FieldResolutionContext): Promise<FieldResolutionResult | undefined> {
+    if (!context.config.enableFieldFallbacks) {
+      return undefined;
+    }
+
+    const runtime = this.resolveRuntimeConfig(context);
+
+    if (!runtime.allowOptionalFields && !context.step.isRequired) {
+      return undefined;
+    }
+
+    const reused = this.tryReuseSharedExtraction(context, runtime);
+    if (reused) {
+      return reused;
+    }
+
+    const plan = context.shared.get(PLAN_SHARED_STATE_KEY) as SearchPlan | undefined;
+    if (!this.shouldInvoke(context, plan, runtime)) {
+      return undefined;
+    }
+
+    const attempted = this.ensureAttemptedSet(context.shared);
+    if (attempted.has(context.step.targetKey)) {
+      return undefined;
+    }
+
+    attempted.add(context.step.targetKey);
+    context.shared.set(LEAN_LLM_ATTEMPTED_KEY, attempted);
+
+    const inputData = this.trimInput(context.inputData, runtime);
+
+    const request = this.buildRequest(
+      { plan, step: context.step, inputData },
+      context
+    );
+
+    this.logger.debug?.('parserator-core:lean-llm-resolver-invoked', {
+      field: context.step.targetKey,
+      required: context.step.isRequired,
+      client: this.clientName,
+      planId: plan?.id
+    });
+
+    try {
+      const response = await this.client.extractField(request);
+      const result = this.toResolution(context, response, runtime);
+      const sharedKeys = this.storeSharedResults(context, response, result.confidence);
+      this.recordInvocationOutcome(context, response, result.confidence, sharedKeys, runtime);
+
+      this.logger.info?.('parserator-core:lean-llm-resolver-complete', {
+        field: context.step.targetKey,
+        resolved: response.value !== undefined,
+        confidence: result.confidence,
+        client: this.clientName,
+        tokensUsed: response.tokensUsed
+      });
+
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown lean LLM error';
+
+      this.logger.warn?.('parserator-core:lean-llm-resolver-error', {
+        field: context.step.targetKey,
+        client: this.clientName,
+        error: message
+      });
+
+      this.recordInvocationError(context, message, runtime);
+
+      return {
+        value: undefined,
+        confidence: 0,
+        diagnostics: [
+          {
+            field: context.step.targetKey,
+            stage: 'extractor',
+            message: `Lean LLM fallback ${this.clientName} failed: ${message}`,
+            severity: 'warning'
+          }
+        ],
+        resolver: this.name
+      };
+    }
+  }
+
+  private buildRequest(
+    context: LeanLLMRequestContext,
+    resolutionContext: FieldResolutionContext
+  ): LightweightLLMExtractionRequest {
+    if (this.requestFormatter) {
+      return this.requestFormatter(context);
+    }
+
+    return {
+      field: resolutionContext.step.targetKey,
+      description: resolutionContext.step.description,
+      instruction: resolutionContext.step.searchInstruction,
+      validationType: resolutionContext.step.validationType,
+      input: context.inputData,
+      plan: context.plan
+        ? {
+            id: context.plan.id,
+            version: context.plan.version,
+            strategy: context.plan.strategy,
+            origin: context.plan.metadata.origin,
+            systemContext: context.plan.metadata.context
+          }
+        : undefined
+    };
+  }
+
+  private toResolution(
+    context: FieldResolutionContext,
+    response: LightweightLLMExtractionResponse,
+    runtime: LeanLLMEffectiveConfig
+  ): FieldResolutionResult {
+    const baseConfidence = clamp(response.confidence ?? runtime.defaultConfidence, 0, 1);
+    const confidence =
+      response.value === undefined ? Math.min(baseConfidence, 0.45) : baseConfidence;
+
+    const diagnostics: ParseDiagnostic[] = [
+      {
+        field: context.step.targetKey,
+        stage: 'extractor',
+        message: this.composeOutcomeMessage(context.step.targetKey, response, confidence),
+        severity: response.value === undefined ? 'warning' : 'info'
+      }
+    ];
+
+    if (response.reason) {
+      diagnostics.push({
+        field: context.step.targetKey,
+        stage: 'extractor',
+        message: `Lean LLM rationale: ${response.reason}`,
+        severity: 'info'
+      });
+    }
+
+    return {
+      value: response.value,
+      confidence,
+      diagnostics,
+      resolver: this.name
+    };
+  }
+
+  private composeOutcomeMessage(
+    field: string,
+    response: LightweightLLMExtractionResponse,
+    confidence: number
+  ): string {
+    const outcome = response.value === undefined ? 'examined' : 'resolved';
+    let message = `Lean LLM fallback ${this.clientName} ${outcome} ${field}`;
+    if (!Number.isNaN(confidence)) {
+      message += ` (confidence ${confidence.toFixed(2)})`;
+    }
+    if (typeof response.tokensUsed === 'number') {
+      message += ` using ${response.tokensUsed} tokens`;
+    }
+    return message;
+  }
+
+  private shouldInvoke(
+    context: FieldResolutionContext,
+    plan: SearchPlan | undefined,
+    runtime: LeanLLMEffectiveConfig
+  ): boolean {
+    const summary = this.ensureUsageSummary(context.shared, runtime);
+
+    if (runtime.planConfidenceGate !== undefined) {
+      const plannerConfidence = typeof plan?.metadata?.plannerConfidence === 'number'
+        ? plan.metadata.plannerConfidence
+        : undefined;
+
+      if (plannerConfidence !== undefined && plannerConfidence >= runtime.planConfidenceGate) {
+        this.recordPlanGateSkip(context, plannerConfidence, runtime);
+        this.logger.debug?.('parserator-core:lean-llm-resolver-skipped-confidence', {
+          field: context.step.targetKey,
+          planConfidence: plannerConfidence,
+          gate: runtime.planConfidenceGate,
+          planId: plan?.id
+        });
+        return false;
+      }
+    }
+
+    if (
+      runtime.maxInvocationsPerParse !== undefined &&
+      summary.totalInvocations >= runtime.maxInvocationsPerParse
+    ) {
+      this.recordLimitSkip(
+        context,
+        'invocations',
+        runtime.maxInvocationsPerParse,
+        summary.totalInvocations,
+        runtime,
+        summary
+      );
+      this.logger.debug?.('parserator-core:lean-llm-resolver-skipped-limit', {
+        field: context.step.targetKey,
+        type: 'invocations',
+        limit: runtime.maxInvocationsPerParse,
+        totalInvocations: summary.totalInvocations
+      });
+      return false;
+    }
+
+    if (runtime.maxTokensPerParse !== undefined && summary.totalTokens >= runtime.maxTokensPerParse) {
+      this.recordLimitSkip(context, 'tokens', runtime.maxTokensPerParse, summary.totalTokens, runtime, summary);
+      this.logger.debug?.('parserator-core:lean-llm-resolver-skipped-limit', {
+        field: context.step.targetKey,
+        type: 'tokens',
+        limit: runtime.maxTokensPerParse,
+        totalTokens: summary.totalTokens
+      });
+      return false;
+    }
+
+    return true;
+  }
+
+  private tryReuseSharedExtraction(
+    context: FieldResolutionContext,
+    runtime: LeanLLMEffectiveConfig
+  ): FieldResolutionResult | undefined {
+    const shared = context.shared.get(LEAN_LLM_SHARED_RESULTS_KEY) as
+      | Map<string, LeanLLMSharedExtraction>
+      | undefined;
+
+    if (!(shared instanceof Map)) {
+      return undefined;
+    }
+
+    const existing = shared.get(context.step.targetKey);
+    if (!existing) {
+      return undefined;
+    }
+
+    const confidence = clamp(existing.confidence ?? runtime.defaultConfidence, 0, 1);
+    const diagnostics: ParseDiagnostic[] = [
+      {
+        field: context.step.targetKey,
+        stage: 'extractor',
+        message: `Reused lean LLM shared extraction from ${
+          existing.sourceField ?? 'lean fallback'
+        }`,
+        severity: 'info'
+      }
+    ];
+
+    if (existing.reason) {
+      diagnostics.push({
+        field: context.step.targetKey,
+        stage: 'extractor',
+        message: `Lean LLM rationale: ${existing.reason}`,
+        severity: 'info'
+      });
+    }
+
+    this.logger.debug?.('parserator-core:lean-llm-resolver-reuse', {
+      field: context.step.targetKey,
+      sourceField: existing.sourceField ?? context.step.targetKey
+    });
+
+    this.recordReuse(context, existing, confidence, runtime);
+
+    return {
+      value: existing.value,
+      confidence,
+      diagnostics,
+      resolver: this.name
+    };
+  }
+
+  private storeSharedResults(
+    context: FieldResolutionContext,
+    response: LightweightLLMExtractionResponse,
+    confidence: number
+  ): string[] {
+    const extras = this.extractSharedExtractions(response, context.step.targetKey, confidence);
+
+    if (response.value !== undefined) {
+      extras.set(context.step.targetKey, {
+        value: response.value,
+        confidence,
+        reason: response.reason,
+        tokensUsed: response.tokensUsed,
+        sourceField: context.step.targetKey
+      });
+    }
+
+    if (extras.size === 0) {
+      return [];
+    }
+
+    const shared = this.ensureSharedExtractionsMap(context.shared);
+    const keys: string[] = [];
+    for (const [key, entry] of extras.entries()) {
+      shared.set(key, entry);
+      keys.push(key);
+    }
+
+    this.logger.debug?.('parserator-core:lean-llm-resolver-shared', {
+      field: context.step.targetKey,
+      sharedKeys: keys
+    });
+    return keys;
+  }
+
+  private extractSharedExtractions(
+    response: LightweightLLMExtractionResponse,
+    sourceField: string,
+    fallbackConfidence: number
+  ): Map<string, LeanLLMSharedExtraction> {
+    const raw =
+      response.sharedExtractions ?? this.extractMetadataSharedExtractions(response.metadata);
+
+    if (!raw) {
+      return new Map();
+    }
+
+    const extras = new Map<string, LeanLLMSharedExtraction>();
+    for (const [key, value] of Object.entries(raw)) {
+      const normalised = this.normaliseSharedExtractionEntry(value, {
+        confidence: fallbackConfidence,
+        reason: response.reason,
+        tokensUsed: response.tokensUsed,
+        sourceField
+      });
+
+      if (normalised) {
+        extras.set(key, normalised);
+      }
+    }
+
+    return extras;
+  }
+
+  private extractMetadataSharedExtractions(
+    metadata?: Record<string, unknown>
+  ): Record<string, unknown> | undefined {
+    if (!metadata) {
+      return undefined;
+    }
+
+    const camel = (metadata as Record<string, unknown>).sharedExtractions;
+    if (camel && typeof camel === 'object' && !Array.isArray(camel)) {
+      return camel as Record<string, unknown>;
+    }
+
+    const snake = (metadata as Record<string, unknown>)['shared_extractions'];
+    if (snake && typeof snake === 'object' && !Array.isArray(snake)) {
+      return snake as Record<string, unknown>;
+    }
+
+    return undefined;
+  }
+
+  private normaliseSharedExtractionEntry(
+    raw: unknown,
+    fallback: {
+      confidence: number;
+      reason?: string;
+      tokensUsed?: number;
+      sourceField: string;
+    }
+  ): LeanLLMSharedExtraction | undefined {
+    if (raw === undefined || raw === null) {
+      return undefined;
+    }
+
+    if (typeof raw !== 'object' || Array.isArray(raw)) {
+      return {
+        value: raw,
+        confidence: clamp(fallback.confidence, 0, 1),
+        reason: fallback.reason,
+        tokensUsed: fallback.tokensUsed,
+        sourceField: fallback.sourceField
+      };
+    }
+
+    const record = raw as Record<string, unknown>;
+    const value =
+      'value' in record
+        ? (record.value as unknown)
+        : 'result' in record
+        ? (record.result as unknown)
+        : record;
+
+    const confidence =
+      typeof record.confidence === 'number'
+        ? clamp(record.confidence, 0, 1)
+        : clamp(fallback.confidence, 0, 1);
+
+    const reason =
+      typeof record.reason === 'string' && record.reason.trim().length > 0
+        ? record.reason
+        : fallback.reason;
+
+    const tokensUsed =
+      typeof record.tokensUsed === 'number' && Number.isFinite(record.tokensUsed)
+        ? record.tokensUsed
+        : fallback.tokensUsed;
+
+    const sourceField =
+      typeof record.sourceField === 'string' && record.sourceField.trim().length > 0
+        ? record.sourceField
+        : fallback.sourceField;
+
+    return {
+      value,
+      confidence,
+      reason,
+      tokensUsed,
+      sourceField
+    };
+  }
+
+  private ensureUsageSummary(
+    shared: Map<string, unknown>,
+    runtime: LeanLLMEffectiveConfig
+  ): LeanLLMFallbackUsageSummary {
+    const existing = shared.get(LEAN_LLM_USAGE_KEY);
+    if (
+      existing &&
+      typeof existing === 'object' &&
+      'fields' in (existing as Record<string, unknown>)
+    ) {
+      const summary = existing as LeanLLMFallbackUsageSummary;
+      if (typeof summary.skippedByLimits !== 'number') {
+        summary.skippedByLimits = 0;
+      }
+      this.applySummaryConfigMetadata(summary, runtime);
+      return summary;
+    }
+
+    const summary: LeanLLMFallbackUsageSummary = {
+      totalInvocations: 0,
+      resolvedFields: 0,
+      reusedResolutions: 0,
+      skippedByPlanConfidence: 0,
+      skippedByLimits: 0,
+      sharedExtractions: 0,
+      totalTokens: 0,
+      fields: []
+    };
+
+    this.applySummaryConfigMetadata(summary, runtime);
+
+    shared.set(LEAN_LLM_USAGE_KEY, summary);
+    return summary;
+  }
+
+  private applySummaryConfigMetadata(
+    summary: LeanLLMFallbackUsageSummary,
+    runtime: LeanLLMEffectiveConfig
+  ): void {
+    if (runtime.planConfidenceGate !== undefined) {
+      summary.planConfidenceGate = runtime.planConfidenceGate;
+    } else if (summary.planConfidenceGate !== undefined) {
+      delete summary.planConfidenceGate;
+    }
+
+    if (runtime.maxInvocationsPerParse !== undefined) {
+      summary.maxInvocationsPerParse = runtime.maxInvocationsPerParse;
+    } else if (summary.maxInvocationsPerParse !== undefined) {
+      delete summary.maxInvocationsPerParse;
+    }
+
+    if (runtime.maxTokensPerParse !== undefined) {
+      summary.maxTokensPerParse = runtime.maxTokensPerParse;
+    } else if (summary.maxTokensPerParse !== undefined) {
+      delete summary.maxTokensPerParse;
+    }
+  }
+
+  private recordPlanGateSkip(
+    context: FieldResolutionContext,
+    plannerConfidence: number,
+    runtime: LeanLLMEffectiveConfig
+  ): void {
+    const summary = this.ensureUsageSummary(context.shared, runtime);
+
+    summary.skippedByPlanConfidence += 1;
+
+    const entry: LeanLLMFallbackFieldUsage = {
+      field: context.step.targetKey,
+      action: 'skipped',
+      resolved: false,
+      plannerConfidence,
+      gate: runtime.planConfidenceGate,
+      reason: 'plan-confidence-gate'
+    };
+
+    summary.fields.push(entry);
+  }
+
+  private recordLimitSkip(
+    context: FieldResolutionContext,
+    type: 'invocations' | 'tokens',
+    limit: number,
+    currentValue: number,
+    runtime: LeanLLMEffectiveConfig,
+    summaryOverride?: LeanLLMFallbackUsageSummary
+  ): void {
+    const summary = summaryOverride ?? this.ensureUsageSummary(context.shared, runtime);
+
+    summary.skippedByLimits += 1;
+
+    const entry: LeanLLMFallbackFieldUsage = {
+      field: context.step.targetKey,
+      action: 'skipped',
+      resolved: false,
+      reason: type === 'invocations' ? 'invocation-limit' : 'token-budget',
+      limitType: type,
+      limit,
+      currentInvocations: type === 'invocations' ? currentValue : summary.totalInvocations,
+      currentTokens: type === 'tokens' ? currentValue : summary.totalTokens
+    };
+
+    summary.fields.push(entry);
+  }
+
+  private recordInvocationOutcome(
+    context: FieldResolutionContext,
+    response: LightweightLLMExtractionResponse,
+    confidence: number,
+    sharedKeys: string[],
+    runtime: LeanLLMEffectiveConfig
+  ): void {
+    const summary = this.ensureUsageSummary(context.shared, runtime);
+
+    summary.totalInvocations += 1;
+
+    const resolved = response.value !== undefined;
+    if (resolved) {
+      summary.resolvedFields += 1;
+    }
+
+    if (typeof response.tokensUsed === 'number' && Number.isFinite(response.tokensUsed)) {
+      summary.totalTokens += response.tokensUsed;
+    }
+
+    if (sharedKeys.length) {
+      summary.sharedExtractions += sharedKeys.length;
+    }
+
+    const entry: LeanLLMFallbackFieldUsage = {
+      field: context.step.targetKey,
+      action: 'invoked',
+      resolved,
+      confidence: Number.isFinite(confidence) ? clamp(confidence, 0, 1) : undefined,
+      tokensUsed:
+        typeof response.tokensUsed === 'number' && Number.isFinite(response.tokensUsed)
+          ? response.tokensUsed
+          : undefined,
+      reason: response.reason,
+      sharedKeys: sharedKeys.length ? sharedKeys : undefined
+    };
+
+    summary.fields.push(entry);
+  }
+
+  private recordInvocationError(
+    context: FieldResolutionContext,
+    message: string,
+    runtime: LeanLLMEffectiveConfig
+  ): void {
+    const summary = this.ensureUsageSummary(context.shared, runtime);
+
+    summary.totalInvocations += 1;
+
+    const entry: LeanLLMFallbackFieldUsage = {
+      field: context.step.targetKey,
+      action: 'invoked',
+      resolved: false,
+      error: message
+    };
+
+    summary.fields.push(entry);
+  }
+
+  private recordReuse(
+    context: FieldResolutionContext,
+    extraction: LeanLLMSharedExtraction,
+    confidence: number,
+    runtime: LeanLLMEffectiveConfig
+  ): void {
+    const summary = this.ensureUsageSummary(context.shared, runtime);
+
+    summary.reusedResolutions += 1;
+
+    const entry: LeanLLMFallbackFieldUsage = {
+      field: context.step.targetKey,
+      action: 'reused',
+      resolved: extraction.value !== undefined,
+      confidence: Number.isFinite(confidence) ? clamp(confidence, 0, 1) : undefined,
+      tokensUsed:
+        typeof extraction.tokensUsed === 'number' && Number.isFinite(extraction.tokensUsed)
+          ? extraction.tokensUsed
+          : undefined,
+      reason: extraction.reason,
+      sourceField: extraction.sourceField ?? context.step.targetKey
+    };
+
+    summary.fields.push(entry);
+  }
+
+  private ensureSharedExtractionsMap(
+    shared: Map<string, unknown>
+  ): Map<string, LeanLLMSharedExtraction> {
+    const existing = shared.get(LEAN_LLM_SHARED_RESULTS_KEY);
+    if (existing instanceof Map) {
+      return existing as Map<string, LeanLLMSharedExtraction>;
+    }
+
+    const created = new Map<string, LeanLLMSharedExtraction>();
+    shared.set(LEAN_LLM_SHARED_RESULTS_KEY, created);
+    return created;
+  }
+
+  private ensureAttemptedSet(shared: Map<string, unknown>): Set<string> {
+    const existing = shared.get(LEAN_LLM_ATTEMPTED_KEY);
+    if (existing instanceof Set) {
+      return existing as Set<string>;
+    }
+
+    const created = new Set<string>();
+    shared.set(LEAN_LLM_ATTEMPTED_KEY, created);
+    return created;
+  }
+
+  private trimInput(input: string, runtime: LeanLLMEffectiveConfig): string {
+    const limit = runtime.maxInputCharacters;
+    if (!limit || limit <= 0 || input.length <= limit) {
+      return input;
+    }
+
+    const slice = input.slice(0, limit);
+    return `${slice}\n... [truncated ${input.length - slice.length} chars]`;
+  }
+}
+
 function buildLooseKeyValueMap(input: string): Map<string, string[]> {
   const map = new Map<string, string[]>();
   const lines = input.split(/\r?\n/);
@@ -603,13 +1341,80 @@ function matchAddress(input: string): string | undefined {
 
 function matchName(input: string): string | undefined {
   const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const candidate = lines.find(line => /^([A-Z][a-z]+\s+){0,3}[A-Z][a-z]+$/.test(line));
-  if (candidate) {
-    return candidate;
+
+  const csvCandidate = extractNameFromCsv(lines);
+  if (csvCandidate) {
+    return csvCandidate;
   }
-  const namePattern = /[A-Z][a-z]+\s+[A-Z][a-z]+/;
-  const match = input.match(namePattern);
-  return match ? match[0] : undefined;
+
+  const labelledMatch = input.match(/(?:^|\b)(?:name|customer|contact)\s*[:\-]\s*([^\n\r]+)/i);
+  if (labelledMatch) {
+    const value = labelledMatch[1].split(/[\r\n,]/)[0]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+
+  const introductionMatch = input.match(/\bmy name is\s+([A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*){0,3})/i);
+  if (introductionMatch) {
+    return introductionMatch[1].trim();
+  }
+
+  const multiWordLine = lines.find(line => /^[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}$/.test(line));
+  if (multiWordLine) {
+    return multiWordLine;
+  }
+
+  const multiWordMatches = input.match(/[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+)+/g);
+  if (multiWordMatches && multiWordMatches.length) {
+    return multiWordMatches.sort((a, b) => b.length - a.length)[0].trim();
+  }
+
+  const singleWordLine = lines.find(line => /^[A-Z][a-z]+$/.test(line));
+  return singleWordLine ?? undefined;
+}
+
+function extractNameFromCsv(lines: string[]): string | undefined {
+  if (lines.length < 2 || !lines.some(line => line.includes(','))) {
+    return undefined;
+  }
+
+  const [headerLine, ...dataLines] = lines;
+  if (!headerLine.includes(',')) {
+    return undefined;
+  }
+
+  const headers = headerLine.split(',').map(part => part.trim()).filter(Boolean);
+  const nameIndex = headers.findIndex(header => {
+    const normalised = normaliseKey(header);
+    return normalised === 'name' || normalised.includes('name');
+  });
+
+  if (nameIndex === -1) {
+    return undefined;
+  }
+
+  for (const line of dataLines) {
+    if (!line.includes(',')) {
+      continue;
+    }
+
+    const values = line.split(',').map(part => part.trim());
+    const value = values[nameIndex];
+    if (!value) {
+      continue;
+    }
+
+    if (/^[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}$/.test(value)) {
+      return value;
+    }
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
 }
 
 function findBestSectionMatch(

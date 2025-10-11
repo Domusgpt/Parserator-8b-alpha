@@ -32,6 +32,8 @@ export interface SearchStep {
   isRequired: boolean;
 }
 
+export type SearchPlanOrigin = 'heuristic' | 'model' | 'cached' | (string & {});
+
 export interface SearchPlan {
   id: string;
   version: string;
@@ -42,8 +44,35 @@ export interface SearchPlan {
     detectedFormat: string;
     complexity: 'low' | 'medium' | 'high';
     estimatedTokens: number;
-    origin: 'heuristic' | 'model' | 'cached';
+    origin: SearchPlanOrigin;
+    context?: DetectedSystemContext;
+    /** Confidence emitted by the architect for the generated plan. */
+    plannerConfidence?: number;
   };
+}
+
+export interface DetectedSystemContext {
+  /** Machine-readable identifier for the detected system. */
+  id: string;
+  /** Human friendly label for presentation and logging. */
+  label: string;
+  /** Confidence score between 0-1 derived from heuristic matches. */
+  confidence: number;
+  /** Schema field keys that contributed to the match. */
+  matchedFields: string[];
+  /** Instruction keywords that contributed to the match. */
+  matchedInstructionTerms: string[];
+  /** Additional notes that explain why the context was selected. */
+  rationale: string[];
+}
+
+export interface LeanLLMRuntimeOptions {
+  allowOptionalFields?: boolean;
+  defaultConfidence?: number;
+  maxInputCharacters?: number;
+  planConfidenceGate?: number;
+  maxInvocationsPerParse?: number;
+  maxTokensPerParse?: number;
 }
 
 export interface ParseOptions {
@@ -52,6 +81,7 @@ export interface ParseOptions {
   validateOutput?: boolean;
   includeMetadata?: boolean;
   confidenceThreshold?: number;
+  leanLLM?: LeanLLMRuntimeOptions;
 }
 
 export interface ParseRequest {
@@ -112,6 +142,7 @@ export interface ParseMetadata {
     extractor: StageMetrics;
     postprocess?: StageMetrics;
   };
+  fallback?: ParserFallbackSummary;
 }
 
 export interface ParseResponse {
@@ -127,6 +158,7 @@ export interface FieldResolutionContext {
   config: ParseratorCoreConfig;
   logger: CoreLogger;
   shared: Map<string, unknown>;
+  options?: ParseOptions;
 }
 
 export interface FieldResolutionResult {
@@ -142,6 +174,106 @@ export interface FieldResolver {
   resolve(
     context: FieldResolutionContext
   ): Promise<FieldResolutionResult | undefined> | FieldResolutionResult | undefined;
+}
+
+export interface LightweightLLMExtractionPlanContext {
+  id: string;
+  version: string;
+  strategy: SearchPlan['strategy'];
+  origin: SearchPlanOrigin;
+  systemContext?: DetectedSystemContext;
+}
+
+export interface LightweightLLMExtractionRequest {
+  field: string;
+  description: string;
+  instruction: string;
+  validationType: ValidationType;
+  input: string;
+  plan?: LightweightLLMExtractionPlanContext;
+}
+
+export interface LightweightLLMExtractionResponse {
+  value?: unknown;
+  confidence?: number;
+  reason?: string;
+  tokensUsed?: number;
+  metadata?: Record<string, unknown>;
+  sharedExtractions?: Record<string, LeanLLMSharedExtraction>;
+}
+
+export interface LightweightLLMClient {
+  readonly name: string;
+  extractField(
+    request: LightweightLLMExtractionRequest
+  ): Promise<LightweightLLMExtractionResponse>;
+}
+
+export interface LeanLLMRequestContext {
+  plan?: SearchPlan;
+  step: SearchStep;
+  inputData: string;
+}
+
+export interface LeanLLMSharedExtraction {
+  value: unknown;
+  confidence?: number;
+  reason?: string;
+  tokensUsed?: number;
+  sourceField?: string;
+}
+
+export type LeanLLMFallbackUsageAction = 'invoked' | 'reused' | 'skipped';
+
+export interface LeanLLMFallbackFieldUsage {
+  field: string;
+  action: LeanLLMFallbackUsageAction;
+  resolved?: boolean;
+  confidence?: number;
+  tokensUsed?: number;
+  reason?: string;
+  sourceField?: string;
+  sharedKeys?: string[];
+  plannerConfidence?: number;
+  gate?: number;
+  error?: string;
+  limitType?: 'invocations' | 'tokens';
+  limit?: number;
+  currentInvocations?: number;
+  currentTokens?: number;
+}
+
+export interface LeanLLMFallbackUsageSummary {
+  totalInvocations: number;
+  resolvedFields: number;
+  reusedResolutions: number;
+  skippedByPlanConfidence: number;
+  skippedByLimits: number;
+  sharedExtractions: number;
+  totalTokens: number;
+  planConfidenceGate?: number;
+  maxInvocationsPerParse?: number;
+  maxTokensPerParse?: number;
+  fields: LeanLLMFallbackFieldUsage[];
+}
+
+export interface ParserFallbackSummary {
+  leanLLM?: LeanLLMFallbackUsageSummary;
+}
+
+export interface LeanLLMResolverConfig {
+  client: LightweightLLMClient;
+  allowOptionalFields?: boolean;
+  defaultConfidence?: number;
+  maxInputCharacters?: number;
+  name?: string;
+  requestFormatter?: (
+    context: LeanLLMRequestContext
+  ) => LightweightLLMExtractionRequest;
+  planConfidenceGate?: number;
+  position?: 'append' | 'prepend';
+  maxInvocationsPerParse?: number;
+  maxTokensPerParse?: number;
 }
 
 export interface CoreLogger {
@@ -181,6 +313,7 @@ export interface ExtractorContext {
   inputData: string;
   plan: SearchPlan;
   config: ParseratorCoreConfig;
+  options?: ParseOptions;
 }
 
 export interface ExtractorResult {
@@ -191,6 +324,7 @@ export interface ExtractorResult {
   confidence: number;
   diagnostics: ParseDiagnostic[];
   error?: ParseError;
+  fallbackSummary?: ParserFallbackSummary;
 }
 
 export interface ArchitectAgent {
@@ -337,6 +471,7 @@ export interface ParseratorCoreOptions {
   architect?: ArchitectAgent;
   extractor?: ExtractorAgent;
   resolvers?: FieldResolver[];
+  llmFallback?: LeanLLMResolverConfig;
   profile?: ParseratorProfileOption;
   telemetry?: ParseratorTelemetry | ParseratorTelemetryListener | ParseratorTelemetryListener[];
   interceptors?: ParseratorInterceptor | ParseratorInterceptor[];
