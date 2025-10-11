@@ -8,14 +8,22 @@ import { ParseRequest, ParseOptions, ParseratorConfig, ValidationType } from './
 // Validation schemas using Joi
 export const parseRequestSchema = Joi.object({
   inputData: Joi.string().required().min(1).max(1000000),
-  outputSchema: Joi.object().required(),
+  outputSchema: Joi.object().min(1).required(),
   instructions: Joi.string().optional().max(10000),
   options: Joi.object({
     timeout: Joi.number().min(1000).max(300000).default(30000),
     retries: Joi.number().min(0).max(5).default(3),
     validateOutput: Joi.boolean().default(true),
     includeMetadata: Joi.boolean().default(true),
-    confidenceThreshold: Joi.number().min(0).max(1).default(0.8)
+    confidenceThreshold: Joi.number().min(0).max(1).default(0.8),
+    leanLLM: Joi.object({
+      allowOptionalFields: Joi.boolean(),
+      defaultConfidence: Joi.number().min(0).max(1),
+      maxInputCharacters: Joi.number().integer().min(1).max(120000),
+      planConfidenceGate: Joi.number().min(0).max(1),
+      maxInvocationsPerParse: Joi.number().integer().min(0).max(256),
+      maxTokensPerParse: Joi.number().integer().min(0)
+    }).optional()
   }).optional()
 }).required();
 
