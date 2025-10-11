@@ -69,6 +69,9 @@ function createFailureResponse(options) {
             }
         }
     };
+    if (options.fallbackSummary) {
+        metadata.fallback = options.fallbackSummary;
+    }
     return {
         success: false,
         parsedData: {},
