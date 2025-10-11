@@ -25,10 +25,11 @@ export interface StageBreakdownMetrics {
     timeMs: number;
     tokens: number;
     confidence: number;
+    runs?: number;
 }
 export interface ParseDiagnostic {
     field: string;
-    stage: 'architect' | 'extractor' | 'validation';
+    stage: 'preprocess' | 'validation' | 'architect' | 'extractor' | 'postprocess';
     message: string;
     severity: 'info' | 'warning' | 'error';
 }
@@ -43,9 +44,12 @@ export interface ParseMetadata {
     timestamp: string;
     diagnostics: ParseDiagnostic[];
     stageBreakdown: {
+        preprocess?: StageBreakdownMetrics;
         architect: StageBreakdownMetrics;
         extractor: StageBreakdownMetrics;
+        postprocess?: StageBreakdownMetrics;
     };
+    fallback?: ParserFallbackSummary;
 }
 export interface SearchStep {
     targetKey: string;
@@ -65,13 +69,57 @@ export interface SearchPlan {
         complexity: 'low' | 'medium' | 'high';
         estimatedTokens: number;
         origin: 'heuristic' | 'model' | 'cached';
+        context?: DetectedSystemContext;
+        plannerConfidence?: number;
     };
+}
+export interface DetectedSystemContext {
+    id: string;
+    label: string;
+    confidence: number;
+    matchedFields: string[];
+    matchedInstructionTerms: string[];
+    rationale: string[];
+}
+export type LeanLLMFallbackUsageAction = 'invoked' | 'reused' | 'skipped';
+export interface LeanLLMFallbackFieldUsage {
+    field: string;
+    action: LeanLLMFallbackUsageAction;
+    resolved?: boolean;
+    confidence?: number;
+    tokensUsed?: number;
+    reason?: string;
+    sourceField?: string;
+    sharedKeys?: string[];
+    plannerConfidence?: number;
+    gate?: number;
+    error?: string;
+    limitType?: 'invocations' | 'tokens';
+    limit?: number;
+    currentInvocations?: number;
+    currentTokens?: number;
+}
+export interface LeanLLMFallbackUsageSummary {
+    totalInvocations: number;
+    resolvedFields: number;
+    reusedResolutions: number;
+    skippedByPlanConfidence: number;
+    skippedByLimits: number;
+    sharedExtractions: number;
+    totalTokens: number;
+    planConfidenceGate?: number;
+    maxInvocationsPerParse?: number;
+    maxTokensPerParse?: number;
+    fields: LeanLLMFallbackFieldUsage[];
+}
+export interface ParserFallbackSummary {
+    leanLLM?: LeanLLMFallbackUsageSummary;
 }
 export type ValidationType = 'string' | 'number' | 'boolean' | 'email' | 'phone' | 'date' | 'iso_date' | 'url' | 'string_array' | 'number_array' | 'currency' | 'percentage' | 'address' | 'name' | 'object' | 'custom';
 export interface ParseError {
     code: ErrorCode;
     message: string;
-    stage?: 'validation' | 'architect' | 'extractor' | 'orchestration';
+    stage?: 'validation' | 'preprocess' | 'architect' | 'extractor' | 'postprocess' | 'orchestration';
     details?: Record<string, any>;
     suggestion?: string;
 }
