@@ -3,8 +3,8 @@
  * Orchestrates the lightweight @parserator/core pipeline for API requests
  * while preserving compatibility with existing SaaS interfaces.
  */
-import { ParseResponse as CoreParseResponse, ParseOptions, ParseratorProfileOption } from '@parserator/core';
-import { GeminiService } from './llm.service';
+import { ParseResponse as CoreParseResponse, ParseOptions, ParseratorProfileOption, ParseratorLeanLLMPlanRewriteState, ParseratorLeanLLMFieldFallbackState } from '@parserator/core';
+import { GeminiService, ILLMOptions } from './llm.service';
 /**
  * Configuration for Parse operations
  */
@@ -27,6 +27,24 @@ export interface IParseConfig {
     coreApiKey?: string;
     /** Optional profile to seed the core pipeline */
     coreProfile?: ParseratorProfileOption;
+    /** Optional lean LLM plan rewrite configuration */
+    leanPlanRewrite?: ILeanPlanRewriteConfig;
+    /** Optional lean LLM field fallback configuration */
+    leanFieldFallback?: ILeanFieldFallbackConfig;
+}
+export interface ILeanPlanRewriteConfig {
+    enabled?: boolean;
+    minHeuristicConfidence?: number;
+    concurrency?: number;
+    cooldownMs?: number;
+    requestOptions?: ILLMOptions;
+}
+export interface ILeanFieldFallbackConfig {
+    enabled?: boolean;
+    includeOptionalFields?: boolean;
+    minConfidence?: number;
+    concurrency?: number;
+    requestOptions?: ILLMOptions;
 }
 /**
  * Input parameters for parsing operations
@@ -63,6 +81,8 @@ export declare class ParseService {
     private config;
     private logger;
     private readonly core;
+    private leanPlanClient?;
+    private leanFieldClient?;
     private static readonly DEFAULT_CONFIG;
     constructor(geminiService: GeminiService, config?: Partial<IParseConfig>, logger?: Console);
     /**
@@ -87,6 +107,8 @@ export declare class ParseService {
      * Update configuration
      */
     updateConfig(newConfig: Partial<IParseConfig>): void;
+    getLeanPlanRewriteState(): ParseratorLeanLLMPlanRewriteState;
+    getLeanFieldFallbackState(): ParseratorLeanLLMFieldFallbackState;
     private createCoreLogger;
     private normaliseCoreResult;
     private logCoreOutcome;
@@ -100,5 +122,8 @@ export declare class ParseService {
      * Generate unique operation ID for tracking
      */
     private generateOperationId;
+    private buildLeanPlanRewriteOptions;
+    private buildLeanFieldFallbackOptions;
+    private configureLeanLLMFeatures;
 }
 //# sourceMappingURL=parse.service.d.ts.map

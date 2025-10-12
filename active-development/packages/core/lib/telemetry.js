@@ -2,6 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TelemetryHub = void 0;
 exports.createTelemetryHub = createTelemetryHub;
+exports.createPlanCacheTelemetryEmitter = createPlanCacheTelemetryEmitter;
+exports.createPlanRewriteTelemetryEmitter = createPlanRewriteTelemetryEmitter;
+exports.createFieldFallbackTelemetryEmitter = createFieldFallbackTelemetryEmitter;
+const uuid_1 = require("uuid");
 class NoopTelemetry {
     emit() {
         // noop
@@ -66,5 +70,201 @@ function createTelemetryHub(input, logger) {
     }
     const listeners = Array.isArray(input) ? input : [input];
     return new TelemetryHub(listeners, logger);
+}
+function createPlanCacheTelemetryEmitter(options) {
+    const requestIdFactory = options.requestIdFactory ?? uuid_1.v4;
+    const safeResolve = (resolver, label) => {
+        if (!resolver) {
+            return undefined;
+        }
+        try {
+            return resolver();
+        }
+        catch (error) {
+            options.logger?.warn?.('parserator-core:plan-cache-telemetry-resolve-failed', {
+                error: error instanceof Error ? error.message : error,
+                source: options.source,
+                field: label
+            });
+            return undefined;
+        }
+    };
+    const normaliseError = (error) => {
+        if (error === undefined || error === null) {
+            return undefined;
+        }
+        if (error instanceof Error) {
+            return error.message;
+        }
+        if (typeof error === 'string') {
+            return error;
+        }
+        try {
+            return JSON.stringify(error);
+        }
+        catch {
+            return String(error);
+        }
+    };
+    return event => {
+        const requestId = event.requestId ?? requestIdFactory();
+        options.telemetry.emit({
+            type: 'plan:cache',
+            source: options.source,
+            requestId,
+            timestamp: new Date().toISOString(),
+            profile: safeResolve(options.resolveProfile, 'profile'),
+            sessionId: safeResolve(options.resolveSessionId, 'sessionId'),
+            action: event.action,
+            key: event.key ?? safeResolve(options.resolveKey, 'key'),
+            scope: event.scope,
+            planId: event.planId ?? safeResolve(options.resolvePlanId, 'planId'),
+            confidence: event.confidence,
+            tokensUsed: event.tokensUsed,
+            processingTimeMs: event.processingTimeMs,
+            reason: event.reason,
+            error: normaliseError(event.error)
+        });
+    };
+}
+function createPlanRewriteTelemetryEmitter(options) {
+    const requestIdFactory = options.requestIdFactory ?? uuid_1.v4;
+    const safeResolve = (resolver, label) => {
+        if (!resolver) {
+            return undefined;
+        }
+        try {
+            return resolver();
+        }
+        catch (error) {
+            options.logger?.warn?.('parserator-core:plan-rewrite-telemetry-resolve-failed', {
+                error: error instanceof Error ? error.message : error,
+                source: options.source,
+                field: label
+            });
+            return undefined;
+        }
+    };
+    const normaliseError = (error) => {
+        if (error === undefined || error === null) {
+            return undefined;
+        }
+        if (error instanceof Error) {
+            return error.message;
+        }
+        if (typeof error === 'string') {
+            return error;
+        }
+        try {
+            return JSON.stringify(error);
+        }
+        catch {
+            return String(error);
+        }
+    };
+    const normaliseQueue = (queue) => {
+        if (!queue) {
+            return undefined;
+        }
+        return {
+            pending: queue.pending,
+            inFlight: queue.inFlight,
+            completed: queue.completed,
+            failed: queue.failed,
+            size: queue.size,
+            lastDurationMs: queue.lastDurationMs,
+            lastError: queue.lastError
+        };
+    };
+    return event => {
+        const requestId = event.requestId ?? requestIdFactory();
+        const source = event.source ?? options.source;
+        options.telemetry.emit({
+            type: 'plan:rewrite',
+            source,
+            requestId,
+            timestamp: new Date().toISOString(),
+            profile: safeResolve(options.resolveProfile, 'profile'),
+            sessionId: event.sessionId ?? safeResolve(options.resolveSessionId, 'sessionId'),
+            action: event.action,
+            heuristicsConfidence: event.heuristicsConfidence,
+            requestedThreshold: event.requestedThreshold,
+            rewriteConfidence: event.rewriteConfidence,
+            cooldownMs: event.cooldownMs,
+            usage: event.usage,
+            queue: normaliseQueue(event.queue),
+            skipReason: event.skipReason,
+            error: normaliseError(event.error)
+        });
+    };
+}
+function createFieldFallbackTelemetryEmitter(options) {
+    const requestIdFactory = options.requestIdFactory ?? uuid_1.v4;
+    const safeResolve = (resolver, label) => {
+        if (!resolver) {
+            return undefined;
+        }
+        try {
+            return resolver();
+        }
+        catch (error) {
+            options.logger?.warn?.('parserator-core:field-fallback-telemetry-resolve-failed', {
+                error: error instanceof Error ? error.message : error,
+                source: options.source,
+                field: label
+            });
+            return undefined;
+        }
+    };
+    const normaliseError = (error) => {
+        if (error === undefined || error === null) {
+            return undefined;
+        }
+        if (error instanceof Error) {
+            return error.message;
+        }
+        if (typeof error === 'string') {
+            return error;
+        }
+        try {
+            return JSON.stringify(error);
+        }
+        catch {
+            return String(error);
+        }
+    };
+    const normaliseQueue = (queue) => {
+        if (!queue) {
+            return undefined;
+        }
+        return {
+            pending: queue.pending,
+            inFlight: queue.inFlight,
+            completed: queue.completed,
+            failed: queue.failed,
+            size: queue.size,
+            lastDurationMs: queue.lastDurationMs,
+            lastError: queue.lastError
+        };
+    };
+    return event => {
+        const requestId = event.requestId ?? requestIdFactory();
+        options.telemetry.emit({
+            type: 'field:fallback',
+            source: options.source,
+            requestId,
+            timestamp: new Date().toISOString(),
+            profile: safeResolve(options.resolveProfile, 'profile'),
+            sessionId: event.sessionId ?? safeResolve(options.resolveSessionId, 'sessionId'),
+            action: event.action,
+            field: event.field,
+            required: event.required,
+            pendingFields: event.pendingFields,
+            usage: event.usage,
+            queue: normaliseQueue(event.queue),
+            skipReason: event.skipReason,
+            error: normaliseError(event.error)
+        });
+    };
 }
 //# sourceMappingURL=telemetry.js.map
