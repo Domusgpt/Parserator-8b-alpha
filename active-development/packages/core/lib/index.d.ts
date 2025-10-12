@@ -1,15 +1,16 @@
 import { HeuristicArchitect } from './architect';
 import { RegexExtractor } from './extractor';
-import { createDefaultResolvers, ResolverRegistry } from './resolvers';
+import { createDefaultResolvers, LeanLLMResolver, ResolverRegistry } from './resolvers';
 import { ParseratorSession } from './session';
 import { createTelemetryHub, TelemetryHub } from './telemetry';
 import { createInMemoryPlanCache } from './cache';
-import { ArchitectAgent, BatchParseOptions, ExtractorAgent, ParseratorPreprocessor, ParseratorPostprocessor, ParseRequest, ParseResponse, ParseratorCoreConfig, ParseratorCoreOptions, ParseratorProfileOption, ParseratorSessionFromResponseOptions, ParseratorSessionInit, ParseratorInterceptor } from './types';
+import { ArchitectAgent, BatchParseOptions, ExtractorAgent, ParseratorPreprocessor, ParseratorPostprocessor, ParseratorPlanCacheEntry, ParseRequest, ParseResponse, LeanLLMResolverConfig, ParseratorCoreConfig, ParseratorCoreOptions, ParseratorProfileOption, ParseratorSessionFromResponseOptions, ParseratorSessionInit, ParseratorInterceptor } from './types';
 export * from './types';
 export * from './profiles';
 export { ParseratorSession } from './session';
 export { createDefaultPreprocessors } from './preprocessors';
 export { createDefaultPostprocessors } from './postprocessors';
+export { buildLeanLLMPlaybook } from './lean-llm-playbook';
 export declare class ParseratorCore {
     private readonly apiKey;
     private config;
@@ -17,6 +18,7 @@ export declare class ParseratorCore {
     private architect;
     private extractor;
     private resolverRegistry;
+    private leanLLMResolver?;
     private profileName?;
     private profileOverrides;
     private configOverrides;
@@ -30,6 +32,7 @@ export declare class ParseratorCore {
     getConfig(): ParseratorCoreConfig;
     getProfile(): string | undefined;
     applyProfile(profile: ParseratorProfileOption): void;
+    configureLLMFallback(config?: LeanLLMResolverConfig): void;
     static profiles(): import("./types").ParseratorProfile[];
     setArchitect(agent: ArchitectAgent): void;
     setExtractor(agent: ExtractorAgent): void;
@@ -46,6 +49,9 @@ export declare class ParseratorCore {
     clearPostprocessors(): void;
     createSession(init: ParseratorSessionInit): ParseratorSession;
     createSessionFromResponse(options: ParseratorSessionFromResponseOptions): ParseratorSession;
+    getPlanCacheEntry(request: ParseRequest): Promise<ParseratorPlanCacheEntry | undefined>;
+    deletePlanCacheEntry(request: ParseRequest): Promise<boolean>;
+    clearPlanCache(profile?: string): Promise<boolean>;
     private composeConfig;
     parse(request: ParseRequest): Promise<ParseResponse>;
     parseMany(requests: ParseRequest[], options?: BatchParseOptions): Promise<ParseResponse[]>;
@@ -53,6 +59,8 @@ export declare class ParseratorCore {
     private getPreprocessors;
     private getPostprocessors;
     private getPlanCacheKey;
+    private cloneCacheEntry;
+    private emitPlanCacheEvent;
     private runBeforeInterceptors;
     private runPreprocessors;
     private runPostprocessors;
@@ -62,5 +70,5 @@ export declare class ParseratorCore {
     private handleExtractorFailure;
     private attachRegistryIfSupported;
 }
-export { HeuristicArchitect, RegexExtractor, ResolverRegistry, createDefaultResolvers, createInMemoryPlanCache, createTelemetryHub, TelemetryHub };
+export { HeuristicArchitect, RegexExtractor, LeanLLMResolver, ResolverRegistry, createDefaultResolvers, createInMemoryPlanCache, createTelemetryHub, TelemetryHub };
 //# sourceMappingURL=index.d.ts.map
