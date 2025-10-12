@@ -1,0 +1,11 @@
+{
+  "name": "parserator-lean-fallback",
+  "description": "Commands and agents that wire Parserator's lean LLM fallback into Claude Code workflows.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Parserator Team",
+    "url": "https://parserator.com"
+  },
+  "homepage": "https://parserator.com/docs/agents",
+  "license": "UNLICENSED"
+}
