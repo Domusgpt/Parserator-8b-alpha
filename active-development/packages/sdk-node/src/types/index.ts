@@ -11,12 +11,23 @@ export interface ParseRequest {
   options?: ParseOptions;
 }
 
+export interface LeanLLMRuntimeOptions {
+  disabled?: boolean;
+  allowOptionalFields?: boolean;
+  defaultConfidence?: number;
+  maxInputCharacters?: number;
+  planConfidenceGate?: number;
+  maxInvocationsPerParse?: number;
+  maxTokensPerParse?: number;
+}
+
 export interface ParseOptions {
   timeout?: number;
   retries?: number;
   validateOutput?: boolean;
   includeMetadata?: boolean;
   confidenceThreshold?: number;
+  leanLLM?: LeanLLMRuntimeOptions;
 }
 
 export interface ParseResponse {
@@ -56,6 +67,7 @@ export interface ParseMetadata {
     extractor: StageBreakdownMetrics;
     postprocess?: StageBreakdownMetrics;
   };
+  fallback?: ParserFallbackSummary;
 }
 
 // Architect-Extractor Pattern Types
@@ -78,7 +90,116 @@ export interface SearchPlan {
     complexity: 'low' | 'medium' | 'high';
     estimatedTokens: number;
     origin: 'heuristic' | 'model' | 'cached';
+    context?: DetectedSystemContext;
+    plannerConfidence?: number;
   };
+}
+
+export interface DetectedSystemContext {
+  id: string;
+  label: string;
+  confidence: number;
+  matchedFields: string[];
+  matchedInstructionTerms: string[];
+  rationale: string[];
+}
+
+export type LeanLLMFallbackUsageAction = 'invoked' | 'reused' | 'skipped';
+
+export interface LeanLLMFallbackFieldUsage {
+  field: string;
+  action: LeanLLMFallbackUsageAction;
+  resolved?: boolean;
+  confidence?: number;
+  tokensUsed?: number;
+  reason?: string;
+  sourceField?: string;
+  sharedKeys?: string[];
+  plannerConfidence?: number;
+  gate?: number;
+  error?: string;
+  limitType?: 'invocations' | 'tokens';
+  limit?: number;
+  currentInvocations?: number;
+  currentTokens?: number;
+}
+
+export interface LeanLLMFallbackUsageSummary {
+  totalInvocations: number;
+  resolvedFields: number;
+  reusedResolutions: number;
+  skippedByPlanConfidence: number;
+  skippedByLimits: number;
+  sharedExtractions: number;
+  totalTokens: number;
+  planConfidenceGate?: number;
+  maxInvocationsPerParse?: number;
+  maxTokensPerParse?: number;
+  fields: LeanLLMFallbackFieldUsage[];
+}
+
+export type LeanLLMPlaybookStepStatus =
+  | 'resolved'
+  | 'reused'
+  | 'skipped-plan-confidence'
+  | 'skipped-limit';
+
+export interface LeanLLMPlaybookStep {
+  field: string;
+  status: LeanLLMPlaybookStepStatus;
+  confidence?: number;
+  rationale?: string;
+  sourceField?: string;
+  sharedKeys?: string[];
+  tokensUsed?: number;
+  plannerConfidence?: number;
+  gate?: number;
+}
+
+export interface LeanLLMPlaybookBudgets {
+  invocations?: {
+    used: number;
+    limit?: number;
+    remaining?: number;
+    skippedByLimit: number;
+  };
+  tokens?: {
+    used: number;
+    limit?: number;
+    remaining?: number;
+    skippedByLimit: number;
+  };
+}
+
+export interface LeanLLMPlaybookRuntimeSummary {
+  allowOptionalFields?: boolean;
+  defaultConfidence?: number;
+  maxInputCharacters?: number;
+  planConfidenceGate?: number;
+  maxInvocationsPerParse?: number;
+  maxTokensPerParse?: number;
+}
+
+export interface LeanLLMPlaybookContext {
+  planId?: string;
+  planVersion?: string;
+  planOrigin?: string;
+  plannerConfidence?: number;
+}
+
+export interface LeanLLMPlaybook {
+  headline: string;
+  overview: string[];
+  context: LeanLLMPlaybookContext;
+  runtime: LeanLLMPlaybookRuntimeSummary;
+  budgets: LeanLLMPlaybookBudgets;
+  steps: LeanLLMPlaybookStep[];
+  spawnCommand: string;
+}
+
+export interface ParserFallbackSummary {
+  leanLLM?: LeanLLMFallbackUsageSummary;
+  leanLLMPlaybook?: LeanLLMPlaybook;
 }
 
 export type ValidationType = 

@@ -3,11 +3,22 @@ import {
   ExtractorAgent,
   ExtractorContext,
   ExtractorResult,
+  LeanLLMFallbackUsageSummary,
+  LeanLLMRuntimeOptions,
   ParseDiagnostic,
-  ParseError
+  ParseError,
+  ParserFallbackSummary,
+  SearchPlan
 } from './types';
-import { ResolverRegistry, createDefaultResolvers } from './resolvers';
+import {
+  LEAN_LLM_RUNTIME_CONFIG_KEY,
+  LEAN_LLM_USAGE_KEY,
+  PLAN_SHARED_STATE_KEY,
+  ResolverRegistry,
+  createDefaultResolvers
+} from './resolvers';
 import { clamp } from './utils';
+import { buildLeanLLMPlaybook } from './lean-llm-playbook';
 
 export class RegexExtractor implements ExtractorAgent {
   private registry: ResolverRegistry;
@@ -29,6 +40,10 @@ export class RegexExtractor implements ExtractorAgent {
     let aggregatedConfidence = 0;
 
     const sharedState = new Map<string, unknown>();
+    sharedState.set(PLAN_SHARED_STATE_KEY, context.plan);
+    if (context.options?.leanLLM) {
+      sharedState.set(LEAN_LLM_RUNTIME_CONFIG_KEY, { ...context.options.leanLLM });
+    }
 
     for (const step of context.plan.steps) {
       if (step.isRequired) {
@@ -40,7 +55,8 @@ export class RegexExtractor implements ExtractorAgent {
         step,
         config: context.config,
         logger: this.logger,
-        shared: sharedState
+        shared: sharedState,
+        options: context.options
       });
 
       if (resolution) {
@@ -62,6 +78,8 @@ export class RegexExtractor implements ExtractorAgent {
         aggregatedConfidence += step.isRequired ? 0 : 0.2;
       }
     }
+
+    const fallbackSummary = extractFallbackSummary(sharedState);
 
     const success = requiredCount === 0 || resolvedRequired === requiredCount;
     const processingTimeMs = Date.now() - start;
@@ -86,7 +104,7 @@ export class RegexExtractor implements ExtractorAgent {
         severity: 'error'
       });
 
-      return {
+      const result: ExtractorResult = {
         success: false,
         parsedData: parsed,
         tokensUsed,
@@ -95,6 +113,12 @@ export class RegexExtractor implements ExtractorAgent {
         diagnostics,
         error
       };
+
+      if (fallbackSummary) {
+        result.fallbackSummary = fallbackSummary;
+      }
+
+      return result;
     }
 
     const confidence = context.plan.steps.length
@@ -108,7 +132,7 @@ export class RegexExtractor implements ExtractorAgent {
       success
     });
 
-    return {
+    const result: ExtractorResult = {
       success: true,
       parsedData: parsed,
       tokensUsed,
@@ -116,6 +140,12 @@ export class RegexExtractor implements ExtractorAgent {
       confidence,
       diagnostics
     };
+
+    if (fallbackSummary) {
+      result.fallbackSummary = fallbackSummary;
+    }
+
+    return result;
   }
 }
 
@@ -130,4 +160,51 @@ function computeStepConfidence(
 
   const base = isRequired ? 0.7 : 0.5;
   return clamp(Math.max(resolverConfidence, base), 0, 1);
+}
+
+function extractFallbackSummary(
+  shared: Map<string, unknown>
+): ParserFallbackSummary | undefined {
+  const usage = shared.get(LEAN_LLM_USAGE_KEY);
+  if (!isLeanFallbackUsage(usage)) {
+    return undefined;
+  }
+
+  const plan = shared.get(PLAN_SHARED_STATE_KEY);
+  const runtime = shared.get(LEAN_LLM_RUNTIME_CONFIG_KEY);
+
+  const summary = cloneLeanLLMFallbackSummary(usage);
+  const playbook = buildLeanLLMPlaybook({
+    plan: isSearchPlan(plan) ? plan : undefined,
+    runtime: isLeanRuntimeOptions(runtime) ? runtime : undefined,
+    usage: summary
+  });
+
+  return { leanLLM: summary, leanLLMPlaybook: playbook };
+}
+
+function cloneLeanLLMFallbackSummary(
+  summary: LeanLLMFallbackUsageSummary
+): LeanLLMFallbackUsageSummary {
+  return {
+    ...summary,
+    fields: summary.fields.map(field => ({ ...field }))
+  };
+}
+
+function isLeanFallbackUsage(value: unknown): value is LeanLLMFallbackUsageSummary {
+  return !!value && typeof value === 'object' && 'fields' in (value as Record<string, unknown>);
+}
+
+function isLeanRuntimeOptions(value: unknown): value is LeanLLMRuntimeOptions {
+  return !!value && typeof value === 'object';
+}
+
+function isSearchPlan(value: unknown): value is SearchPlan {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return typeof record.id === 'string' && typeof record.version === 'string' && Array.isArray(record.steps);
 }
