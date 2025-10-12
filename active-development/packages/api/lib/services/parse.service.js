@@ -7,6 +7,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ParseService = exports.ParseError = void 0;
 const core_1 = require("@parserator/core");
+const lean_llm_clients_1 = require("./lean-llm-clients");
 /**
  * Error thrown when Parse service encounters issues
  */
@@ -28,6 +29,8 @@ class ParseService {
         this.geminiService = geminiService;
         this.config = { ...ParseService.DEFAULT_CONFIG, ...config };
         this.logger = logger || console;
+        const leanPlanOptions = this.buildLeanPlanRewriteOptions();
+        const leanFieldOptions = this.buildLeanFieldFallbackOptions();
         this.core = new core_1.ParseratorCore({
             apiKey: this.config.coreApiKey ?? 'api-internal',
             logger: this.createCoreLogger(),
@@ -38,7 +41,9 @@ class ParseService {
                 minConfidence: this.config.minOverallConfidence,
                 enableFieldFallbacks: this.config.enableFallbacks,
                 defaultStrategy: this.config.coreStrategy ?? 'sequential'
-            }
+            },
+            leanLLMPlanRewrite: leanPlanOptions,
+            leanLLMFieldFallback: leanFieldOptions
         });
         this.logger.info('ParseService initialised with @parserator/core', {
             maxInputLength: this.config.maxInputLength,
@@ -46,6 +51,8 @@ class ParseService {
             minOverallConfidence: this.config.minOverallConfidence,
             coreStrategy: this.config.coreStrategy,
             coreProfile: this.core.getProfile(),
+            leanPlanRewriteEnabled: !!leanPlanOptions,
+            leanFieldFallbackEnabled: !!leanFieldOptions,
             service: 'parse'
         });
     }
@@ -191,10 +198,21 @@ class ParseService {
             enableFieldFallbacks: this.config.enableFallbacks,
             defaultStrategy: this.config.coreStrategy ?? 'sequential'
         });
+        this.leanPlanClient = undefined;
+        this.leanFieldClient = undefined;
+        this.configureLeanLLMFeatures();
         this.logger.info('ParseService configuration updated', {
             newConfig,
+            leanPlanRewriteEnabled: this.config.leanPlanRewrite?.enabled ?? false,
+            leanFieldFallbackEnabled: this.config.leanFieldFallback?.enabled ?? false,
             service: 'parse'
         });
+    }
+    getLeanPlanRewriteState() {
+        return this.core.getLeanLLMPlanRewriteState();
+    }
+    getLeanFieldFallbackState() {
+        return this.core.getLeanLLMFieldFallbackState();
     }
     createCoreLogger() {
         return {
@@ -328,6 +346,64 @@ class ParseService {
         const random = Math.random().toString(36).substring(2, 8);
         return `parse_${timestamp}_${random}`;
     }
+    buildLeanPlanRewriteOptions() {
+        const config = this.config.leanPlanRewrite;
+        if (!config?.enabled) {
+            this.leanPlanClient = undefined;
+            return undefined;
+        }
+        if (!this.leanPlanClient) {
+            this.leanPlanClient = (0, lean_llm_clients_1.createGeminiLeanPlanClient)({
+                gemini: this.geminiService,
+                logger: this.logger,
+                defaultOptions: config.requestOptions
+            });
+        }
+        return {
+            client: this.leanPlanClient,
+            minHeuristicConfidence: config.minHeuristicConfidence,
+            concurrency: config.concurrency,
+            cooldownMs: config.cooldownMs,
+            logger: this.createCoreLogger()
+        };
+    }
+    buildLeanFieldFallbackOptions() {
+        const config = this.config.leanFieldFallback;
+        if (!config?.enabled) {
+            this.leanFieldClient = undefined;
+            return undefined;
+        }
+        if (!this.leanFieldClient) {
+            this.leanFieldClient = (0, lean_llm_clients_1.createGeminiLeanFieldClient)({
+                gemini: this.geminiService,
+                logger: this.logger,
+                defaultOptions: config.requestOptions
+            });
+        }
+        return {
+            client: this.leanFieldClient,
+            includeOptionalFields: config.includeOptionalFields,
+            minConfidence: config.minConfidence,
+            concurrency: config.concurrency,
+            logger: this.createCoreLogger()
+        };
+    }
+    configureLeanLLMFeatures() {
+        const planOptions = this.buildLeanPlanRewriteOptions();
+        if (planOptions) {
+            this.core.enableLeanLLMPlanRewrite(planOptions);
+        }
+        else {
+            this.core.disableLeanLLMPlanRewrite();
+        }
+        const fieldOptions = this.buildLeanFieldFallbackOptions();
+        if (fieldOptions) {
+            this.core.enableLeanLLMFieldFallback(fieldOptions);
+        }
+        else {
+            this.core.disableLeanLLMFieldFallback();
+        }
+    }
 }
 exports.ParseService = ParseService;
 // Default configuration optimised for production use
@@ -337,6 +413,8 @@ ParseService.DEFAULT_CONFIG = {
     timeoutMs: 60000, // 1 minute total timeout (not currently enforced by core)
     enableFallbacks: true,
     minOverallConfidence: 0.55,
-    coreStrategy: 'sequential'
+    coreStrategy: 'sequential',
+    leanPlanRewrite: { enabled: false },
+    leanFieldFallback: { enabled: false }
 };
 //# sourceMappingURL=parse.service.js.map
