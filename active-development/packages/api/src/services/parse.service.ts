@@ -16,6 +16,7 @@ import {
 } from '@parserator/core';
 
 import { GeminiService } from './llm.service';
+import { LeanLLMClient, LeanLLMClientOptions } from './lean-llm-client';
 
 /**
  * Configuration for Parse operations
@@ -47,6 +48,21 @@ export interface IParseConfig {
 
   /** Optional profile to seed the core pipeline */
   coreProfile?: ParseratorProfileOption;
+
+  /** Configuration for the lean LLM fallback resolver */
+  leanLLM?: ILeanLLMConfig;
+}
+
+export interface ILeanLLMConfig extends LeanLLMClientOptions {
+  enabled: boolean;
+  allowOptionalFields?: boolean;
+  maxInputCharacters?: number;
+  defaultConfidence?: number;
+  resolverName?: string;
+  resolverPosition?: 'append' | 'prepend';
+  planConfidenceGate?: number;
+  maxInvocationsPerParse?: number;
+  maxTokensPerParse?: number;
 }
 
 /**
@@ -96,6 +112,7 @@ export class ParseService {
   private config: IParseConfig;
   private logger: Console;
   private readonly core: ParseratorCore;
+  private leanLLMClient?: LeanLLMClient;
 
   // Default configuration optimised for production use
   private static readonly DEFAULT_CONFIG: IParseConfig = {
@@ -104,7 +121,19 @@ export class ParseService {
     timeoutMs: 60000, // 1 minute total timeout (not currently enforced by core)
     enableFallbacks: true,
     minOverallConfidence: 0.55,
-    coreStrategy: 'sequential'
+    coreStrategy: 'sequential',
+    leanLLM: {
+      enabled: false,
+      model: 'gemini-1.5-flash',
+      maxTokens: 320,
+      temperature: 0.1,
+      allowOptionalFields: false,
+      maxInputCharacters: 2400,
+      defaultConfidence: 0.62,
+      promptPreamble: undefined,
+      resolverPosition: 'append',
+      planConfidenceGate: 0.86
+    }
   };
 
   constructor(
@@ -112,7 +141,18 @@ export class ParseService {
     config?: Partial<IParseConfig>,
     logger?: Console
   ) {
-    this.config = { ...ParseService.DEFAULT_CONFIG, ...config };
+    const mergedConfig: IParseConfig = {
+      ...ParseService.DEFAULT_CONFIG,
+      ...config,
+      leanLLM: {
+        ...(ParseService.DEFAULT_CONFIG.leanLLM ?? { enabled: false }),
+        ...(config?.leanLLM ?? {})
+      }
+    };
+
+    mergedConfig.defaultOptions = this.cloneParseOptions(mergedConfig.defaultOptions);
+
+    this.config = mergedConfig;
     this.logger = logger || console;
 
     this.core = new ParseratorCore({
@@ -136,6 +176,8 @@ export class ParseService {
       coreProfile: this.core.getProfile(),
       service: 'parse'
     });
+
+    this.applyLeanLLMConfig();
   }
 
   /**
@@ -173,7 +215,7 @@ export class ParseService {
         inputData: request.inputData,
         outputSchema: request.outputSchema,
         instructions: request.instructions,
-        options: request.options ?? this.config.defaultOptions
+        options: this.mergeOptions(request.options)
       };
 
       const coreResult = await this.core.parse(coreRequest);
@@ -287,14 +329,39 @@ export class ParseService {
    * Get current configuration
    */
   getConfig(): IParseConfig {
-    return { ...this.config };
+    return {
+      ...this.config,
+      leanLLM: this.config.leanLLM ? { ...this.config.leanLLM } : undefined,
+      defaultOptions: this.cloneParseOptions(this.config.defaultOptions)
+    };
   }
 
   /**
    * Update configuration
    */
   updateConfig(newConfig: Partial<IParseConfig>): void {
-    this.config = { ...this.config, ...newConfig };
+    const leanOverrides = newConfig.leanLLM;
+    const mergedLean = leanOverrides
+      ? {
+          ...(ParseService.DEFAULT_CONFIG.leanLLM ?? { enabled: false }),
+          ...(this.config.leanLLM ?? {}),
+          ...leanOverrides
+        }
+      : this.config.leanLLM
+        ? { ...this.config.leanLLM }
+        : undefined;
+
+    const nextDefaultOptions =
+      newConfig.defaultOptions !== undefined
+        ? this.cloneParseOptions(newConfig.defaultOptions)
+        : this.cloneParseOptions(this.config.defaultOptions);
+
+    this.config = {
+      ...this.config,
+      ...newConfig,
+      defaultOptions: nextDefaultOptions,
+      leanLLM: mergedLean
+    };
 
     this.core.updateConfig({
       maxInputLength: this.config.maxInputLength,
@@ -308,6 +375,8 @@ export class ParseService {
       newConfig,
       service: 'parse'
     });
+
+    this.applyLeanLLMConfig();
   }
 
   private createCoreLogger(): CoreLogger {
@@ -317,6 +386,86 @@ export class ParseService {
       warn: (...args: unknown[]) => this.logger.warn?.(...args),
       error: (...args: unknown[]) => this.logger.error?.(...args)
     };
+  }
+
+  private mergeOptions(options?: ParseOptions): ParseOptions | undefined {
+    const defaults = this.cloneParseOptions(this.config.defaultOptions);
+    const overrides = this.cloneParseOptions(options);
+
+    if (!defaults && !overrides) {
+      return undefined;
+    }
+
+    const merged: ParseOptions = { ...(defaults ?? {}), ...(overrides ?? {}) };
+    const baseLean = defaults?.leanLLM;
+    const overrideLean = overrides?.leanLLM;
+
+    if (baseLean || overrideLean) {
+      merged.leanLLM = { ...(baseLean ?? {}), ...(overrideLean ?? {}) };
+    }
+
+    return merged;
+  }
+
+  private cloneParseOptions(options?: ParseOptions): ParseOptions | undefined {
+    if (!options) {
+      return undefined;
+    }
+
+    const clone: ParseOptions = { ...options };
+    if (options.leanLLM) {
+      clone.leanLLM = { ...options.leanLLM };
+    }
+
+    return clone;
+  }
+
+  private applyLeanLLMConfig(): void {
+    const leanLLM = this.config.leanLLM;
+
+    if (!leanLLM || !leanLLM.enabled) {
+      if (this.leanLLMClient) {
+        this.logger.info('Lean LLM fallback disabled', {
+          resolver: `${this.leanLLMClient.name}-fallback`
+        });
+      }
+      this.leanLLMClient = undefined;
+      this.core.configureLLMFallback(undefined);
+      return;
+    }
+
+    const leanOptions: LeanLLMClientOptions = {
+      model: leanLLM.model,
+      maxTokens: leanLLM.maxTokens,
+      temperature: leanLLM.temperature,
+      promptPreamble: leanLLM.promptPreamble
+    };
+
+    const client = new LeanLLMClient(this.geminiService, leanOptions, this.logger);
+    this.leanLLMClient = client;
+
+    this.core.configureLLMFallback({
+      client,
+      allowOptionalFields: leanLLM.allowOptionalFields,
+      maxInputCharacters: leanLLM.maxInputCharacters,
+      defaultConfidence: leanLLM.defaultConfidence,
+      name: leanLLM.resolverName,
+      position: leanLLM.resolverPosition,
+      planConfidenceGate: leanLLM.planConfidenceGate,
+      maxInvocationsPerParse: leanLLM.maxInvocationsPerParse,
+      maxTokensPerParse: leanLLM.maxTokensPerParse
+    });
+
+    this.logger.info('Lean LLM fallback enabled', {
+      resolver: leanLLM.resolverName ?? `${client.name}-fallback`,
+      model: leanLLM.model,
+      maxTokens: leanLLM.maxTokens,
+      temperature: leanLLM.temperature,
+      allowOptionalFields: leanLLM.allowOptionalFields,
+      position: leanLLM.resolverPosition ?? 'append',
+      maxInvocationsPerParse: leanLLM.maxInvocationsPerParse,
+      maxTokensPerParse: leanLLM.maxTokensPerParse
+    });
   }
 
   private normaliseCoreResult(coreResult: CoreParseResponse, requestId: string): IParseResult {
@@ -424,10 +573,26 @@ export class ParseService {
    */
   private validateParseRequest(request: IParseRequest): void {
     // Validate input data
-    if (!request.inputData || typeof request.inputData !== 'string') {
+    if (request.inputData === undefined || request.inputData === null) {
       throw new ParseError(
         'Input data must be a non-empty string',
         'INVALID_INPUT_DATA',
+        'validation'
+      );
+    }
+
+    if (typeof request.inputData !== 'string') {
+      throw new ParseError(
+        'Input data must be provided as a string',
+        'INVALID_INPUT_DATA',
+        'validation'
+      );
+    }
+
+    if (request.inputData.length === 0) {
+      throw new ParseError(
+        'Input data cannot be empty or only whitespace',
+        'EMPTY_INPUT_DATA',
         'validation'
       );
     }
