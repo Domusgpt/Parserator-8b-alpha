@@ -38,13 +38,22 @@ from .types import (
     BatchParseRequest,
     BatchParseResponse,
     ErrorCode,
+    LeanLLMFallbackFieldUsage,
+    LeanLLMFallbackUsageSummary,
     ParseError,
     ParseMetadata,
     ParseOptions,
     ParseRequest,
     ParseResponse,
     ParseResult,
+    ParserFallbackSummary,
     ParseratorConfig,
+    _merge_lean_runtime_options,
+    _coerce_optional_bool,
+    _coerce_optional_float,
+    _coerce_optional_int,
+    _coerce_string_list,
+    _to_optional_string,
 )
 from .utils import validate_api_key, validate_input_data, validate_schema
 
@@ -251,6 +260,12 @@ class ParseratorClient:
             payload["locale"] = merged.locale
         if merged.timezone:
             payload["timezone"] = merged.timezone
+        if merged.lean_llm is not None:
+            lean_payload = merged.lean_llm.to_payload()
+            if lean_payload:
+                payload["leanLLM"] = lean_payload
+        elif "lean_llm" in merged.explicit_fields:
+            payload["leanLLM"] = None
         return payload
 
     def _merge_options(self, override: Optional[ParseOptions]) -> Optional[ParseOptions]:
@@ -262,6 +277,11 @@ class ParseratorClient:
             return self._default_options
 
         updates = {field: getattr(override, field) for field in override.explicit_fields}
+        if "lean_llm" in updates:
+            updates["lean_llm"] = _merge_lean_runtime_options(
+                self._default_options.lean_llm,
+                updates["lean_llm"],
+            )
         return replace(self._default_options, **updates)
 
     def _build_parse_response(
@@ -269,11 +289,15 @@ class ParseratorClient:
     ) -> ParseResponse:
         metadata_dict = _ensure_mapping(data.get("metadata"))
         request_id = headers.get("x-request-id") or metadata_dict.get("requestId")
+        fallback_payload = _ensure_mapping(metadata_dict.get("fallback"))
+        fallback_summary = _parse_fallback_summary(fallback_payload)
+
         metadata = ParseMetadata(
             confidence=float(metadata_dict.get("confidence", 0.0) or 0.0),
             processing_time_ms=int(metadata_dict.get("processingTimeMs", 0) or 0),
             request_id=request_id if isinstance(request_id, str) else None,
             raw=dict(metadata_dict),
+            fallback=fallback_summary,
         )
 
         error_payload = _ensure_mapping(data.get("error"))
@@ -407,6 +431,83 @@ class ParseratorClient:
                 f"Environment variable '{env_var}' must be set to a Parserator API key."
             )
         return cls(api_key=api_key, **kwargs)
+
+
+def _parse_fallback_summary(payload: Mapping[str, Any]) -> Optional[ParserFallbackSummary]:
+    if not payload:
+        return None
+
+    lean_payload = _ensure_mapping(payload.get("leanLLM") or payload.get("lean_llm"))
+    lean_summary = _parse_lean_llm_summary(lean_payload) if lean_payload else None
+
+    summary = ParserFallbackSummary(lean_llm=lean_summary, raw=dict(payload))
+    if summary.lean_llm is None and not summary.raw:
+        return None
+    return summary
+
+
+def _parse_lean_llm_summary(
+    payload: Mapping[str, Any]
+) -> Optional[LeanLLMFallbackUsageSummary]:
+    if not payload:
+        return None
+
+    summary = LeanLLMFallbackUsageSummary(
+        total_invocations=_coerce_optional_int(payload.get("totalInvocations")) or 0,
+        resolved_fields=_coerce_optional_int(payload.get("resolvedFields")) or 0,
+        reused_resolutions=_coerce_optional_int(payload.get("reusedResolutions")) or 0,
+        skipped_by_plan_confidence=_coerce_optional_int(payload.get("skippedByPlanConfidence"))
+        or 0,
+        skipped_by_limits=_coerce_optional_int(payload.get("skippedByLimits")) or 0,
+        shared_extractions=_coerce_optional_int(payload.get("sharedExtractions")) or 0,
+        total_tokens=_coerce_optional_int(payload.get("totalTokens")) or 0,
+        plan_confidence_gate=_coerce_optional_float(payload.get("planConfidenceGate")),
+        max_invocations_per_parse=_coerce_optional_int(payload.get("maxInvocationsPerParse")),
+        max_tokens_per_parse=_coerce_optional_int(payload.get("maxTokensPerParse")),
+        raw=dict(payload),
+    )
+
+    fields_payload = payload.get("fields")
+    if isinstance(fields_payload, Iterable):
+        entries: List[LeanLLMFallbackFieldUsage] = []
+        for entry in fields_payload:
+            usage = _parse_lean_llm_field_usage(entry)
+            if usage:
+                entries.append(usage)
+        summary.fields = entries
+
+    return summary
+
+
+def _parse_lean_llm_field_usage(value: Any) -> Optional[LeanLLMFallbackFieldUsage]:
+    mapping = _ensure_mapping(value)
+    field = mapping.get("field")
+    action = mapping.get("action")
+    if not isinstance(field, str) or not isinstance(action, str):
+        return None
+
+    usage = LeanLLMFallbackFieldUsage(
+        field=field,
+        action=action,
+        resolved=_coerce_optional_bool(mapping.get("resolved")),
+        confidence=_coerce_optional_float(mapping.get("confidence")),
+        tokens_used=_coerce_optional_int(mapping.get("tokensUsed")),
+        reason=_to_optional_string(mapping.get("reason")),
+        source_field=_to_optional_string(mapping.get("sourceField"))
+        if mapping.get("sourceField") is not None
+        else None,
+        shared_keys=_coerce_string_list(mapping.get("sharedKeys")),
+        planner_confidence=_coerce_optional_float(mapping.get("plannerConfidence")),
+        gate=_coerce_optional_float(mapping.get("gate")),
+        error=_to_optional_string(mapping.get("error")),
+        limit_type=_to_optional_string(mapping.get("limitType")),
+        limit=_coerce_optional_int(mapping.get("limit")),
+        current_invocations=_coerce_optional_int(mapping.get("currentInvocations")),
+        current_tokens=_coerce_optional_int(mapping.get("currentTokens")),
+        raw=dict(mapping),
+    )
+
+    return usage
 
 
 def _parse_error_payload(payload: Mapping[str, Any]) -> ParseError:

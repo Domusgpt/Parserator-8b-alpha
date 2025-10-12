@@ -34,21 +34,25 @@ from typing import Any, Dict, Optional
 
 from .client import ParseratorClient
 from .types import (
-    ParseRequest,
-    ParseResponse,
-    ParseOptions,
-    ParseMetadata,
-    ParseratorConfig,
+    BatchOptions,
     BatchParseRequest,
     BatchParseResponse,
-    BatchOptions,
-    SearchStep,
-    SearchPlan,
-    ValidationType,
-    ParseError,
     ErrorCode,
-    SchemaValidationResult,
+    LeanLLMFallbackFieldUsage,
+    LeanLLMFallbackUsageSummary,
+    LeanLLMRuntimeOptions,
+    ParseError,
+    ParseMetadata,
+    ParseOptions,
     ParsePreset,
+    ParseRequest,
+    ParseResponse,
+    ParserFallbackSummary,
+    ParseratorConfig,
+    SchemaValidationResult,
+    SearchPlan,
+    SearchStep,
+    ValidationType,
 )
 from .errors import (
     ParseratorError,
@@ -101,6 +105,7 @@ __all__ = [
     "ParseOptions",
     "ParseMetadata",
     "ParseratorConfig",
+    "ParserFallbackSummary",
     "BatchParseRequest",
     "BatchParseResponse",
     "BatchOptions",
@@ -111,6 +116,9 @@ __all__ = [
     "ErrorCode",
     "SchemaValidationResult",
     "ParsePreset",
+    "LeanLLMRuntimeOptions",
+    "LeanLLMFallbackUsageSummary",
+    "LeanLLMFallbackFieldUsage",
     
     # Errors
     "ParseratorError",
@@ -177,7 +185,7 @@ def _merge_parse_options(
     if not overrides:
         return base
 
-    valid_keys = {"validation", "locale", "timezone", "max_retries"}
+    valid_keys = {"validation", "locale", "timezone", "max_retries", "lean_llm"}
     filtered = {k: v for k, v in overrides.items() if k in valid_keys}
     if not filtered:
         return base
