@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { HeuristicArchitect } from './architect';
 import { RegexExtractor } from './extractor';
 import { createDefaultLogger } from './logger';
-import { createDefaultResolvers, ResolverRegistry } from './resolvers';
+import { createDefaultResolvers, LeanLLMResolver, ResolverRegistry } from './resolvers';
 import { listParseratorProfiles, resolveProfile } from './profiles';
 import { ParseratorSession } from './session';
 import { createTelemetryHub, TelemetryHub } from './telemetry';
@@ -27,6 +27,8 @@ import {
   ParseOptions,
   ParseRequest,
   ParseResponse,
+  ParserFallbackSummary,
+  LeanLLMResolverConfig,
   ParseratorCoreConfig,
   ParseratorCoreOptions,
   ParseratorProfileOption,
@@ -58,6 +60,7 @@ export * from './profiles';
 export { ParseratorSession } from './session';
 export { createDefaultPreprocessors } from './preprocessors';
 export { createDefaultPostprocessors } from './postprocessors';
+export { buildLeanLLMPlaybook } from './lean-llm-playbook';
 
 const DEFAULT_CONFIG: ParseratorCoreConfig = {
   maxInputLength: 120_000,
@@ -76,6 +79,7 @@ export class ParseratorCore {
   private architect: ArchitectAgent;
   private extractor: ExtractorAgent;
   private resolverRegistry: ResolverRegistry;
+  private leanLLMResolver?: LeanLLMResolver;
   private profileName?: string;
   private profileOverrides: Partial<ParseratorCoreConfig> = {};
   private configOverrides: Partial<ParseratorCoreConfig> = {};
@@ -137,6 +141,10 @@ export class ParseratorCore {
       options.resolvers ?? resolvedProfile?.resolvers ?? createDefaultResolvers(this.logger);
     this.resolverRegistry = new ResolverRegistry(initialResolvers, this.logger);
 
+    if (options.llmFallback) {
+      this.configureLLMFallback(options.llmFallback);
+    }
+
     this.architect = options.architect ?? resolvedProfile?.architect ?? new HeuristicArchitect(this.logger);
 
     const extractor =
@@ -190,6 +198,36 @@ export class ParseratorCore {
     this.logger.info?.('parserator-core:profile-applied', {
       profile: this.profileName,
       config: this.config
+    });
+  }
+
+  configureLLMFallback(config?: LeanLLMResolverConfig): void {
+    if (this.leanLLMResolver) {
+      const removed = this.resolverRegistry.unregister(this.leanLLMResolver);
+      if (removed) {
+        this.logger.info?.('parserator-core:lean-llm-fallback-unregistered', {
+          resolver: this.leanLLMResolver.name
+        });
+      }
+      this.leanLLMResolver = undefined;
+    }
+
+    if (!config) {
+      return;
+    }
+
+    const { position, ...resolverConfig } = config;
+    const placement = position ?? 'append';
+    const resolver = new LeanLLMResolver({
+      ...resolverConfig,
+      logger: this.logger
+    });
+    this.resolverRegistry.register(resolver, placement);
+    this.leanLLMResolver = resolver;
+
+    this.logger.info?.('parserator-core:lean-llm-fallback-registered', {
+      resolver: resolver.name,
+      position: placement
     });
   }
 
@@ -691,8 +729,11 @@ export class ParseratorCore {
     const extractorResult = await this.extractor.execute({
       inputData: request.inputData,
       plan: activePlan,
-      config: this.config
+      config: this.config,
+      options: request.options
     });
+
+    const fallbackSummary = extractorResult.fallbackSummary;
 
     this.telemetry.emit({
       type: 'parse:stage',
@@ -757,6 +798,13 @@ export class ParseratorCore {
       }
     };
 
+    if (fallbackSummary) {
+      metadata = {
+        ...metadata,
+        fallback: fallbackSummary
+      };
+    }
+
     if (hasPreprocessStage) {
       metadata.stageBreakdown.preprocess = preprocessMetrics;
     }
@@ -778,6 +826,20 @@ export class ParseratorCore {
     }
     if (hasPostprocessStage) {
       metadata.stageBreakdown.postprocess = postprocessMetrics;
+    }
+
+    if (fallbackSummary) {
+      const mergedFallback: ParserFallbackSummary = {
+        ...fallbackSummary,
+        ...(metadata.fallback ?? {})
+      };
+      if (mergedFallback.leanLLM === undefined && fallbackSummary.leanLLM) {
+        mergedFallback.leanLLM = fallbackSummary.leanLLM;
+      }
+      metadata = {
+        ...metadata,
+        fallback: mergedFallback
+      };
     }
 
     const finalParsedData = postprocessOutcome.parsedData;
@@ -1267,7 +1329,8 @@ export class ParseratorCore {
       processingTimeMs: Date.now() - startTime,
       architectTokens: architectResult.tokensUsed,
       extractorTokens: extractorResult.tokensUsed,
-      stageBreakdown
+      stageBreakdown,
+      fallbackSummary: extractorResult.fallbackSummary
     });
 
     this.telemetry.emit({
@@ -1305,6 +1368,7 @@ export class ParseratorCore {
 export {
   HeuristicArchitect,
   RegexExtractor,
+  LeanLLMResolver,
   ResolverRegistry,
   createDefaultResolvers,
   createInMemoryPlanCache,

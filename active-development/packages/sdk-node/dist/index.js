@@ -68,7 +68,11 @@ function createClient(config) {
  * Quick parse function for simple use cases
  */
 async function quickParse(apiKey, inputData, outputSchema, instructions) {
-    const client = new ParseratorClient_2.ParseratorClient({ apiKey });
+    const client = new ParseratorClient_2.ParseratorClient({
+        apiKey,
+        timeout: 10000,
+        retries: 0
+    });
     return client.parse({
         inputData,
         outputSchema,
