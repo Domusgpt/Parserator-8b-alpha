@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RegexExtractor = void 0;
 const resolvers_1 = require("./resolvers");
 const utils_1 = require("./utils");
+const lean_llm_playbook_1 = require("./lean-llm-playbook");
 class RegexExtractor {
     constructor(logger, registry) {
         this.logger = logger;
@@ -19,6 +20,10 @@ class RegexExtractor {
         let requiredCount = 0;
         let aggregatedConfidence = 0;
         const sharedState = new Map();
+        sharedState.set(resolvers_1.PLAN_SHARED_STATE_KEY, context.plan);
+        if (context.options?.leanLLM) {
+            sharedState.set(resolvers_1.LEAN_LLM_RUNTIME_CONFIG_KEY, { ...context.options.leanLLM });
+        }
         for (const step of context.plan.steps) {
             if (step.isRequired) {
                 requiredCount += 1;
@@ -28,7 +33,8 @@ class RegexExtractor {
                 step,
                 config: context.config,
                 logger: this.logger,
-                shared: sharedState
+                shared: sharedState,
+                options: context.options
             });
             if (resolution) {
                 diagnostics.push(...resolution.diagnostics);
@@ -50,6 +56,7 @@ class RegexExtractor {
                 aggregatedConfidence += step.isRequired ? 0 : 0.2;
             }
         }
+        const fallbackSummary = extractFallbackSummary(sharedState);
         const success = requiredCount === 0 || resolvedRequired === requiredCount;
         const processingTimeMs = Date.now() - start;
         const tokensUsed = Math.max(72, Math.round(context.plan.metadata.estimatedTokens * 0.7));
@@ -69,7 +76,7 @@ class RegexExtractor {
                 message: error.message,
                 severity: 'error'
             });
-            return {
+            const result = {
                 success: false,
                 parsedData: parsed,
                 tokensUsed,
@@ -78,6 +85,10 @@ class RegexExtractor {
                 diagnostics,
                 error
             };
+            if (fallbackSummary) {
+                result.fallbackSummary = fallbackSummary;
+            }
+            return result;
         }
         const confidence = context.plan.steps.length
             ? (0, utils_1.clamp)(aggregatedConfidence / context.plan.steps.length, 0, 1)
@@ -88,7 +99,7 @@ class RegexExtractor {
             confidence,
             success
         });
-        return {
+        const result = {
             success: true,
             parsedData: parsed,
             tokensUsed,
@@ -96,6 +107,10 @@ class RegexExtractor {
             confidence,
             diagnostics
         };
+        if (fallbackSummary) {
+            result.fallbackSummary = fallbackSummary;
+        }
+        return result;
     }
 }
 exports.RegexExtractor = RegexExtractor;
@@ -105,5 +120,39 @@ function computeStepConfidence(isRequired, resolverConfidence, value) {
     }
     const base = isRequired ? 0.7 : 0.5;
     return (0, utils_1.clamp)(Math.max(resolverConfidence, base), 0, 1);
+}
+function extractFallbackSummary(shared) {
+    const usage = shared.get(resolvers_1.LEAN_LLM_USAGE_KEY);
+    if (!isLeanFallbackUsage(usage)) {
+        return undefined;
+    }
+    const plan = shared.get(resolvers_1.PLAN_SHARED_STATE_KEY);
+    const runtime = shared.get(resolvers_1.LEAN_LLM_RUNTIME_CONFIG_KEY);
+    const summary = cloneLeanLLMFallbackSummary(usage);
+    const playbook = (0, lean_llm_playbook_1.buildLeanLLMPlaybook)({
+        plan: isSearchPlan(plan) ? plan : undefined,
+        runtime: isLeanRuntimeOptions(runtime) ? runtime : undefined,
+        usage: summary
+    });
+    return { leanLLM: summary, leanLLMPlaybook: playbook };
+}
+function cloneLeanLLMFallbackSummary(summary) {
+    return {
+        ...summary,
+        fields: summary.fields.map(field => ({ ...field }))
+    };
+}
+function isLeanFallbackUsage(value) {
+    return !!value && typeof value === 'object' && 'fields' in value;
+}
+function isLeanRuntimeOptions(value) {
+    return !!value && typeof value === 'object';
+}
+function isSearchPlan(value) {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const record = value;
+    return typeof record.id === 'string' && typeof record.version === 'string' && Array.isArray(record.steps);
 }
 //# sourceMappingURL=extractor.js.map

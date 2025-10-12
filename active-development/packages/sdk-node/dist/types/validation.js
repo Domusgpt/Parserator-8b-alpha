@@ -17,25 +17,36 @@ exports.validateSchemaStructure = validateSchemaStructure;
 exports.validateInputData = validateInputData;
 exports.getValidationErrorMessage = getValidationErrorMessage;
 const joi_1 = __importDefault(require("joi"));
+const leanLLMOptionsSchema = joi_1.default.object({
+    disabled: joi_1.default.boolean(),
+    allowOptionalFields: joi_1.default.boolean(),
+    defaultConfidence: joi_1.default.number().min(0).max(1),
+    maxInputCharacters: joi_1.default.number().integer().min(1).max(1000000),
+    planConfidenceGate: joi_1.default.number().min(0).max(1),
+    maxInvocationsPerParse: joi_1.default.number().integer().min(0),
+    maxTokensPerParse: joi_1.default.number().integer().min(0)
+}).optional();
+const parseOptionsSchema = joi_1.default.object({
+    timeout: joi_1.default.number().min(1000).max(300000).default(30000),
+    retries: joi_1.default.number().min(0).max(5).default(3),
+    validateOutput: joi_1.default.boolean().default(true),
+    includeMetadata: joi_1.default.boolean().default(true),
+    confidenceThreshold: joi_1.default.number().min(0).max(1).default(0.8),
+    leanLLM: leanLLMOptionsSchema
+}).optional();
 // Validation schemas using Joi
 exports.parseRequestSchema = joi_1.default.object({
     inputData: joi_1.default.string().required().min(1).max(1000000),
-    outputSchema: joi_1.default.object().required(),
+    outputSchema: joi_1.default.object().min(1).required(),
     instructions: joi_1.default.string().optional().max(10000),
-    options: joi_1.default.object({
-        timeout: joi_1.default.number().min(1000).max(300000).default(30000),
-        retries: joi_1.default.number().min(0).max(5).default(3),
-        validateOutput: joi_1.default.boolean().default(true),
-        includeMetadata: joi_1.default.boolean().default(true),
-        confidenceThreshold: joi_1.default.number().min(0).max(1).default(0.8)
-    }).optional()
+    options: parseOptionsSchema
 }).required();
 exports.configSchema = joi_1.default.object({
     apiKey: joi_1.default.string().pattern(/^pk_(live|test)_[a-zA-Z0-9]{32,}$/).required(),
     baseUrl: joi_1.default.string().uri().default('https://api.parserator.com'),
     timeout: joi_1.default.number().min(1000).max(300000).default(30000),
     retries: joi_1.default.number().min(0).max(10).default(3),
-    defaultOptions: joi_1.default.object().optional(),
+    defaultOptions: parseOptionsSchema,
     debug: joi_1.default.boolean().default(false)
 }).required();
 exports.outputSchemaSchema = joi_1.default.object().pattern(joi_1.default.string(), joi_1.default.alternatives().try(joi_1.default.string().valid('string', 'number', 'boolean', 'email', 'phone', 'date', 'iso_date', 'url', 'string_array', 'number_array', 'object'), joi_1.default.object({

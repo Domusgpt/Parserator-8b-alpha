@@ -262,14 +262,25 @@ export class ParseratorClient {
     const startTime = Date.now();
     
     try {
-      const response = await this.axios.get('/health');
+      const response = await this.axios.get('/health', {
+        validateStatus: () => true
+      });
       const latency = Date.now() - startTime;
-      
+
+      if (response.status >= 200 && response.status < 300) {
+        return {
+          success: true,
+          latency,
+          quotaRemaining: response.headers['x-quota-remaining'] ?
+            parseInt(response.headers['x-quota-remaining']) : undefined
+        };
+      }
+
       return {
-        success: true,
+        success: false,
         latency,
-        quotaRemaining: response.headers['x-quota-remaining'] ? 
-          parseInt(response.headers['x-quota-remaining']) : undefined
+        error:
+          (response.data as any)?.message || `Health check failed with status ${response.status}`
       };
     } catch (error) {
       return {
