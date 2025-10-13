@@ -1,0 +1,13 @@
+{
+  "name": "parserator-dev",
+  "owner": {
+    "name": "Parserator"
+  },
+  "plugins": [
+    {
+      "name": "parserator-lean-fallback",
+      "source": "./",
+      "description": "Lean fallback orchestration commands for Claude Code"
+    }
+  ]
+}

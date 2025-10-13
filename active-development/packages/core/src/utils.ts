@@ -4,6 +4,7 @@ import {
   ParseMetadata,
   ParseRequest,
   ParseResponse,
+  ParserFallbackSummary,
   ParseratorCoreConfig,
   ParseratorPlanCacheKeyInput,
   SearchPlan
@@ -63,6 +64,7 @@ export interface FailureResponseOptions {
   architectTokens?: number;
   extractorTokens?: number;
   stageBreakdown?: ParseMetadata['stageBreakdown'];
+  fallbackSummary?: ParserFallbackSummary;
 }
 
 export function createFailureResponse(options: FailureResponseOptions): ParseResponse {
@@ -92,6 +94,10 @@ export function createFailureResponse(options: FailureResponseOptions): ParseRes
         }
       }
   };
+
+  if (options.fallbackSummary) {
+    metadata.fallback = options.fallbackSummary;
+  }
 
   return {
     success: false,
