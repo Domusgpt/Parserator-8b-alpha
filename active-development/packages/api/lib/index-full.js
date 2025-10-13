@@ -266,6 +266,22 @@ app.get('/health', ensureInitialized, async (req, res) => {
     }
 });
 /**
+ * Lean orchestration snapshot endpoint (admin only)
+ */
+app.get('/v1/lean/snapshot', ensureInitialized, auth_middleware_1.authenticateApiKey, auth_middleware_1.requireAdmin, (req, res, next) => {
+    try {
+        const snapshot = parseService.getLeanOrchestrationSnapshot();
+        res.json({
+            success: true,
+            snapshot,
+            requestId: req.requestId
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+/**
  * Main parsing endpoint with authentication
  */
 app.post('/v1/parse', ensureInitialized, auth_middleware_1.authenticateApiKey, auth_middleware_1.incrementUsage, async (req, res, next) => {
@@ -318,7 +334,8 @@ app.get('/v1/info', (req, res) => {
             'POST /v1/parse': 'Main parsing endpoint (requires API key)',
             'GET /health': 'Service health check',
             'GET /v1/info': 'API information',
-            'GET /v1/usage': 'Current usage statistics (requires API key)'
+            'GET /v1/usage': 'Current usage statistics (requires API key)',
+            'GET /v1/lean/snapshot': 'Lean orchestration readiness (admin API key)'
         },
         requestId: req.requestId
     });
@@ -421,7 +438,8 @@ app.use('*', (req, res) => {
                 availableEndpoints: [
                     'POST /v1/parse',
                     'GET /health',
-                    'GET /v1/info'
+                    'GET /v1/info',
+                    'GET /v1/lean/snapshot'
                 ]
             }
         }
