@@ -1,0 +1,8 @@
+{
+  "name": "parserator-lean-orchestration",
+  "description": "Monitor Parserator lean queue health and run guarded parses from Claude Code.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Parserator Engineering"
+  }
+}
