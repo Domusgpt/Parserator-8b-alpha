@@ -1,15 +1,21 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ResolverRegistry = void 0;
+exports.LeanLLMResolver = exports.ResolverRegistry = exports.LEAN_LLM_RUNTIME_CONFIG_KEY = exports.PLAN_SHARED_STATE_KEY = exports.LEAN_LLM_USAGE_KEY = void 0;
 exports.createDefaultResolvers = createDefaultResolvers;
 exports.createLooseKeyValueResolver = createLooseKeyValueResolver;
 const heuristics_1 = require("./heuristics");
 const utils_1 = require("./utils");
+const logger_1 = require("./logger");
 const JSON_PAYLOAD_KEY = 'resolver:json:payload';
 const JSON_PAYLOAD_ERROR_KEY = 'resolver:json:error';
 const JSON_PAYLOAD_DIAG_KEY = 'resolver:json:diagnosed';
 const SECTION_CACHE_KEY = 'resolver:sections:cache';
 const LOOSE_KEY_VALUE_CACHE_KEY = 'resolver:loosekv:cache';
+const LEAN_LLM_ATTEMPTED_KEY = 'resolver:leanllm:attempted';
+const LEAN_LLM_SHARED_RESULTS_KEY = 'resolver:leanllm:shared-results';
+exports.LEAN_LLM_USAGE_KEY = 'resolver:leanllm:usage';
+exports.PLAN_SHARED_STATE_KEY = 'parserator:plan:active';
+exports.LEAN_LLM_RUNTIME_CONFIG_KEY = 'resolver:leanllm:runtime-config';
 class ResolverRegistry {
     constructor(resolvers = [], logger) {
         this.logger = logger;
@@ -22,6 +28,18 @@ class ResolverRegistry {
         else {
             this.resolvers = [...this.resolvers, resolver];
         }
+    }
+    unregister(resolver) {
+        const originalLength = this.resolvers.length;
+        if (typeof resolver !== 'string') {
+            this.resolvers = this.resolvers.filter(existing => existing !== resolver);
+            if (this.resolvers.length !== originalLength) {
+                return true;
+            }
+            resolver = resolver.name;
+        }
+        this.resolvers = this.resolvers.filter(existing => existing.name !== resolver);
+        return this.resolvers.length !== originalLength;
     }
     replaceAll(resolvers) {
         this.resolvers = [...resolvers];
@@ -324,6 +342,522 @@ class DefaultFieldResolver {
         };
     }
 }
+class LeanLLMResolver {
+    constructor(options) {
+        this.options = options;
+        this.logger = options.logger ?? (0, logger_1.createDefaultLogger)();
+        this.client = options.client;
+        this.baseAllowOptionalFields = options.allowOptionalFields ?? false;
+        this.baseDefaultConfidence = options.defaultConfidence ?? 0.6;
+        this.baseMaxInputCharacters = options.maxInputCharacters;
+        this.requestFormatter = options.requestFormatter;
+        this.clientName = this.client.name ?? 'lean-llm';
+        this.basePlanConfidenceGate = options.planConfidenceGate;
+        this.baseMaxInvocationsPerParse = options.maxInvocationsPerParse;
+        this.baseMaxTokensPerParse = options.maxTokensPerParse;
+        this.name = options.name ?? `${this.clientName}-fallback`;
+        if (!options.client) {
+            throw new Error('LeanLLMResolver requires a client implementation');
+        }
+    }
+    supports() {
+        return true;
+    }
+    async resolve(context) {
+        if (!context.config.enableFieldFallbacks) {
+            return undefined;
+        }
+        const effectiveConfig = this.resolveEffectiveConfig(context);
+        if (effectiveConfig.disabled) {
+            return undefined;
+        }
+        if (!effectiveConfig.allowOptionalFields && !context.step.isRequired) {
+            return undefined;
+        }
+        const reused = this.tryReuseSharedExtraction(context, effectiveConfig);
+        if (reused) {
+            return reused;
+        }
+        const plan = context.shared.get(exports.PLAN_SHARED_STATE_KEY);
+        if (!this.shouldInvoke(context, plan, effectiveConfig)) {
+            return undefined;
+        }
+        const attempted = this.ensureAttemptedSet(context.shared);
+        if (attempted.has(context.step.targetKey)) {
+            return undefined;
+        }
+        attempted.add(context.step.targetKey);
+        context.shared.set(LEAN_LLM_ATTEMPTED_KEY, attempted);
+        const inputData = this.trimInput(context.inputData, effectiveConfig);
+        const request = this.buildRequest({ plan, step: context.step, inputData }, context);
+        this.logger.debug?.('parserator-core:lean-llm-resolver-invoked', {
+            field: context.step.targetKey,
+            required: context.step.isRequired,
+            client: this.clientName,
+            planId: plan?.id
+        });
+        try {
+            const response = await this.client.extractField(request);
+            const result = this.toResolution(context, response, effectiveConfig);
+            const sharedKeys = this.storeSharedResults(context, response, result.confidence);
+            this.recordInvocationOutcome(context, response, result.confidence, sharedKeys, effectiveConfig);
+            this.logger.info?.('parserator-core:lean-llm-resolver-complete', {
+                field: context.step.targetKey,
+                resolved: response.value !== undefined,
+                confidence: result.confidence,
+                client: this.clientName,
+                tokensUsed: response.tokensUsed
+            });
+            return result;
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown lean LLM error';
+            this.logger.warn?.('parserator-core:lean-llm-resolver-error', {
+                field: context.step.targetKey,
+                client: this.clientName,
+                error: message
+            });
+            this.recordInvocationError(context, message, effectiveConfig);
+            return {
+                value: undefined,
+                confidence: 0,
+                diagnostics: [
+                    {
+                        field: context.step.targetKey,
+                        stage: 'extractor',
+                        message: `Lean LLM fallback ${this.clientName} failed: ${message}`,
+                        severity: 'warning'
+                    }
+                ],
+                resolver: this.name
+            };
+        }
+    }
+    resolveEffectiveConfig(context) {
+        const runtime = this.mergeRuntimeOptions(context);
+        return {
+            disabled: runtime?.disabled ?? false,
+            allowOptionalFields: runtime?.allowOptionalFields ?? this.baseAllowOptionalFields,
+            defaultConfidence: runtime?.defaultConfidence ?? this.baseDefaultConfidence,
+            maxInputCharacters: runtime?.maxInputCharacters ?? this.baseMaxInputCharacters,
+            planConfidenceGate: runtime?.planConfidenceGate ?? this.basePlanConfidenceGate,
+            maxInvocationsPerParse: runtime?.maxInvocationsPerParse ?? this.baseMaxInvocationsPerParse,
+            maxTokensPerParse: runtime?.maxTokensPerParse ?? this.baseMaxTokensPerParse
+        };
+    }
+    mergeRuntimeOptions(context) {
+        const sharedOptions = this.extractRuntimeOptions(context.shared.get(exports.LEAN_LLM_RUNTIME_CONFIG_KEY));
+        const requestOptions = context.options?.leanLLM;
+        if (!sharedOptions && !requestOptions) {
+            return undefined;
+        }
+        return { ...(sharedOptions ?? {}), ...(requestOptions ?? {}) };
+    }
+    extractRuntimeOptions(raw) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+            return undefined;
+        }
+        return raw;
+    }
+    buildRequest(context, resolutionContext) {
+        if (this.requestFormatter) {
+            return this.requestFormatter(context);
+        }
+        return {
+            field: resolutionContext.step.targetKey,
+            description: resolutionContext.step.description,
+            instruction: resolutionContext.step.searchInstruction,
+            validationType: resolutionContext.step.validationType,
+            input: context.inputData,
+            plan: context.plan
+                ? {
+                    id: context.plan.id,
+                    version: context.plan.version,
+                    strategy: context.plan.strategy,
+                    origin: context.plan.metadata.origin,
+                    systemContext: context.plan.metadata.context
+                }
+                : undefined
+        };
+    }
+    toResolution(context, response, config) {
+        const baseConfidence = (0, utils_1.clamp)(response.confidence ?? config.defaultConfidence, 0, 1);
+        const confidence = response.value === undefined ? Math.min(baseConfidence, 0.45) : baseConfidence;
+        const diagnostics = [
+            {
+                field: context.step.targetKey,
+                stage: 'extractor',
+                message: this.composeOutcomeMessage(context.step.targetKey, response, confidence),
+                severity: response.value === undefined ? 'warning' : 'info'
+            }
+        ];
+        if (response.reason) {
+            diagnostics.push({
+                field: context.step.targetKey,
+                stage: 'extractor',
+                message: `Lean LLM rationale: ${response.reason}`,
+                severity: 'info'
+            });
+        }
+        return {
+            value: response.value,
+            confidence,
+            diagnostics,
+            resolver: this.name
+        };
+    }
+    composeOutcomeMessage(field, response, confidence) {
+        const outcome = response.value === undefined ? 'examined' : 'resolved';
+        let message = `Lean LLM fallback ${this.clientName} ${outcome} ${field}`;
+        if (!Number.isNaN(confidence)) {
+            message += ` (confidence ${confidence.toFixed(2)})`;
+        }
+        if (typeof response.tokensUsed === 'number') {
+            message += ` using ${response.tokensUsed} tokens`;
+        }
+        return message;
+    }
+    shouldInvoke(context, plan, config) {
+        const summary = this.ensureUsageSummary(context.shared, config);
+        if (config.planConfidenceGate !== undefined) {
+            const plannerConfidence = typeof plan?.metadata?.plannerConfidence === 'number'
+                ? plan.metadata.plannerConfidence
+                : undefined;
+            if (plannerConfidence !== undefined && plannerConfidence >= config.planConfidenceGate) {
+                this.recordPlanGateSkip(context, plannerConfidence, config);
+                this.logger.debug?.('parserator-core:lean-llm-resolver-skipped-confidence', {
+                    field: context.step.targetKey,
+                    planConfidence: plannerConfidence,
+                    gate: config.planConfidenceGate,
+                    planId: plan?.id
+                });
+                return false;
+            }
+        }
+        if (config.maxInvocationsPerParse !== undefined && summary.totalInvocations >= config.maxInvocationsPerParse) {
+            this.recordLimitSkip(context, 'invocations', config.maxInvocationsPerParse, summary.totalInvocations, config);
+            this.logger.debug?.('parserator-core:lean-llm-resolver-skipped-limit', {
+                field: context.step.targetKey,
+                type: 'invocations',
+                limit: config.maxInvocationsPerParse,
+                totalInvocations: summary.totalInvocations
+            });
+            return false;
+        }
+        if (config.maxTokensPerParse !== undefined && summary.totalTokens >= config.maxTokensPerParse) {
+            this.recordLimitSkip(context, 'tokens', config.maxTokensPerParse, summary.totalTokens, config);
+            this.logger.debug?.('parserator-core:lean-llm-resolver-skipped-limit', {
+                field: context.step.targetKey,
+                type: 'tokens',
+                limit: config.maxTokensPerParse,
+                totalTokens: summary.totalTokens
+            });
+            return false;
+        }
+        return true;
+    }
+    tryReuseSharedExtraction(context, config) {
+        const shared = context.shared.get(LEAN_LLM_SHARED_RESULTS_KEY);
+        if (!(shared instanceof Map)) {
+            return undefined;
+        }
+        const existing = shared.get(context.step.targetKey);
+        if (!existing) {
+            return undefined;
+        }
+        const confidence = (0, utils_1.clamp)(existing.confidence ?? config.defaultConfidence, 0, 1);
+        const diagnostics = [
+            {
+                field: context.step.targetKey,
+                stage: 'extractor',
+                message: `Reused lean LLM shared extraction from ${existing.sourceField ?? 'lean fallback'}`,
+                severity: 'info'
+            }
+        ];
+        if (existing.reason) {
+            diagnostics.push({
+                field: context.step.targetKey,
+                stage: 'extractor',
+                message: `Lean LLM rationale: ${existing.reason}`,
+                severity: 'info'
+            });
+        }
+        this.logger.debug?.('parserator-core:lean-llm-resolver-reuse', {
+            field: context.step.targetKey,
+            sourceField: existing.sourceField ?? context.step.targetKey
+        });
+        this.recordReuse(context, existing, confidence, config);
+        return {
+            value: existing.value,
+            confidence,
+            diagnostics,
+            resolver: this.name
+        };
+    }
+    storeSharedResults(context, response, confidence) {
+        const extras = this.extractSharedExtractions(response, context.step.targetKey, confidence);
+        if (response.value !== undefined) {
+            extras.set(context.step.targetKey, {
+                value: response.value,
+                confidence,
+                reason: response.reason,
+                tokensUsed: response.tokensUsed,
+                sourceField: context.step.targetKey
+            });
+        }
+        if (extras.size === 0) {
+            return [];
+        }
+        const shared = this.ensureSharedExtractionsMap(context.shared);
+        const keys = [];
+        for (const [key, entry] of extras.entries()) {
+            shared.set(key, entry);
+            keys.push(key);
+        }
+        this.logger.debug?.('parserator-core:lean-llm-resolver-shared', {
+            field: context.step.targetKey,
+            sharedKeys: keys
+        });
+        return keys;
+    }
+    extractSharedExtractions(response, sourceField, fallbackConfidence) {
+        const raw = response.sharedExtractions ?? this.extractMetadataSharedExtractions(response.metadata);
+        if (!raw) {
+            return new Map();
+        }
+        const extras = new Map();
+        for (const [key, value] of Object.entries(raw)) {
+            const normalised = this.normaliseSharedExtractionEntry(value, {
+                confidence: fallbackConfidence,
+                reason: response.reason,
+                tokensUsed: response.tokensUsed,
+                sourceField
+            });
+            if (normalised) {
+                extras.set(key, normalised);
+            }
+        }
+        return extras;
+    }
+    extractMetadataSharedExtractions(metadata) {
+        if (!metadata) {
+            return undefined;
+        }
+        const camel = metadata.sharedExtractions;
+        if (camel && typeof camel === 'object' && !Array.isArray(camel)) {
+            return camel;
+        }
+        const snake = metadata['shared_extractions'];
+        if (snake && typeof snake === 'object' && !Array.isArray(snake)) {
+            return snake;
+        }
+        return undefined;
+    }
+    normaliseSharedExtractionEntry(raw, fallback) {
+        if (raw === undefined || raw === null) {
+            return undefined;
+        }
+        if (typeof raw !== 'object' || Array.isArray(raw)) {
+            return {
+                value: raw,
+                confidence: (0, utils_1.clamp)(fallback.confidence, 0, 1),
+                reason: fallback.reason,
+                tokensUsed: fallback.tokensUsed,
+                sourceField: fallback.sourceField
+            };
+        }
+        const record = raw;
+        const value = 'value' in record
+            ? record.value
+            : 'result' in record
+                ? record.result
+                : record;
+        const confidence = typeof record.confidence === 'number'
+            ? (0, utils_1.clamp)(record.confidence, 0, 1)
+            : (0, utils_1.clamp)(fallback.confidence, 0, 1);
+        const reason = typeof record.reason === 'string' && record.reason.trim().length > 0
+            ? record.reason
+            : fallback.reason;
+        const tokensUsed = typeof record.tokensUsed === 'number' && Number.isFinite(record.tokensUsed)
+            ? record.tokensUsed
+            : fallback.tokensUsed;
+        const sourceField = typeof record.sourceField === 'string' && record.sourceField.trim().length > 0
+            ? record.sourceField
+            : fallback.sourceField;
+        return {
+            value,
+            confidence,
+            reason,
+            tokensUsed,
+            sourceField
+        };
+    }
+    ensureUsageSummary(shared, config) {
+        const existing = shared.get(exports.LEAN_LLM_USAGE_KEY);
+        if (existing &&
+            typeof existing === 'object' &&
+            'fields' in existing) {
+            const summary = existing;
+            if (typeof summary.skippedByLimits !== 'number') {
+                summary.skippedByLimits = 0;
+            }
+            this.applySummaryConfigMetadata(summary, config);
+            return summary;
+        }
+        const summary = {
+            totalInvocations: 0,
+            resolvedFields: 0,
+            reusedResolutions: 0,
+            skippedByPlanConfidence: 0,
+            skippedByLimits: 0,
+            sharedExtractions: 0,
+            totalTokens: 0,
+            fields: []
+        };
+        this.applySummaryConfigMetadata(summary, config);
+        shared.set(exports.LEAN_LLM_USAGE_KEY, summary);
+        return summary;
+    }
+    applySummaryConfigMetadata(summary, config) {
+        if (config.planConfidenceGate !== undefined) {
+            summary.planConfidenceGate = config.planConfidenceGate;
+        }
+        else if (summary.planConfidenceGate !== undefined) {
+            delete summary.planConfidenceGate;
+        }
+        if (config.maxInvocationsPerParse !== undefined) {
+            summary.maxInvocationsPerParse = config.maxInvocationsPerParse;
+        }
+        else if (summary.maxInvocationsPerParse !== undefined) {
+            delete summary.maxInvocationsPerParse;
+        }
+        if (config.maxTokensPerParse !== undefined) {
+            summary.maxTokensPerParse = config.maxTokensPerParse;
+        }
+        else if (summary.maxTokensPerParse !== undefined) {
+            delete summary.maxTokensPerParse;
+        }
+    }
+    recordPlanGateSkip(context, plannerConfidence, config) {
+        const summary = this.ensureUsageSummary(context.shared, config);
+        if (config.planConfidenceGate !== undefined && summary.planConfidenceGate === undefined) {
+            summary.planConfidenceGate = config.planConfidenceGate;
+        }
+        summary.skippedByPlanConfidence += 1;
+        const entry = {
+            field: context.step.targetKey,
+            action: 'skipped',
+            resolved: false,
+            plannerConfidence,
+            gate: config.planConfidenceGate,
+            reason: 'plan-confidence-gate'
+        };
+        summary.fields.push(entry);
+    }
+    recordLimitSkip(context, type, limit, currentValue, config) {
+        const summary = this.ensureUsageSummary(context.shared, config);
+        summary.skippedByLimits += 1;
+        const entry = {
+            field: context.step.targetKey,
+            action: 'skipped',
+            resolved: false,
+            reason: type === 'invocations' ? 'invocation-limit' : 'token-budget',
+            limitType: type,
+            limit,
+            currentInvocations: type === 'invocations' ? currentValue : summary.totalInvocations,
+            currentTokens: type === 'tokens' ? currentValue : summary.totalTokens
+        };
+        summary.fields.push(entry);
+    }
+    recordInvocationOutcome(context, response, confidence, sharedKeys, config) {
+        const summary = this.ensureUsageSummary(context.shared, config);
+        if (config.planConfidenceGate !== undefined && summary.planConfidenceGate === undefined) {
+            summary.planConfidenceGate = config.planConfidenceGate;
+        }
+        summary.totalInvocations += 1;
+        const resolved = response.value !== undefined;
+        if (resolved) {
+            summary.resolvedFields += 1;
+        }
+        if (typeof response.tokensUsed === 'number' && Number.isFinite(response.tokensUsed)) {
+            summary.totalTokens += response.tokensUsed;
+        }
+        if (sharedKeys.length) {
+            summary.sharedExtractions += sharedKeys.length;
+        }
+        const entry = {
+            field: context.step.targetKey,
+            action: 'invoked',
+            resolved,
+            confidence: Number.isFinite(confidence) ? (0, utils_1.clamp)(confidence, 0, 1) : undefined,
+            tokensUsed: typeof response.tokensUsed === 'number' && Number.isFinite(response.tokensUsed)
+                ? response.tokensUsed
+                : undefined,
+            reason: response.reason,
+            sharedKeys: sharedKeys.length ? sharedKeys : undefined
+        };
+        summary.fields.push(entry);
+    }
+    recordInvocationError(context, message, config) {
+        const summary = this.ensureUsageSummary(context.shared, config);
+        if (config.planConfidenceGate !== undefined && summary.planConfidenceGate === undefined) {
+            summary.planConfidenceGate = config.planConfidenceGate;
+        }
+        summary.totalInvocations += 1;
+        const entry = {
+            field: context.step.targetKey,
+            action: 'invoked',
+            resolved: false,
+            error: message
+        };
+        summary.fields.push(entry);
+    }
+    recordReuse(context, extraction, confidence, config) {
+        const summary = this.ensureUsageSummary(context.shared, config);
+        if (config.planConfidenceGate !== undefined && summary.planConfidenceGate === undefined) {
+            summary.planConfidenceGate = config.planConfidenceGate;
+        }
+        summary.reusedResolutions += 1;
+        const entry = {
+            field: context.step.targetKey,
+            action: 'reused',
+            resolved: extraction.value !== undefined,
+            confidence: Number.isFinite(confidence) ? (0, utils_1.clamp)(confidence, 0, 1) : undefined,
+            tokensUsed: typeof extraction.tokensUsed === 'number' && Number.isFinite(extraction.tokensUsed)
+                ? extraction.tokensUsed
+                : undefined,
+            reason: extraction.reason,
+            sourceField: extraction.sourceField ?? context.step.targetKey
+        };
+        summary.fields.push(entry);
+    }
+    ensureSharedExtractionsMap(shared) {
+        const existing = shared.get(LEAN_LLM_SHARED_RESULTS_KEY);
+        if (existing instanceof Map) {
+            return existing;
+        }
+        const created = new Map();
+        shared.set(LEAN_LLM_SHARED_RESULTS_KEY, created);
+        return created;
+    }
+    ensureAttemptedSet(shared) {
+        const existing = shared.get(LEAN_LLM_ATTEMPTED_KEY);
+        if (existing instanceof Set) {
+            return existing;
+        }
+        const created = new Set();
+        shared.set(LEAN_LLM_ATTEMPTED_KEY, created);
+        return created;
+    }
+    trimInput(input, config) {
+        if (!config.maxInputCharacters || input.length <= config.maxInputCharacters) {
+            return input;
+        }
+        const slice = input.slice(0, config.maxInputCharacters);
+        return `${slice}\n... [truncated ${input.length - slice.length} chars]`;
+    }
+}
+exports.LeanLLMResolver = LeanLLMResolver;
 function buildLooseKeyValueMap(input) {
     const map = new Map();
     const lines = input.split(/\r?\n/);
@@ -509,13 +1043,65 @@ function matchAddress(input) {
 }
 function matchName(input) {
     const lines = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    const candidate = lines.find(line => /^([A-Z][a-z]+\s+){0,3}[A-Z][a-z]+$/.test(line));
-    if (candidate) {
-        return candidate;
+    const csvCandidate = extractNameFromCsv(lines);
+    if (csvCandidate) {
+        return csvCandidate;
     }
-    const namePattern = /[A-Z][a-z]+\s+[A-Z][a-z]+/;
-    const match = input.match(namePattern);
-    return match ? match[0] : undefined;
+    const labelledMatch = input.match(/(?:^|\b)(?:name|customer|contact)\s*[:\-]\s*([^\n\r]+)/i);
+    if (labelledMatch) {
+        const value = labelledMatch[1].split(/[\r\n,]/)[0]?.trim();
+        if (value) {
+            return value;
+        }
+    }
+    const introductionMatch = input.match(/\bmy name is\s+([A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*){0,3})/i);
+    if (introductionMatch) {
+        return introductionMatch[1].trim();
+    }
+    const multiWordLine = lines.find(line => /^[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}$/.test(line));
+    if (multiWordLine) {
+        return multiWordLine;
+    }
+    const multiWordMatches = input.match(/[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+)+/g);
+    if (multiWordMatches && multiWordMatches.length) {
+        return multiWordMatches.sort((a, b) => b.length - a.length)[0].trim();
+    }
+    const singleWordLine = lines.find(line => /^[A-Z][a-z]+$/.test(line));
+    return singleWordLine ?? undefined;
+}
+function extractNameFromCsv(lines) {
+    if (lines.length < 2 || !lines.some(line => line.includes(','))) {
+        return undefined;
+    }
+    const [headerLine, ...dataLines] = lines;
+    if (!headerLine.includes(',')) {
+        return undefined;
+    }
+    const headers = headerLine.split(',').map(part => part.trim()).filter(Boolean);
+    const nameIndex = headers.findIndex(header => {
+        const normalised = (0, heuristics_1.normaliseKey)(header);
+        return normalised === 'name' || normalised.includes('name');
+    });
+    if (nameIndex === -1) {
+        return undefined;
+    }
+    for (const line of dataLines) {
+        if (!line.includes(',')) {
+            continue;
+        }
+        const values = line.split(',').map(part => part.trim());
+        const value = values[nameIndex];
+        if (!value) {
+            continue;
+        }
+        if (/^[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}$/.test(value)) {
+            return value;
+        }
+        if (value) {
+            return value;
+        }
+    }
+    return undefined;
 }
 function findBestSectionMatch(sections, targetKey) {
     const target = (0, heuristics_1.normaliseKey)(targetKey);

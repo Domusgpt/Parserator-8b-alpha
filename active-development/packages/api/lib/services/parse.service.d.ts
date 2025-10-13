@@ -5,6 +5,7 @@
  */
 import { ParseResponse as CoreParseResponse, ParseOptions, ParseratorProfileOption } from '@parserator/core';
 import { GeminiService } from './llm.service';
+import { LeanLLMClientOptions } from './lean-llm-client';
 /**
  * Configuration for Parse operations
  */
@@ -27,6 +28,19 @@ export interface IParseConfig {
     coreApiKey?: string;
     /** Optional profile to seed the core pipeline */
     coreProfile?: ParseratorProfileOption;
+    /** Configuration for the lean LLM fallback resolver */
+    leanLLM?: ILeanLLMConfig;
+}
+export interface ILeanLLMConfig extends LeanLLMClientOptions {
+    enabled: boolean;
+    allowOptionalFields?: boolean;
+    maxInputCharacters?: number;
+    defaultConfidence?: number;
+    resolverName?: string;
+    resolverPosition?: 'append' | 'prepend';
+    planConfidenceGate?: number;
+    maxInvocationsPerParse?: number;
+    maxTokensPerParse?: number;
 }
 /**
  * Input parameters for parsing operations
@@ -63,6 +77,7 @@ export declare class ParseService {
     private config;
     private logger;
     private readonly core;
+    private leanLLMClient?;
     private static readonly DEFAULT_CONFIG;
     constructor(geminiService: GeminiService, config?: Partial<IParseConfig>, logger?: Console);
     /**
@@ -88,6 +103,9 @@ export declare class ParseService {
      */
     updateConfig(newConfig: Partial<IParseConfig>): void;
     private createCoreLogger;
+    private mergeOptions;
+    private cloneParseOptions;
+    private applyLeanLLMConfig;
     private normaliseCoreResult;
     private logCoreOutcome;
     private createFailureResult;

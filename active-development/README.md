@@ -68,6 +68,10 @@ agent_tools = [parserator]
 }
 ```
 
+### Claude Code Plugin
+
+Install the workspace plugin located at `parserator-extensions/claude-plugin` to get `/lean-fallback` commands and the `LeanFallbackRunner` subagent. The plugin consumes the new lean fallback playbook metadata emitted by `@parserator/core`, keeping Claude orchestrations aligned with runtime budgets.
+
 ## 🎭 The EMA Philosophy
 
 **Exoditical Moral Architecture** means:
