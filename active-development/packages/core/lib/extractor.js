@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RegexExtractor = void 0;
 const resolvers_1 = require("./resolvers");
+const resolver_constants_1 = require("./resolver-constants");
 const utils_1 = require("./utils");
 class RegexExtractor {
     constructor(logger, registry) {
@@ -19,6 +20,22 @@ class RegexExtractor {
         let requiredCount = 0;
         let aggregatedConfidence = 0;
         const sharedState = new Map();
+        sharedState.set(resolver_constants_1.SHARED_PLAN_KEY, context.plan);
+        if (context.instructions) {
+            sharedState.set(resolver_constants_1.SHARED_INSTRUCTIONS_KEY, context.instructions);
+        }
+        if (context.outputSchema) {
+            sharedState.set(resolver_constants_1.SHARED_SCHEMA_KEY, context.outputSchema);
+        }
+        if (context.requestId) {
+            sharedState.set(resolver_constants_1.SHARED_REQUEST_ID_KEY, context.requestId);
+        }
+        if (context.sessionId) {
+            sharedState.set(resolver_constants_1.SHARED_SESSION_ID_KEY, context.sessionId);
+        }
+        if (context.profile) {
+            sharedState.set(resolver_constants_1.SHARED_PROFILE_KEY, context.profile);
+        }
         for (const step of context.plan.steps) {
             if (step.isRequired) {
                 requiredCount += 1;
@@ -37,6 +54,7 @@ class RegexExtractor {
                     if (step.isRequired) {
                         resolvedRequired += 1;
                     }
+                    sharedState.set(`${resolver_constants_1.SHARED_RESOLVED_FIELD_PREFIX}${step.targetKey}`, resolution.value);
                 }
                 aggregatedConfidence += computeStepConfidence(step.isRequired, resolution.confidence, resolution.value);
             }
