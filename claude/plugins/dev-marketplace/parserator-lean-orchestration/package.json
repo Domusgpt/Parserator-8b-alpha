@@ -1,0 +1,11 @@
+{
+  "name": "parserator-lean-orchestration-plugin",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Claude plugin helpers for Parserator lean orchestration",
+  "bin": {
+    "parserator-status": "./scripts/status.mjs",
+    "parserator-parse": "./scripts/parse.mjs"
+  }
+}

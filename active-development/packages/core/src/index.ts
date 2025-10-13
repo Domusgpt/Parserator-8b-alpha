@@ -6,20 +6,34 @@ import { createDefaultLogger } from './logger';
 import { createDefaultResolvers, ResolverRegistry } from './resolvers';
 import { listParseratorProfiles, resolveProfile } from './profiles';
 import { ParseratorSession } from './session';
-import { createTelemetryHub, TelemetryHub } from './telemetry';
+import {
+  createPlanCacheTelemetryEmitter,
+  createPlanRewriteTelemetryEmitter,
+  createFieldFallbackTelemetryEmitter,
+  createTelemetryHub,
+  TelemetryHub,
+  PlanRewriteTelemetryEventInput,
+  FieldFallbackTelemetryEventInput
+} from './telemetry';
 import { createInMemoryPlanCache } from './cache';
 import { createDefaultPreprocessors, executePreprocessors } from './preprocessors';
 import { createDefaultPostprocessors, executePostprocessors } from './postprocessors';
+import { createHybridArchitect } from './hybrid-architect';
+import { createLeanLLMFieldResolver, LeanLLMFieldResolver } from './lean-llm-field-resolver';
 import {
   ArchitectAgent,
   ArchitectResult,
   BatchParseOptions,
   CoreLogger,
   ExtractorAgent,
+  FieldResolver,
   ParseratorPreprocessor,
   ParseratorPostprocessor,
   ParseratorPlanCache,
   ParseratorPlanCacheEntry,
+  ParseratorLeanLLMPlanRewriteState,
+  ParseratorLeanLLMFieldFallbackOptions,
+  ParseratorLeanLLMFieldFallbackState,
   ParseDiagnostic,
   ParseError,
   ParseMetadata,
@@ -28,6 +42,7 @@ import {
   ParseResponse,
   ParseratorCoreConfig,
   ParseratorCoreOptions,
+  ParseratorLeanLLMPlanRewriteOptions,
   ParseratorProfileOption,
   ParseratorSessionFromResponseOptions,
   ParseratorSessionInit,
@@ -57,6 +72,8 @@ export * from './profiles';
 export { ParseratorSession } from './session';
 export { createDefaultPreprocessors } from './preprocessors';
 export { createDefaultPostprocessors } from './postprocessors';
+export { createHybridArchitect } from './hybrid-architect';
+export { createLeanLLMFieldResolver } from './lean-llm-field-resolver';
 
 const DEFAULT_CONFIG: ParseratorCoreConfig = {
   maxInputLength: 120_000,
@@ -72,17 +89,24 @@ export class ParseratorCore {
   private readonly apiKey: string;
   private config: ParseratorCoreConfig;
   private logger: CoreLogger;
-  private architect: ArchitectAgent;
+  private baseArchitect!: ArchitectAgent;
+  private architect!: ArchitectAgent;
   private extractor: ExtractorAgent;
   private resolverRegistry: ResolverRegistry;
   private profileName?: string;
   private profileOverrides: Partial<ParseratorCoreConfig> = {};
   private configOverrides: Partial<ParseratorCoreConfig> = {};
   private telemetry: ParseratorTelemetry;
+  private emitPlanCacheTelemetry: ReturnType<typeof createPlanCacheTelemetryEmitter>;
+  private emitPlanRewriteTelemetry: (event: PlanRewriteTelemetryEventInput) => void;
+  private emitFieldFallbackTelemetry: (event: FieldFallbackTelemetryEventInput) => void;
   private planCache?: ParseratorPlanCache;
   private readonly interceptors = new Set<ParseratorInterceptor>();
   private readonly preprocessors: ParseratorPreprocessor[] = [];
   private readonly postprocessors: ParseratorPostprocessor[] = [];
+  private leanLLMPlanRewriteOptions?: ParseratorLeanLLMPlanRewriteOptions;
+  private leanLLMFieldFallbackOptions?: ParseratorLeanLLMFieldFallbackOptions;
+  private leanLLMFieldFallbackResolver?: LeanLLMFieldResolver;
 
   constructor(options: ParseratorCoreOptions) {
     if (!options?.apiKey || options.apiKey.trim().length === 0) {
@@ -92,6 +116,34 @@ export class ParseratorCore {
     this.apiKey = options.apiKey;
     this.logger = options.logger ?? DEFAULT_LOGGER;
     this.telemetry = createTelemetryHub(options.telemetry, this.logger);
+    this.emitPlanCacheTelemetry = createPlanCacheTelemetryEmitter({
+      telemetry: this.telemetry,
+      source: 'core',
+      resolveProfile: () => this.profileName,
+      requestIdFactory: uuidv4,
+      logger: this.logger
+    });
+    const planRewriteTelemetryEmitter = createPlanRewriteTelemetryEmitter({
+      telemetry: this.telemetry,
+      source: 'core',
+      resolveProfile: () => this.profileName,
+      requestIdFactory: uuidv4,
+      logger: this.logger
+    });
+    this.emitPlanRewriteTelemetry = event => {
+      const source = event.source ?? (event.sessionId ? 'session' : 'core');
+      planRewriteTelemetryEmitter({
+        ...event,
+        source
+      });
+    };
+    this.emitFieldFallbackTelemetry = createFieldFallbackTelemetryEmitter({
+      telemetry: this.telemetry,
+      source: 'core',
+      resolveProfile: () => this.profileName,
+      requestIdFactory: uuidv4,
+      logger: this.logger
+    });
 
     if (options.interceptors) {
       const interceptors = Array.isArray(options.interceptors)
@@ -136,12 +188,22 @@ export class ParseratorCore {
       options.resolvers ?? resolvedProfile?.resolvers ?? createDefaultResolvers(this.logger);
     this.resolverRegistry = new ResolverRegistry(initialResolvers, this.logger);
 
-    this.architect = options.architect ?? resolvedProfile?.architect ?? new HeuristicArchitect(this.logger);
+    const initialArchitect =
+      options.architect ?? resolvedProfile?.architect ?? new HeuristicArchitect(this.logger);
+    this.applyArchitect(initialArchitect);
 
     const extractor =
       options.extractor ?? resolvedProfile?.extractor ?? new RegexExtractor(this.logger, this.resolverRegistry);
     this.attachRegistryIfSupported(extractor);
     this.extractor = extractor;
+
+    if (options.leanLLMPlanRewrite) {
+      this.enableLeanLLMPlanRewrite(options.leanLLMPlanRewrite);
+    }
+
+    if (options.leanLLMFieldFallback) {
+      this.enableLeanLLMFieldFallback(options.leanLLMFieldFallback);
+    }
 
     this.logger.info?.('parserator-core:initialised', {
       profile: this.profileName,
@@ -159,8 +221,88 @@ export class ParseratorCore {
     return { ...this.config };
   }
 
+  getLeanLLMPlanRewriteState(): ParseratorLeanLLMPlanRewriteState {
+    if (!this.leanLLMPlanRewriteOptions) {
+      return {
+        enabled: false,
+        minHeuristicConfidence: undefined,
+        cooldownMs: undefined,
+        concurrency: 0,
+        pendingCooldown: false,
+        lastAttemptAt: undefined,
+        lastSuccessAt: undefined,
+        lastFailureAt: undefined,
+        lastError: undefined,
+        lastUsage: undefined,
+        queue: {
+          pending: 0,
+          inFlight: 0,
+          completed: 0,
+          failed: 0,
+          size: 0
+        }
+      };
+    }
+
+    const state = this.architect.getPlanRewriteState?.();
+    if (state) {
+      return state;
+    }
+
+    const concurrency = Math.max(1, Math.floor(this.leanLLMPlanRewriteOptions.concurrency ?? 1));
+    const cooldownMs = Math.max(0, this.leanLLMPlanRewriteOptions.cooldownMs ?? 5_000);
+
+    return {
+      enabled: true,
+      minHeuristicConfidence: this.leanLLMPlanRewriteOptions.minHeuristicConfidence,
+      cooldownMs,
+      concurrency,
+      pendingCooldown: false,
+      lastAttemptAt: undefined,
+      lastSuccessAt: undefined,
+      lastFailureAt: undefined,
+      lastError: undefined,
+      lastUsage: undefined,
+      queue: {
+        pending: 0,
+        inFlight: 0,
+        completed: 0,
+        failed: 0,
+        size: 0
+      }
+    };
+  }
+
   getProfile(): string | undefined {
     return this.profileName;
+  }
+
+  getLeanLLMFieldFallbackState(): ParseratorLeanLLMFieldFallbackState {
+    if (!this.leanLLMFieldFallbackResolver || !this.leanLLMFieldFallbackOptions) {
+      return {
+        enabled: false,
+        concurrency: 0,
+        includeOptionalFields: false,
+        minConfidence: undefined,
+        attempts: 0,
+        successes: 0,
+        failures: 0,
+        lastAttemptAt: undefined,
+        lastSuccessAt: undefined,
+        lastFailureAt: undefined,
+        lastError: undefined,
+        lastUsage: undefined,
+        queue: {
+          pending: 0,
+          inFlight: 0,
+          completed: 0,
+          failed: 0,
+          size: 0
+        }
+      };
+    }
+
+    return this.leanLLMFieldFallbackResolver.getState();
   }
 
   applyProfile(profile: ParseratorProfileOption): void {
@@ -172,11 +314,13 @@ export class ParseratorCore {
     this.profileName = resolvedProfile.profile.name;
     this.profileOverrides = { ...(resolvedProfile.config ?? {}) };
     if (resolvedProfile.resolvers) {
-      this.resolverRegistry.replaceAll(resolvedProfile.resolvers);
+      this.replaceResolvers(resolvedProfile.resolvers);
     }
 
     if (resolvedProfile.architect) {
-      this.architect = resolvedProfile.architect;
+      this.applyArchitect(resolvedProfile.architect);
+    } else {
+      this.architect = this.wrapArchitect(this.baseArchitect);
     }
 
     if (resolvedProfile.extractor) {
@@ -197,7 +341,7 @@ export class ParseratorCore {
   }
 
   setArchitect(agent: ArchitectAgent): void {
-    this.architect = agent;
+    this.applyArchitect(agent);
   }
 
   setExtractor(agent: ExtractorAgent): void {
@@ -205,8 +349,57 @@ export class ParseratorCore {
     this.extractor = agent;
   }
 
+  enableLeanLLMPlanRewrite(options: ParseratorLeanLLMPlanRewriteOptions): void {
+    const normalized: ParseratorLeanLLMPlanRewriteOptions = {
+      ...options,
+      logger: options.logger ?? this.logger
+    };
+
+    this.leanLLMPlanRewriteOptions = normalized;
+    this.architect = this.wrapArchitect(this.baseArchitect);
+
+    this.logger.info?.('parserator-core:lean-llm-plan-rewrite-enabled', {
+      minHeuristicConfidence: normalized.minHeuristicConfidence ?? 'auto',
+      concurrency: normalized.concurrency ?? 1,
+      cooldownMs: normalized.cooldownMs ?? 0
+    });
+  }
+
+  enableLeanLLMFieldFallback(options: ParseratorLeanLLMFieldFallbackOptions): void {
+    const normalized: ParseratorLeanLLMFieldFallbackOptions = {
+      ...options,
+      logger: options.logger ?? this.logger
+    };
+
+    this.leanLLMFieldFallbackOptions = normalized;
+    const resolver = createLeanLLMFieldResolver({
+      ...normalized,
+      emitTelemetry: event => this.emitFieldFallbackTelemetry(event)
+    });
+    this.leanLLMFieldFallbackResolver = resolver;
+    this.resolverRegistry.removeByName(resolver.name);
+    this.resolverRegistry.register(resolver, 'append');
+
+    this.logger.info?.('parserator-core:lean-llm-field-fallback-enabled', {
+      concurrency: normalized.concurrency ?? 1,
+      includeOptionalFields: normalized.includeOptionalFields ?? false,
+      minConfidence: normalized.minConfidence ?? 'auto'
+    });
+  }
+
+  disableLeanLLMFieldFallback(): void {
+    if (this.leanLLMFieldFallbackResolver) {
+      this.resolverRegistry.removeByName(this.leanLLMFieldFallbackResolver.name);
+    }
+
+    this.leanLLMFieldFallbackOptions = undefined;
+    this.leanLLMFieldFallbackResolver = undefined;
+    this.logger.info?.('parserator-core:lean-llm-field-fallback-disabled');
+  }
+
   registerResolver(resolver: Parameters<ResolverRegistry['register']>[0], position: 'append' | 'prepend' = 'append'): void {
     this.resolverRegistry.register(resolver, position);
+    this.reapplyLeanLLMFieldFallbackResolver();
     this.logger.info?.('parserator-core:resolver-registered', {
       resolver: resolver.name,
       position
@@ -215,6 +408,7 @@ export class ParseratorCore {
 
   replaceResolvers(resolvers: Parameters<ResolverRegistry['register']>[0][]): void {
     this.resolverRegistry.replaceAll(resolvers);
+    this.reapplyLeanLLMFieldFallbackResolver();
     this.logger.info?.('parserator-core:resolvers-replaced', {
       resolvers: resolvers.map(resolver => resolver.name)
     });
@@ -335,12 +529,119 @@ export class ParseratorCore {
     return this.createSession(sessionInit);
   }
 
+  async getPlanCacheEntry(request: ParseRequest): Promise<ParseratorPlanCacheEntry | undefined> {
+    const planCacheKey = this.getPlanCacheKey(request);
+    if (!planCacheKey || !this.planCache) {
+      return undefined;
+    }
+
+    try {
+      const entry = await this.planCache.get(planCacheKey);
+      if (!entry) {
+        return undefined;
+      }
+
+      return this.cloneCacheEntry(entry);
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-introspect-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: this.profileName,
+        key: planCacheKey,
+        operation: 'get'
+      });
+      return undefined;
+    }
+  }
+
+  async deletePlanCacheEntry(request: ParseRequest): Promise<boolean> {
+    const planCacheKey = this.getPlanCacheKey(request);
+    if (!planCacheKey || !this.planCache || typeof this.planCache.delete !== 'function') {
+      this.logger.warn?.('parserator-core:plan-cache-delete-unsupported', {
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      return false;
+    }
+
+    try {
+      await this.planCache.delete(planCacheKey);
+      this.logger.info?.('parserator-core:plan-cache-delete', {
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      this.emitPlanCacheTelemetry({
+        action: 'delete',
+        key: planCacheKey,
+        reason: 'management'
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-delete-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: this.profileName,
+        key: planCacheKey
+      });
+      this.emitPlanCacheTelemetry({
+        action: 'delete',
+        key: planCacheKey,
+        reason: 'management',
+        error
+      });
+      return false;
+    }
+  }
+
+  async clearPlanCache(profile?: string): Promise<boolean> {
+    if (!this.planCache || typeof this.planCache.clear !== 'function') {
+      this.logger.warn?.('parserator-core:plan-cache-clear-unsupported', {
+        profile: profile ?? this.profileName ?? 'all'
+      });
+      return false;
+    }
+
+    const targetProfile = profile ?? this.profileName;
+
+    try {
+      await Promise.resolve(this.planCache.clear(targetProfile));
+      this.logger.info?.('parserator-core:plan-cache-cleared', {
+        profile: targetProfile ?? 'all'
+      });
+      this.emitPlanCacheTelemetry({
+        action: 'clear',
+        scope: targetProfile ?? 'all',
+        reason: 'management'
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn?.('parserator-core:plan-cache-clear-failed', {
+        error: error instanceof Error ? error.message : error,
+        profile: targetProfile ?? 'all'
+      });
+      this.emitPlanCacheTelemetry({
+        action: 'clear',
+        scope: targetProfile ?? 'all',
+        reason: 'management',
+        error
+      });
+      return false;
+    }
+  }
+
   private composeConfig(): ParseratorCoreConfig {
     return {
       ...DEFAULT_CONFIG,
       ...this.profileOverrides,
       ...this.configOverrides
     };
+  }
+
+  private reapplyLeanLLMFieldFallbackResolver(): void {
+    if (!this.leanLLMFieldFallbackResolver) {
+      return;
+    }
+
+    this.resolverRegistry.removeByName(this.leanLLMFieldFallbackResolver.name);
+    this.resolverRegistry.register(this.leanLLMFieldFallbackResolver, 'append');
   }
 
   async parse(request: ParseRequest): Promise<ParseResponse> {
@@ -434,11 +735,35 @@ export class ParseratorCore {
             profile: this.profileName,
             key: planCacheKey
           });
+          this.emitPlanCacheTelemetry({
+            action: 'hit',
+            key: planCacheKey,
+            planId: cachedEntry.plan.id,
+            confidence: cachedEntry.confidence,
+            tokensUsed: cachedEntry.tokensUsed,
+            processingTimeMs: cachedEntry.processingTimeMs,
+            requestId,
+            reason: 'parse'
+          });
+        } else {
+          this.emitPlanCacheTelemetry({
+            action: 'miss',
+            key: planCacheKey,
+            requestId,
+            reason: 'parse'
+          });
         }
       } catch (error) {
         this.logger.warn?.('parserator-core:plan-cache-get-failed', {
           error: error instanceof Error ? error.message : error,
           profile: this.profileName
+        });
+        this.emitPlanCacheTelemetry({
+          action: 'miss',
+          key: planCacheKey,
+          requestId,
+          reason: 'parse',
+          error
         });
       }
     }
@@ -536,10 +861,28 @@ export class ParseratorCore {
             profile: this.profileName,
             key: planCacheKey
           });
+          this.emitPlanCacheTelemetry({
+            action: 'store',
+            key: planCacheKey,
+            planId: entry.plan.id,
+            confidence: entry.confidence,
+            tokensUsed: entry.tokensUsed,
+            processingTimeMs: entry.processingTimeMs,
+            requestId,
+            reason: 'parse'
+          });
         } catch (error) {
           this.logger.warn?.('parserator-core:plan-cache-set-failed', {
             error: error instanceof Error ? error.message : error,
             profile: this.profileName
+          });
+          this.emitPlanCacheTelemetry({
+            action: 'store',
+            key: planCacheKey,
+            planId: entry.plan.id,
+            requestId,
+            reason: 'parse',
+            error
           });
         }
       }
@@ -550,7 +893,11 @@ export class ParseratorCore {
     const extractorResult = await this.extractor.execute({
       inputData: request.inputData,
       plan: activePlan,
-      config: this.config
+      config: this.config,
+      instructions: request.instructions,
+      outputSchema: request.outputSchema,
+      requestId,
+      profile: this.profileName
     });
 
     this.telemetry.emit({
@@ -779,6 +1126,39 @@ export class ParseratorCore {
     return responses;
   }
 
+  disableLeanLLMPlanRewrite(): void {
+    if (!this.leanLLMPlanRewriteOptions) {
+      return;
+    }
+
+    this.leanLLMPlanRewriteOptions = undefined;
+    this.architect = this.baseArchitect;
+
+    this.logger.info?.('parserator-core:lean-llm-plan-rewrite-disabled');
+  }
+
+  private wrapArchitect(agent: ArchitectAgent): ArchitectAgent {
+    if (!this.leanLLMPlanRewriteOptions) {
+      return agent;
+    }
+
+    const options = this.leanLLMPlanRewriteOptions;
+    return createHybridArchitect({
+      base: agent,
+      client: options.client,
+      minHeuristicConfidence: options.minHeuristicConfidence,
+      concurrency: options.concurrency,
+      cooldownMs: options.cooldownMs,
+      logger: options.logger ?? this.logger,
+      emitTelemetry: this.emitPlanRewriteTelemetry
+    });
+  }
+
+  private applyArchitect(agent: ArchitectAgent): void {
+    this.baseArchitect = agent;
+    this.architect = this.wrapArchitect(agent);
+  }
+
   private getInterceptors(): ParseratorInterceptor[] {
     return Array.from(this.interceptors);
   }
@@ -811,6 +1191,15 @@ export class ParseratorCore {
       return undefined;
     }
   }
+
+  private cloneCacheEntry(entry: ParseratorPlanCacheEntry): ParseratorPlanCacheEntry {
+    return {
+      ...entry,
+      plan: clonePlan(entry.plan, entry.plan.metadata.origin),
+      diagnostics: [...entry.diagnostics]
+    };
+  }
+
 
   private async runBeforeInterceptors(context: ParseratorInterceptorContext): Promise<void> {
     for (const interceptor of this.interceptors) {
@@ -1120,5 +1509,6 @@ export {
   createDefaultResolvers,
   createInMemoryPlanCache,
   createTelemetryHub,
+  createPlanCacheTelemetryEmitter,
   TelemetryHub
 };

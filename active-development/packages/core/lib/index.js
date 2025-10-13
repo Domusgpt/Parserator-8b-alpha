@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TelemetryHub = exports.createTelemetryHub = exports.createInMemoryPlanCache = exports.createDefaultResolvers = exports.ResolverRegistry = exports.RegexExtractor = exports.HeuristicArchitect = exports.ParseratorCore = exports.createDefaultPostprocessors = exports.createDefaultPreprocessors = exports.ParseratorSession = void 0;
+exports.TelemetryHub = exports.createPlanCacheTelemetryEmitter = exports.createTelemetryHub = exports.createInMemoryPlanCache = exports.createDefaultResolvers = exports.ResolverRegistry = exports.RegexExtractor = exports.HeuristicArchitect = exports.ParseratorCore = exports.createLeanLLMFieldResolver = exports.createHybridArchitect = exports.createDefaultPostprocessors = exports.createDefaultPreprocessors = exports.ParseratorSession = void 0;
 const uuid_1 = require("uuid");
 const architect_1 = require("./architect");
 Object.defineProperty(exports, "HeuristicArchitect", { enumerable: true, get: function () { return architect_1.HeuristicArchitect; } });
@@ -27,12 +27,15 @@ Object.defineProperty(exports, "ResolverRegistry", { enumerable: true, get: func
 const profiles_1 = require("./profiles");
 const session_1 = require("./session");
 const telemetry_1 = require("./telemetry");
+Object.defineProperty(exports, "createPlanCacheTelemetryEmitter", { enumerable: true, get: function () { return telemetry_1.createPlanCacheTelemetryEmitter; } });
 Object.defineProperty(exports, "createTelemetryHub", { enumerable: true, get: function () { return telemetry_1.createTelemetryHub; } });
 Object.defineProperty(exports, "TelemetryHub", { enumerable: true, get: function () { return telemetry_1.TelemetryHub; } });
 const cache_1 = require("./cache");
 Object.defineProperty(exports, "createInMemoryPlanCache", { enumerable: true, get: function () { return cache_1.createInMemoryPlanCache; } });
 const preprocessors_1 = require("./preprocessors");
 const postprocessors_1 = require("./postprocessors");
+const hybrid_architect_1 = require("./hybrid-architect");
+const lean_llm_field_resolver_1 = require("./lean-llm-field-resolver");
 const utils_1 = require("./utils");
 __exportStar(require("./types"), exports);
 __exportStar(require("./profiles"), exports);
@@ -42,6 +45,10 @@ var preprocessors_2 = require("./preprocessors");
 Object.defineProperty(exports, "createDefaultPreprocessors", { enumerable: true, get: function () { return preprocessors_2.createDefaultPreprocessors; } });
 var postprocessors_2 = require("./postprocessors");
 Object.defineProperty(exports, "createDefaultPostprocessors", { enumerable: true, get: function () { return postprocessors_2.createDefaultPostprocessors; } });
+var hybrid_architect_2 = require("./hybrid-architect");
+Object.defineProperty(exports, "createHybridArchitect", { enumerable: true, get: function () { return hybrid_architect_2.createHybridArchitect; } });
+var lean_llm_field_resolver_2 = require("./lean-llm-field-resolver");
+Object.defineProperty(exports, "createLeanLLMFieldResolver", { enumerable: true, get: function () { return lean_llm_field_resolver_2.createLeanLLMFieldResolver; } });
 const DEFAULT_CONFIG = {
     maxInputLength: 120000,
     maxSchemaFields: 64,
@@ -63,6 +70,34 @@ class ParseratorCore {
         this.apiKey = options.apiKey;
         this.logger = options.logger ?? DEFAULT_LOGGER;
         this.telemetry = (0, telemetry_1.createTelemetryHub)(options.telemetry, this.logger);
+        this.emitPlanCacheTelemetry = (0, telemetry_1.createPlanCacheTelemetryEmitter)({
+            telemetry: this.telemetry,
+            source: 'core',
+            resolveProfile: () => this.profileName,
+            requestIdFactory: uuid_1.v4,
+            logger: this.logger
+        });
+        const planRewriteTelemetryEmitter = (0, telemetry_1.createPlanRewriteTelemetryEmitter)({
+            telemetry: this.telemetry,
+            source: 'core',
+            resolveProfile: () => this.profileName,
+            requestIdFactory: uuid_1.v4,
+            logger: this.logger
+        });
+        this.emitPlanRewriteTelemetry = event => {
+            const source = event.source ?? (event.sessionId ? 'session' : 'core');
+            planRewriteTelemetryEmitter({
+                ...event,
+                source
+            });
+        };
+        this.emitFieldFallbackTelemetry = (0, telemetry_1.createFieldFallbackTelemetryEmitter)({
+            telemetry: this.telemetry,
+            source: 'core',
+            resolveProfile: () => this.profileName,
+            requestIdFactory: uuid_1.v4,
+            logger: this.logger
+        });
         if (options.interceptors) {
             const interceptors = Array.isArray(options.interceptors)
                 ? options.interceptors
@@ -95,10 +130,17 @@ class ParseratorCore {
         this.config = this.composeConfig();
         const initialResolvers = options.resolvers ?? resolvedProfile?.resolvers ?? (0, resolvers_1.createDefaultResolvers)(this.logger);
         this.resolverRegistry = new resolvers_1.ResolverRegistry(initialResolvers, this.logger);
-        this.architect = options.architect ?? resolvedProfile?.architect ?? new architect_1.HeuristicArchitect(this.logger);
+        const initialArchitect = options.architect ?? resolvedProfile?.architect ?? new architect_1.HeuristicArchitect(this.logger);
+        this.applyArchitect(initialArchitect);
         const extractor = options.extractor ?? resolvedProfile?.extractor ?? new extractor_1.RegexExtractor(this.logger, this.resolverRegistry);
         this.attachRegistryIfSupported(extractor);
         this.extractor = extractor;
+        if (options.leanLLMPlanRewrite) {
+            this.enableLeanLLMPlanRewrite(options.leanLLMPlanRewrite);
+        }
+        if (options.leanLLMFieldFallback) {
+            this.enableLeanLLMFieldFallback(options.leanLLMFieldFallback);
+        }
         this.logger.info?.('parserator-core:initialised', {
             profile: this.profileName,
             config: this.config
@@ -112,8 +154,82 @@ class ParseratorCore {
     getConfig() {
         return { ...this.config };
     }
+    getLeanLLMPlanRewriteState() {
+        if (!this.leanLLMPlanRewriteOptions) {
+            return {
+                enabled: false,
+                minHeuristicConfidence: undefined,
+                cooldownMs: undefined,
+                concurrency: 0,
+                pendingCooldown: false,
+                lastAttemptAt: undefined,
+                lastSuccessAt: undefined,
+                lastFailureAt: undefined,
+                lastError: undefined,
+                lastUsage: undefined,
+                queue: {
+                    pending: 0,
+                    inFlight: 0,
+                    completed: 0,
+                    failed: 0,
+                    size: 0
+                }
+            };
+        }
+        const state = this.architect.getPlanRewriteState?.();
+        if (state) {
+            return state;
+        }
+        const concurrency = Math.max(1, Math.floor(this.leanLLMPlanRewriteOptions.concurrency ?? 1));
+        const cooldownMs = Math.max(0, this.leanLLMPlanRewriteOptions.cooldownMs ?? 5000);
+        return {
+            enabled: true,
+            minHeuristicConfidence: this.leanLLMPlanRewriteOptions.minHeuristicConfidence,
+            cooldownMs,
+            concurrency,
+            pendingCooldown: false,
+            lastAttemptAt: undefined,
+            lastSuccessAt: undefined,
+            lastFailureAt: undefined,
+            lastError: undefined,
+            lastUsage: undefined,
+            queue: {
+                pending: 0,
+                inFlight: 0,
+                completed: 0,
+                failed: 0,
+                size: 0
+            }
+        };
+    }
     getProfile() {
         return this.profileName;
+    }
+    getLeanLLMFieldFallbackState() {
+        if (!this.leanLLMFieldFallbackResolver || !this.leanLLMFieldFallbackOptions) {
+            return {
+                enabled: false,
+                concurrency: 0,
+                includeOptionalFields: false,
+                minConfidence: undefined,
+                attempts: 0,
+                successes: 0,
+                failures: 0,
+                lastAttemptAt: undefined,
+                lastSuccessAt: undefined,
+                lastFailureAt: undefined,
+                lastError: undefined,
+                lastUsage: undefined,
+                queue: {
+                    pending: 0,
+                    inFlight: 0,
+                    completed: 0,
+                    failed: 0,
+                    size: 0
+                }
+            };
+        }
+        return this.leanLLMFieldFallbackResolver.getState();
     }
     applyProfile(profile) {
         const resolvedProfile = (0, profiles_1.resolveProfile)(profile, { logger: this.logger });
@@ -123,10 +239,13 @@ class ParseratorCore {
         this.profileName = resolvedProfile.profile.name;
         this.profileOverrides = { ...(resolvedProfile.config ?? {}) };
         if (resolvedProfile.resolvers) {
-            this.resolverRegistry.replaceAll(resolvedProfile.resolvers);
+            this.replaceResolvers(resolvedProfile.resolvers);
         }
         if (resolvedProfile.architect) {
-            this.architect = resolvedProfile.architect;
+            this.applyArchitect(resolvedProfile.architect);
+        }
+        else {
+            this.architect = this.wrapArchitect(this.baseArchitect);
         }
         if (resolvedProfile.extractor) {
             this.attachRegistryIfSupported(resolvedProfile.extractor);
@@ -142,14 +261,55 @@ class ParseratorCore {
         return (0, profiles_1.listParseratorProfiles)();
     }
     setArchitect(agent) {
-        this.architect = agent;
+        this.applyArchitect(agent);
     }
     setExtractor(agent) {
         this.attachRegistryIfSupported(agent);
         this.extractor = agent;
     }
+    enableLeanLLMPlanRewrite(options) {
+        const normalized = {
+            ...options,
+            logger: options.logger ?? this.logger
+        };
+        this.leanLLMPlanRewriteOptions = normalized;
+        this.architect = this.wrapArchitect(this.baseArchitect);
+        this.logger.info?.('parserator-core:lean-llm-plan-rewrite-enabled', {
+            minHeuristicConfidence: normalized.minHeuristicConfidence ?? 'auto',
+            concurrency: normalized.concurrency ?? 1,
+            cooldownMs: normalized.cooldownMs ?? 0
+        });
+    }
+    enableLeanLLMFieldFallback(options) {
+        const normalized = {
+            ...options,
+            logger: options.logger ?? this.logger
+        };
+        this.leanLLMFieldFallbackOptions = normalized;
+        const resolver = (0, lean_llm_field_resolver_1.createLeanLLMFieldResolver)({
+            ...normalized,
+            emitTelemetry: event => this.emitFieldFallbackTelemetry(event)
+        });
+        this.leanLLMFieldFallbackResolver = resolver;
+        this.resolverRegistry.removeByName(resolver.name);
+        this.resolverRegistry.register(resolver, 'append');
+        this.logger.info?.('parserator-core:lean-llm-field-fallback-enabled', {
+            concurrency: normalized.concurrency ?? 1,
+            includeOptionalFields: normalized.includeOptionalFields ?? false,
+            minConfidence: normalized.minConfidence ?? 'auto'
+        });
+    }
+    disableLeanLLMFieldFallback() {
+        if (this.leanLLMFieldFallbackResolver) {
+            this.resolverRegistry.removeByName(this.leanLLMFieldFallbackResolver.name);
+        }
+        this.leanLLMFieldFallbackOptions = undefined;
+        this.leanLLMFieldFallbackResolver = undefined;
+        this.logger.info?.('parserator-core:lean-llm-field-fallback-disabled');
+    }
     registerResolver(resolver, position = 'append') {
         this.resolverRegistry.register(resolver, position);
+        this.reapplyLeanLLMFieldFallbackResolver();
         this.logger.info?.('parserator-core:resolver-registered', {
             resolver: resolver.name,
             position
@@ -157,6 +317,7 @@ class ParseratorCore {
     }
     replaceResolvers(resolvers) {
         this.resolverRegistry.replaceAll(resolvers);
+        this.reapplyLeanLLMFieldFallbackResolver();
         this.logger.info?.('parserator-core:resolvers-replaced', {
             resolvers: resolvers.map(resolver => resolver.name)
         });
@@ -257,12 +418,112 @@ class ParseratorCore {
         });
         return this.createSession(sessionInit);
     }
+    async getPlanCacheEntry(request) {
+        const planCacheKey = this.getPlanCacheKey(request);
+        if (!planCacheKey || !this.planCache) {
+            return undefined;
+        }
+        try {
+            const entry = await this.planCache.get(planCacheKey);
+            if (!entry) {
+                return undefined;
+            }
+            return this.cloneCacheEntry(entry);
+        }
+        catch (error) {
+            this.logger.warn?.('parserator-core:plan-cache-introspect-failed', {
+                error: error instanceof Error ? error.message : error,
+                profile: this.profileName,
+                key: planCacheKey,
+                operation: 'get'
+            });
+            return undefined;
+        }
+    }
+    async deletePlanCacheEntry(request) {
+        const planCacheKey = this.getPlanCacheKey(request);
+        if (!planCacheKey || !this.planCache || typeof this.planCache.delete !== 'function') {
+            this.logger.warn?.('parserator-core:plan-cache-delete-unsupported', {
+                profile: this.profileName,
+                key: planCacheKey
+            });
+            return false;
+        }
+        try {
+            await this.planCache.delete(planCacheKey);
+            this.logger.info?.('parserator-core:plan-cache-delete', {
+                profile: this.profileName,
+                key: planCacheKey
+            });
+            this.emitPlanCacheTelemetry({
+                action: 'delete',
+                key: planCacheKey,
+                reason: 'management'
+            });
+            return true;
+        }
+        catch (error) {
+            this.logger.warn?.('parserator-core:plan-cache-delete-failed', {
+                error: error instanceof Error ? error.message : error,
+                profile: this.profileName,
+                key: planCacheKey
+            });
+            this.emitPlanCacheTelemetry({
+                action: 'delete',
+                key: planCacheKey,
+                reason: 'management',
+                error
+            });
+            return false;
+        }
+    }
+    async clearPlanCache(profile) {
+        if (!this.planCache || typeof this.planCache.clear !== 'function') {
+            this.logger.warn?.('parserator-core:plan-cache-clear-unsupported', {
+                profile: profile ?? this.profileName ?? 'all'
+            });
+            return false;
+        }
+        const targetProfile = profile ?? this.profileName;
+        try {
+            await Promise.resolve(this.planCache.clear(targetProfile));
+            this.logger.info?.('parserator-core:plan-cache-cleared', {
+                profile: targetProfile ?? 'all'
+            });
+            this.emitPlanCacheTelemetry({
+                action: 'clear',
+                scope: targetProfile ?? 'all',
+                reason: 'management'
+            });
+            return true;
+        }
+        catch (error) {
+            this.logger.warn?.('parserator-core:plan-cache-clear-failed', {
+                error: error instanceof Error ? error.message : error,
+                profile: targetProfile ?? 'all'
+            });
+            this.emitPlanCacheTelemetry({
+                action: 'clear',
+                scope: targetProfile ?? 'all',
+                reason: 'management',
+                error
+            });
+            return false;
+        }
+    }
     composeConfig() {
         return {
             ...DEFAULT_CONFIG,
             ...this.profileOverrides,
             ...this.configOverrides
         };
+    }
+    reapplyLeanLLMFieldFallbackResolver() {
+        if (!this.leanLLMFieldFallbackResolver) {
+            return;
+        }
+        this.resolverRegistry.removeByName(this.leanLLMFieldFallbackResolver.name);
+        this.resolverRegistry.register(this.leanLLMFieldFallbackResolver, 'append');
     }
     async parse(request) {
         const requestId = (0, uuid_1.v4)();
@@ -348,12 +609,37 @@ class ParseratorCore {
                         profile: this.profileName,
                         key: planCacheKey
                     });
+                    this.emitPlanCacheTelemetry({
+                        action: 'hit',
+                        key: planCacheKey,
+                        planId: cachedEntry.plan.id,
+                        confidence: cachedEntry.confidence,
+                        tokensUsed: cachedEntry.tokensUsed,
+                        processingTimeMs: cachedEntry.processingTimeMs,
+                        requestId,
+                        reason: 'parse'
+                    });
+                }
+                else {
+                    this.emitPlanCacheTelemetry({
+                        action: 'miss',
+                        key: planCacheKey,
+                        requestId,
+                        reason: 'parse'
+                    });
                 }
             }
             catch (error) {
                 this.logger.warn?.('parserator-core:plan-cache-get-failed', {
                     error: error instanceof Error ? error.message : error,
                     profile: this.profileName
+                });
+                this.emitPlanCacheTelemetry({
+                    action: 'miss',
+                    key: planCacheKey,
+                    requestId,
+                    reason: 'parse',
+                    error
                 });
             }
         }
@@ -443,11 +729,29 @@ class ParseratorCore {
                         profile: this.profileName,
                         key: planCacheKey
                     });
+                    this.emitPlanCacheTelemetry({
+                        action: 'store',
+                        key: planCacheKey,
+                        planId: entry.plan.id,
+                        confidence: entry.confidence,
+                        tokensUsed: entry.tokensUsed,
+                        processingTimeMs: entry.processingTimeMs,
+                        requestId,
+                        reason: 'parse'
+                    });
                 }
                 catch (error) {
                     this.logger.warn?.('parserator-core:plan-cache-set-failed', {
                         error: error instanceof Error ? error.message : error,
                         profile: this.profileName
+                    });
+                    this.emitPlanCacheTelemetry({
+                        action: 'store',
+                        key: planCacheKey,
+                        planId: entry.plan.id,
+                        requestId,
+                        reason: 'parse',
+                        error
                     });
                 }
             }
@@ -456,7 +760,11 @@ class ParseratorCore {
         const extractorResult = await this.extractor.execute({
             inputData: request.inputData,
             plan: activePlan,
-            config: this.config
+            config: this.config,
+            instructions: request.instructions,
+            outputSchema: request.outputSchema,
+            requestId,
+            profile: this.profileName
         });
         this.telemetry.emit({
             type: 'parse:stage',
@@ -648,6 +956,33 @@ class ParseratorCore {
         }
         return responses;
     }
+    disableLeanLLMPlanRewrite() {
+        if (!this.leanLLMPlanRewriteOptions) {
+            return;
+        }
+        this.leanLLMPlanRewriteOptions = undefined;
+        this.architect = this.baseArchitect;
+        this.logger.info?.('parserator-core:lean-llm-plan-rewrite-disabled');
+    }
+    wrapArchitect(agent) {
+        if (!this.leanLLMPlanRewriteOptions) {
+            return agent;
+        }
+        const options = this.leanLLMPlanRewriteOptions;
+        return (0, hybrid_architect_1.createHybridArchitect)({
+            base: agent,
+            client: options.client,
+            minHeuristicConfidence: options.minHeuristicConfidence,
+            concurrency: options.concurrency,
+            cooldownMs: options.cooldownMs,
+            logger: options.logger ?? this.logger,
+            emitTelemetry: this.emitPlanRewriteTelemetry
+        });
+    }
+    applyArchitect(agent) {
+        this.baseArchitect = agent;
+        this.architect = this.wrapArchitect(agent);
+    }
     getInterceptors() {
         return Array.from(this.interceptors);
     }
@@ -676,6 +1011,13 @@ class ParseratorCore {
             });
             return undefined;
         }
+    }
+    cloneCacheEntry(entry) {
+        return {
+            ...entry,
+            plan: (0, utils_1.clonePlan)(entry.plan, entry.plan.metadata.origin),
+            diagnostics: [...entry.diagnostics]
+        };
     }
     async runBeforeInterceptors(context) {
         for (const interceptor of this.interceptors) {
