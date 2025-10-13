@@ -16,7 +16,8 @@
     "lint": "turbo run lint",
     "clean": "turbo run clean",
     "publish": "turbo run publish",
-    "demo": "node examples/basic-demo.js"
+    "demo": "node examples/basic-demo.js",
+    "onboarding": "node scripts/show-onboarding.js"
   },
   "devDependencies": {
     "turbo": "^1.10.16",
