@@ -7,6 +7,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ParseService = exports.ParseError = void 0;
 const core_1 = require("@parserator/core");
+const lean_llm_clients_1 = require("./lean-llm-clients");
 /**
  * Error thrown when Parse service encounters issues
  */
@@ -28,6 +29,8 @@ class ParseService {
         this.geminiService = geminiService;
         this.config = { ...ParseService.DEFAULT_CONFIG, ...config };
         this.logger = logger || console;
+        const leanPlanOptions = this.buildLeanPlanRewriteOptions();
+        const leanFieldOptions = this.buildLeanFieldFallbackOptions();
         this.core = new core_1.ParseratorCore({
             apiKey: this.config.coreApiKey ?? 'api-internal',
             logger: this.createCoreLogger(),
@@ -38,7 +41,9 @@ class ParseService {
                 minConfidence: this.config.minOverallConfidence,
                 enableFieldFallbacks: this.config.enableFallbacks,
                 defaultStrategy: this.config.coreStrategy ?? 'sequential'
-            }
+            },
+            leanLLMPlanRewrite: leanPlanOptions,
+            leanLLMFieldFallback: leanFieldOptions
         });
         this.logger.info('ParseService initialised with @parserator/core', {
             maxInputLength: this.config.maxInputLength,
@@ -46,6 +51,8 @@ class ParseService {
             minOverallConfidence: this.config.minOverallConfidence,
             coreStrategy: this.config.coreStrategy,
             coreProfile: this.core.getProfile(),
+            leanPlanRewriteEnabled: !!leanPlanOptions,
+            leanFieldFallbackEnabled: !!leanFieldOptions,
             service: 'parse'
         });
     }
@@ -191,10 +198,72 @@ class ParseService {
             enableFieldFallbacks: this.config.enableFallbacks,
             defaultStrategy: this.config.coreStrategy ?? 'sequential'
         });
+        this.leanPlanClient = undefined;
+        this.leanFieldClient = undefined;
+        this.configureLeanLLMFeatures();
         this.logger.info('ParseService configuration updated', {
             newConfig,
+            leanPlanRewriteEnabled: this.config.leanPlanRewrite?.enabled ?? false,
+            leanFieldFallbackEnabled: this.config.leanFieldFallback?.enabled ?? false,
             service: 'parse'
         });
+    }
+    getLeanPlanRewriteState() {
+        return this.core.getLeanLLMPlanRewriteState();
+    }
+    getLeanFieldFallbackState() {
+        return this.core.getLeanLLMFieldFallbackState();
+    }
+    getLeanOrchestrationSnapshot() {
+        const planState = this.getLeanPlanRewriteState();
+        const fieldState = this.getLeanFieldFallbackState();
+        const readinessNotes = [];
+        const recommendedActions = [];
+        if (planState.enabled) {
+            const pendingPlan = planState.queue.pending + planState.queue.inFlight;
+            if (pendingPlan > 0) {
+                readinessNotes.push(`Lean plan rewrite queue processing ${pendingPlan} task${pendingPlan === 1 ? '' : 's'} right now.`);
+            }
+            else {
+                readinessNotes.push('Lean plan rewrite queue is idle and ready for new requests.');
+            }
+            if (planState.pendingCooldown) {
+                readinessNotes.push('Plan rewrite cooldown active; new rewrites will wait for the cooldown window.');
+            }
+            if (planState.lastError) {
+                recommendedActions.push(`Investigate recent plan rewrite error: ${planState.lastError}`);
+            }
+        }
+        else {
+            readinessNotes.push('Lean plan rewrite is disabled; heuristics are the only planner path.');
+            recommendedActions.push('Enable lean plan rewrite when ready to exercise the hybrid planner.');
+        }
+        if (fieldState.enabled) {
+            const pendingFields = fieldState.queue.pending + fieldState.queue.inFlight;
+            if (pendingFields > 0) {
+                readinessNotes.push(`Lean field fallback queue handling ${pendingFields} pending field${pendingFields === 1 ? '' : 's'}.`);
+            }
+            else {
+                readinessNotes.push('Lean field fallback queue is idle and ready for plugin-triggered fallbacks.');
+            }
+            if (fieldState.lastError) {
+                recommendedActions.push(`Investigate recent field fallback error: ${fieldState.lastError}`);
+            }
+        }
+        else {
+            readinessNotes.push('Lean field fallback resolver is disabled; deterministic heuristics will surface misses.');
+            recommendedActions.push('Enable lean field fallback to provide last-chance coverage for required fields.');
+        }
+        if (recommendedActions.length === 0) {
+            recommendedActions.push('Monitor telemetry to confirm queues stay healthy as traffic ramps.');
+        }
+        return {
+            generatedAt: new Date().toISOString(),
+            planRewriteState: planState,
+            fieldFallbackState: fieldState,
+            readinessNotes,
+            recommendedActions
+        };
     }
     createCoreLogger() {
         return {
@@ -328,6 +397,64 @@ class ParseService {
         const random = Math.random().toString(36).substring(2, 8);
         return `parse_${timestamp}_${random}`;
     }
+    buildLeanPlanRewriteOptions() {
+        const config = this.config.leanPlanRewrite;
+        if (!config?.enabled) {
+            this.leanPlanClient = undefined;
+            return undefined;
+        }
+        if (!this.leanPlanClient) {
+            this.leanPlanClient = (0, lean_llm_clients_1.createGeminiLeanPlanClient)({
+                gemini: this.geminiService,
+                logger: this.logger,
+                defaultOptions: config.requestOptions
+            });
+        }
+        return {
+            client: this.leanPlanClient,
+            minHeuristicConfidence: config.minHeuristicConfidence,
+            concurrency: config.concurrency,
+            cooldownMs: config.cooldownMs,
+            logger: this.createCoreLogger()
+        };
+    }
+    buildLeanFieldFallbackOptions() {
+        const config = this.config.leanFieldFallback;
+        if (!config?.enabled) {
+            this.leanFieldClient = undefined;
+            return undefined;
+        }
+        if (!this.leanFieldClient) {
+            this.leanFieldClient = (0, lean_llm_clients_1.createGeminiLeanFieldClient)({
+                gemini: this.geminiService,
+                logger: this.logger,
+                defaultOptions: config.requestOptions
+            });
+        }
+        return {
+            client: this.leanFieldClient,
+            includeOptionalFields: config.includeOptionalFields,
+            minConfidence: config.minConfidence,
+            concurrency: config.concurrency,
+            logger: this.createCoreLogger()
+        };
+    }
+    configureLeanLLMFeatures() {
+        const planOptions = this.buildLeanPlanRewriteOptions();
+        if (planOptions) {
+            this.core.enableLeanLLMPlanRewrite(planOptions);
+        }
+        else {
+            this.core.disableLeanLLMPlanRewrite();
+        }
+        const fieldOptions = this.buildLeanFieldFallbackOptions();
+        if (fieldOptions) {
+            this.core.enableLeanLLMFieldFallback(fieldOptions);
+        }
+        else {
+            this.core.disableLeanLLMFieldFallback();
+        }
+    }
 }
 exports.ParseService = ParseService;
 // Default configuration optimised for production use
@@ -337,6 +464,8 @@ ParseService.DEFAULT_CONFIG = {
     timeoutMs: 60000, // 1 minute total timeout (not currently enforced by core)
     enableFallbacks: true,
     minOverallConfidence: 0.55,
-    coreStrategy: 'sequential'
+    coreStrategy: 'sequential',
+    leanPlanRewrite: { enabled: false },
+    leanFieldFallback: { enabled: false }
 };
 //# sourceMappingURL=parse.service.js.map

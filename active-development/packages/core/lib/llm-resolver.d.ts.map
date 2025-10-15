@@ -1,0 +1,1 @@
+{"version":3,"file":"llm-resolver.d.ts","sourceRoot":"","sources":["../src/llm-resolver.ts"],"names":[],"mappings":"AAAA,OAAO,EAGL,aAAa,EACb,aAAa,EAMb,gCAAgC,EACjC,MAAM,SAAS,CAAC;AAuBjB,UAAU,8BAA+B,SAAQ,gCAAgC;IAC/E,MAAM,EAAE,aAAa,CAAC;CACvB;AAuGD,wBAAgB,6BAA6B,CAC3C,OAAO,EAAE,8BAA8B,GACtC,aAAa,CAwMf"}

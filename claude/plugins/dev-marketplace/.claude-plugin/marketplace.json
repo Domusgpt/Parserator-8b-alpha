@@ -1,0 +1,13 @@
+{
+  "name": "parserator-dev-marketplace",
+  "owner": {
+    "name": "Parserator Dev Team"
+  },
+  "plugins": [
+    {
+      "name": "parserator-lean-orchestration",
+      "source": "./parserator-lean-orchestration",
+      "description": "Commands for monitoring Parserator lean LLM orchestration readiness and running guarded parses"
+    }
+  ]
+}
