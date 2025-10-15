@@ -4,7 +4,10 @@
  */
 
 import { GeminiService } from '../services/llm.service';
-import { ParseService, IParseRequest } from '../services/parse.service';
+import {
+  ParseService,
+  IParseRequest
+} from '../services/parse.service';
 
 // Mock Gemini service for testing
 class MockGeminiService extends GeminiService {
@@ -152,6 +155,74 @@ describe('ParseService Integration Tests', () => {
       expect(health.services.gemini).toBe(true);
       expect(health.timestamp).toBeDefined();
     });
+  });
+});
+
+describe('Lean LLM configuration toggles', () => {
+  let parseService: ParseService;
+
+  beforeEach(() => {
+    const mockGeminiService = new MockGeminiService();
+    parseService = new ParseService(mockGeminiService, undefined, console);
+  });
+
+  it('can enable and disable lean plan rewrite and field fallbacks via config', () => {
+    expect(parseService.getLeanPlanRewriteState().enabled).toBe(false);
+    expect(parseService.getLeanFieldFallbackState().enabled).toBe(false);
+
+    parseService.updateConfig({
+      leanPlanRewrite: { enabled: true, minHeuristicConfidence: 0.8, concurrency: 2 },
+      leanFieldFallback: { enabled: true, minConfidence: 0.7, includeOptionalFields: true, concurrency: 2 }
+    });
+
+    const planState = parseService.getLeanPlanRewriteState();
+    expect(planState.enabled).toBe(true);
+    expect(planState.concurrency).toBe(2);
+
+    const fallbackState = parseService.getLeanFieldFallbackState();
+    expect(fallbackState.enabled).toBe(true);
+    expect(fallbackState.includeOptionalFields).toBe(true);
+    expect(fallbackState.concurrency).toBe(2);
+
+    parseService.updateConfig({
+      leanPlanRewrite: { enabled: false },
+      leanFieldFallback: { enabled: false }
+    });
+
+    expect(parseService.getLeanPlanRewriteState().enabled).toBe(false);
+    expect(parseService.getLeanFieldFallbackState().enabled).toBe(false);
+  });
+});
+
+describe('Lean orchestration snapshot', () => {
+  let parseService: ParseService;
+
+  beforeEach(() => {
+    const mockGeminiService = new MockGeminiService();
+    parseService = new ParseService(mockGeminiService, undefined, console);
+  });
+
+  it('should surface disabled states with recommended enablement actions', () => {
+    const snapshot = parseService.getLeanOrchestrationSnapshot();
+
+    expect(snapshot.planRewriteState.enabled).toBe(false);
+    expect(snapshot.fieldFallbackState.enabled).toBe(false);
+    expect(snapshot.readinessNotes.some(note => note.includes('disabled'))).toBe(true);
+    expect(snapshot.recommendedActions.some(action => action.includes('Enable'))).toBe(true);
+  });
+
+  it('reflects enabled queues as idle when no work is pending', () => {
+    parseService.updateConfig({
+      leanPlanRewrite: { enabled: true, concurrency: 1 },
+      leanFieldFallback: { enabled: true, concurrency: 1, includeOptionalFields: false }
+    });
+
+    const snapshot = parseService.getLeanOrchestrationSnapshot();
+
+    expect(snapshot.planRewriteState.enabled).toBe(true);
+    expect(snapshot.fieldFallbackState.enabled).toBe(true);
+    expect(snapshot.readinessNotes.some(note => note.includes('queue is idle'))).toBe(true);
+    expect(snapshot.generatedAt).toBeDefined();
   });
 });
 

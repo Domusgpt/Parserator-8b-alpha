@@ -46,6 +46,8 @@ const { parsedData } = await response.json();
 2. **⚡ The Extractor**: Executes the plan on your full dataset
 3. **📊 Result**: Same accuracy, 70% fewer tokens
 
+ParseratorCore now ships with an optional *lean LLM plan rewrite* path. When enabled, heuristics remain on the hot path and only hand the search plan to an inexpensive model when confidence dips below your configured floor. The rewrite rides the same async queue used for cache persistence, so concurrency limits, telemetry, and cooldown controls stay consistent across the stack.
+
 ## 🤖 AI Agent Integrations
 
 ### LangChain
