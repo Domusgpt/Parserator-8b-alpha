@@ -17,6 +17,7 @@ Welcome to the Parserator codebase. This note is the first stop for autonomous a
 | Build Node SDK | `active-development/packages/sdk-node` | `npm run build` | Ship distributable artifacts for downstream automation. |
 | Run session examples | `active-development/packages/sdk-node` | `npm run example:advanced` | Observe session + batch helpers with the newest heuristic defaults. |
 | Blast the cheat sheet | repo root | `npm run onboarding` | Print the CLI onboarding table and reminder to #add-this-to-memory. |
+| Package Claude plugin | repo root | `./claude/plugins/package-lean-plugin.sh` | Bundle the lean orchestration plugin and release notes for marketplace submission. |
 
 > **Tip:** The workspace packages are intentionally decoupled. Install and build only what you need to keep setups light for EMA "freedom to leave" expectations.
 
