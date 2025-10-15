@@ -249,7 +249,7 @@ app.get('/health', ensureInitialized, async (req: express.Request, res: express.
   try {
     const health = await parseService.getHealthStatus();
     const status = health.status === 'healthy' ? 200 : 503;
-    
+
     const response = {
       status: health.status,
       version: '1.0.0',
@@ -272,10 +272,32 @@ app.get('/health', ensureInitialized, async (req: express.Request, res: express.
 });
 
 /**
+ * Lean orchestration snapshot endpoint (admin only)
+ */
+app.get('/v1/lean/snapshot',
+  ensureInitialized,
+  authenticateApiKey,
+  requireAdmin,
+  (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+      const snapshot = parseService.getLeanOrchestrationSnapshot();
+
+      res.json({
+        success: true,
+        snapshot,
+        requestId: (req as any).requestId
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * Main parsing endpoint with authentication
  */
-app.post('/v1/parse', 
-  ensureInitialized, 
+app.post('/v1/parse',
+  ensureInitialized,
   authenticateApiKey, 
   incrementUsage,
   async (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -335,7 +357,8 @@ app.get('/v1/info', (req: express.Request, res: express.Response) => {
       'POST /v1/parse': 'Main parsing endpoint (requires API key)',
       'GET /health': 'Service health check',
       'GET /v1/info': 'API information',
-      'GET /v1/usage': 'Current usage statistics (requires API key)'
+      'GET /v1/usage': 'Current usage statistics (requires API key)',
+      'GET /v1/lean/snapshot': 'Lean orchestration readiness (admin API key)'
     },
     requestId: (req as any).requestId
   });
@@ -459,7 +482,8 @@ app.use('*', (req: express.Request, res: express.Response) => {
         availableEndpoints: [
           'POST /v1/parse',
           'GET /health',
-          'GET /v1/info'
+          'GET /v1/info',
+          'GET /v1/lean/snapshot'
         ]
       }
     }
