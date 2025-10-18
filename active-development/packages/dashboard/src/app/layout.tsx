@@ -6,13 +6,14 @@ import { Toaster } from 'react-hot-toast';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Parserator Dashboard - Intelligent Data Parsing API',
-  description: 'Manage your Parserator API keys, track usage, and scale your data parsing operations.',
-  keywords: 'data parsing, API, AI, machine learning, developer tools',
+  title: 'Parserator – Freedom-First Data Parsing',
+  description:
+    'Parserator delivers a two-stage Architect → Extractor pipeline with 95% accuracy, transparent diagnostics, and EMA-aligned portability.',
+  keywords: 'parserator, data parsing, ema, architect extractor, ai parsing, freedom to leave, api, sdk',
   openGraph: {
-    title: 'Parserator Dashboard',
-    description: 'Transform any unstructured data into clean, structured JSON',
-    url: 'https://app.parserator.com',
+    title: 'Parserator – Freedom-First Data Parsing',
+    description: 'Transform messy documents into structured data with the EMA-aligned Architect → Extractor pipeline.',
+    url: 'https://parserator.com',
     siteName: 'Parserator',
     images: [
       {
@@ -26,8 +27,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Parserator Dashboard',
-    description: 'Transform any unstructured data into clean, structured JSON',
+    title: 'Parserator – Freedom-First Data Parsing',
+    description: 'Transform any unstructured data into clean, structured JSON with clear diagnostics and EMA guardrails.',
     images: ['https://parserator.com/og-image.png'],
   },
   robots: {
