@@ -1,0 +1,18 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cardArc" x1="40" y1="40" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="stack" x1="60" y1="56" x2="100" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect x="18" y="18" width="124" height="124" rx="24" fill="#020617" stroke="url(#cardArc)" stroke-width="4"/>
+  <path d="M42 104C42 80.804 60.804 62 84 62C107.196 62 126 80.804 126 104" stroke="#38bdf8" stroke-width="6" stroke-linecap="round" opacity="0.6"/>
+  <path d="M52 104C52 85.4315 67.4315 70 86 70C104.569 70 120 85.4315 120 104" stroke="url(#cardArc)" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
+  <rect x="56" y="52" width="56" height="44" rx="12" fill="url(#stack)" opacity="0.85"/>
+  <rect x="60" y="56" width="48" height="8" rx="4" fill="#0ea5e9" opacity="0.9"/>
+  <circle cx="84" cy="104" r="10" fill="#facc15"/>
+</svg>

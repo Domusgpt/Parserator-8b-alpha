@@ -103,7 +103,7 @@
   .text-gradient {
     @apply bg-gradient-to-r from-primary-600 to-primary-700 bg-clip-text text-transparent;
   }
-  
+
   .shadow-glow {
     box-shadow: 0 0 20px rgba(14, 165, 233, 0.15);
   }
@@ -167,4 +167,199 @@
 
 .api-key-revealed {
   @apply api-key text-gray-900 bg-yellow-50 border-yellow-200;
+}
+
+/* Marketing refresh styles */
+.background-grid {
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.08) 1px, transparent 0);
+  background-size: 48px 48px;
+  z-index: 0;
+  opacity: 0.7;
+}
+
+.background-glow {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.25), transparent 55%),
+    radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.28), transparent 50%),
+    radial-gradient(circle at 50% 80%, rgba(56, 189, 248, 0.18), transparent 55%);
+  filter: blur(0px);
+  opacity: 0.9;
+  z-index: 0;
+}
+
+.nav-link {
+  @apply relative transition text-slate-300 hover:text-white;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: -12px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.0), rgba(14, 165, 233, 0.8), rgba(14, 165, 233, 0.0));
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.3s ease;
+}
+
+.nav-link:hover::after {
+  transform: scaleX(1);
+}
+
+.btn-glow {
+  @apply inline-flex items-center rounded-xl bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 transition;
+}
+
+.btn-glow:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 24px 35px -18px rgba(14, 165, 233, 0.6);
+}
+
+.btn-glow-secondary {
+  @apply inline-flex items-center rounded-xl border border-sky-400/40 bg-slate-900/70 px-5 py-2 text-sm font-semibold text-sky-200 transition hover:text-white hover:border-sky-300;
+}
+
+.btn-primary-hero {
+  @apply inline-flex items-center rounded-xl bg-gradient-to-br from-sky-400 via-blue-500 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-900/40 transition hover:-translate-y-0.5;
+}
+
+.btn-secondary-hero {
+  @apply inline-flex items-center rounded-xl border border-white/10 bg-slate-900/60 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:border-sky-400/40 hover:text-white;
+}
+
+.bent-card {
+  @apply relative rounded-2xl border border-white/10 bg-slate-900/70 p-5 shadow-lg shadow-slate-950/40;
+  backdrop-filter: blur(10px);
+}
+
+.bent-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.35), rgba(14, 165, 233, 0));
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.bent-card::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  pointer-events: none;
+}
+
+.hero-slab {
+  @apply relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/50;
+  backdrop-filter: blur(20px);
+}
+
+.hero-slab::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.15), rgba(14, 165, 233, 0));
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.glass-row {
+  @apply flex items-start space-x-4 rounded-2xl border border-white/5 bg-white/5 px-4 py-3;
+  backdrop-filter: blur(12px);
+}
+
+.section-wrapper {
+  @apply mx-auto max-w-7xl px-6 py-20;
+}
+
+.section-header {
+  @apply mb-12 space-y-6 text-center;
+}
+
+.section-eyebrow {
+  @apply mx-auto inline-flex items-center space-x-3 rounded-full border border-white/10 bg-slate-900/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-sky-200/70;
+}
+
+.section-title {
+  @apply text-balance text-3xl font-semibold text-white sm:text-4xl;
+}
+
+.section-description {
+  @apply mx-auto max-w-2xl text-sm text-slate-300;
+}
+
+.stage-card {
+  @apply relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/70 p-8 shadow-xl shadow-slate-950/50 transition hover:-translate-y-1;
+}
+
+.stage-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 28px;
+  background: radial-gradient(circle at top, rgba(56, 189, 248, 0.25), transparent 60%);
+  pointer-events: none;
+}
+
+.stage-icon {
+  @apply flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/20 text-sky-200 shadow-inner shadow-sky-900/40;
+}
+
+.feature-card {
+  @apply relative h-full rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-lg shadow-slate-950/40 transition hover:-translate-y-1;
+  backdrop-filter: blur(12px);
+}
+
+.feature-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  pointer-events: none;
+}
+
+.feature-icon {
+  @apply mb-5 flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-200;
+}
+
+.ema-card {
+  @apply rounded-3xl border border-sky-400/20 bg-slate-900/70 p-6 text-left shadow-lg shadow-sky-900/40;
+}
+
+.ecosystem-card {
+  @apply relative flex h-full flex-col rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-lg shadow-slate-950/40 transition hover:-translate-y-1;
+  backdrop-filter: blur(14px);
+}
+
+.ecosystem-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  pointer-events: none;
+}
+
+.ecosystem-card.mirrored {
+  transform-style: preserve-3d;
+}
+
+.readiness-card {
+  @apply h-full rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-lg shadow-slate-950/40;
+}
+
+.cta-panel {
+  @apply flex flex-col gap-8 rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900/90 to-slate-950 p-10 shadow-2xl shadow-slate-950/60 lg:flex-row lg:items-center lg:justify-between;
+}
+
+.footer-link {
+  @apply transition hover:text-white;
 }
