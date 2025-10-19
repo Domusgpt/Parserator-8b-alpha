@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parserator | Experience Gallery</title>
+    <meta
+      name="description"
+      content="Compare four marketing-ready Parserator landing page concepts with shared EMA commitments, performance telemetry, and Clear Seas ecosystem links."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/index.css" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <nav data-reveal>
+        <div class="nav-inner">
+          <a class="brand" href="#top" data-tilt>
+            <svg viewBox="0 0 64 64" role="img" aria-label="Parserator mark">
+              <defs>
+                <linearGradient id="parseratorGradient" x1="6%" x2="94%" y1="8%" y2="92%">
+                  <stop offset="0%" stop-color="#5f7cff" />
+                  <stop offset="55%" stop-color="#a855f7" />
+                  <stop offset="100%" stop-color="#31d7ff" />
+                </linearGradient>
+                <linearGradient id="parseratorGlow" x1="0%" x2="100%" y1="0%" y2="100%">
+                  <stop offset="0%" stop-color="rgba(121, 168, 255, 0.6)" />
+                  <stop offset="100%" stop-color="rgba(81, 208, 255, 0.15)" />
+                </linearGradient>
+              </defs>
+              <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#parseratorGlow)" opacity="0.4" />
+              <path
+                d="M18 46c6.4-1.6 11.8-6.4 14-12.5C30.6 28 25 23 18 22.4l3.4-8.5C33 16.5 41 24.8 41 33.4 41 42.1 33.6 50 23.2 50c-1.8 0-3.8-.2-5.2-.6z"
+                fill="url(#parseratorGradient)"
+              />
+              <path
+                d="M46 15.8c-4.2 8.6-7.4 14.3-13.6 21.3-3.6 4-8.7 7.9-13.4 10.5L22 56c8.3-3.1 16-8.6 21.7-15.7C49.2 34.6 52 28 54 20z"
+                fill="#ffffff"
+                opacity="0.35"
+              />
+            </svg>
+            <span>Parserator</span>
+          </a>
+          <button
+            class="mobile-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="primary-navigation"
+            data-mobile-toggle
+          >
+            <span class="sr-only">Toggle navigation</span>
+            &#9776;
+          </button>
+          <ul class="nav-links" id="primary-navigation" aria-expanded="false" data-nav-links>
+            <li><a href="#gallery">Builds</a></li>
+            <li><a href="#context">Highlights</a></li>
+            <li><a href="#footer">Contact</a></li>
+          </ul>
+          <div class="nav-actions">
+            <a class="button" href="https://parserator-production.web.app/" target="_blank" rel="noreferrer" data-tilt>
+              Dashboard
+            </a>
+            <a class="button primary" href="https://parserator-production.web.app/docs" target="_blank" rel="noreferrer" data-tilt>
+              Product Docs
+            </a>
+          </div>
+        </div>
+      </nav>
+
+      <main id="top">
+        <section class="hero" data-reveal>
+          <div class="hero-copy" data-tilt>
+            <p class="tag-strip"><span>Gallery</span>Marketing builds</p>
+            <h1>Choose the Parserator experience that lands with your launch goals.</h1>
+            <p>
+              Each concept keeps the documented two-stage Architect → Extractor story, the 95% accuracy telemetry, and the
+              Exoditical Moral Architecture (EMA) commitments intact while exploring different navigation, motion, and card
+              bending treatments.
+            </p>
+            <div class="hero-metrics">
+              <dl class="metric" data-tilt>
+                <dt>Accuracy</dt>
+                <dd>95% today · 97% target</dd>
+              </dl>
+              <dl class="metric" data-tilt>
+                <dt>Latency</dt>
+                <dd>~2.2s average response</dd>
+              </dl>
+              <dl class="metric" data-tilt>
+                <dt>Token efficiency</dt>
+                <dd>≈70% fewer tokens</dd>
+              </dl>
+              <dl class="metric" data-tilt>
+                <dt>Surfaces</dt>
+                <dd>API · Node SDK · MCP</dd>
+              </dl>
+            </div>
+          </div>
+          <div class="hero-visual" data-tilt>
+            <div class="preview-shell" aria-hidden="true">
+              <iframe src="variants/orion/index.html" loading="lazy" title="Variant preview"></iframe>
+            </div>
+          </div>
+        </section>
+
+        <section class="gallery" id="gallery">
+          <div class="section-header" data-reveal>
+            <h2>Four production-ready directions</h2>
+            <p>
+              Review inline previews or open each build in a dedicated tab. Every version ships with the same marketing copy,
+              CTA destinations, and telemetry grounded in the published docs.
+            </p>
+          </div>
+          <div class="build-grid">
+            <article class="build-card" data-build-card data-tilt data-reveal>
+              <header>
+                <p class="tag-strip"><span>01</span>Neon glass decks</p>
+                <h3>Variant Orion</h3>
+                <p>
+                  A high-contrast glassmorphism look that mirrors Nimbus Guardian while elevating Parserator’s architect timeline
+                  with layered micro-interactions.
+                </p>
+              </header>
+              <div class="preview-shell" hidden data-preview-frame>
+                <iframe src="variants/orion/index.html" loading="lazy" title="Variant Orion preview"></iframe>
+              </div>
+              <footer>
+                <button class="button" type="button" data-preview-toggle>Show inline preview</button>
+                <a class="button primary" href="variants/orion/index.html" target="_blank" rel="noreferrer">Open variant</a>
+              </footer>
+            </article>
+
+            <article class="build-card" data-build-card data-tilt data-reveal>
+              <header>
+                <p class="tag-strip"><span>02</span>Timeline cascade</p>
+                <h3>Variant Cascade</h3>
+                <p>
+                  A vertical journey anchored by a split navigation rail, animated EMA commitments, and timeline storytelling for
+                  product leaders comparing migration scenarios.
+                </p>
+              </header>
+              <div class="preview-shell" hidden data-preview-frame>
+                <iframe src="variants/cascade/index.html" loading="lazy" title="Variant Cascade preview"></iframe>
+              </div>
+              <footer>
+                <button class="button" type="button" data-preview-toggle>Show inline preview</button>
+                <a class="button primary" href="variants/cascade/index.html" target="_blank" rel="noreferrer">Open variant</a>
+              </footer>
+            </article>
+
+            <article class="build-card" data-build-card data-tilt data-reveal>
+              <header>
+                <p class="tag-strip"><span>03</span>Signal pulses</p>
+                <h3>Variant Pulse</h3>
+                <p>
+                  A motion-forward layout with stacked spotlight cards, animated signal bars, and code-led CTA rows ideal for
+                  developer-focused campaigns.
+                </p>
+              </header>
+              <div class="preview-shell" hidden data-preview-frame>
+                <iframe src="variants/pulse/index.html" loading="lazy" title="Variant Pulse preview"></iframe>
+              </div>
+              <footer>
+                <button class="button" type="button" data-preview-toggle>Show inline preview</button>
+                <a class="button primary" href="variants/pulse/index.html" target="_blank" rel="noreferrer">Open variant</a>
+              </footer>
+            </article>
+
+            <article class="build-card" data-build-card data-tilt data-reveal>
+              <header>
+                <p class="tag-strip"><span>04</span>Ecosystem grid</p>
+                <h3>Variant Lumen</h3>
+                <p>
+                  A modular grid inspired by Reposiologist’s bending cards featuring quick-compare stats, integration toggles, and
+                  CTA focus for teams scoping implementation.
+                </p>
+              </header>
+              <div class="preview-shell" hidden data-preview-frame>
+                <iframe src="variants/lumen/index.html" loading="lazy" title="Variant Lumen preview"></iframe>
+              </div>
+              <footer>
+                <button class="button" type="button" data-preview-toggle>Show inline preview</button>
+                <a class="button primary" href="variants/lumen/index.html" target="_blank" rel="noreferrer">Open variant</a>
+              </footer>
+            </article>
+          </div>
+        </section>
+
+        <section class="context-section" id="context">
+          <div class="context-grid">
+            <article class="context-card" data-reveal data-tilt>
+              <h3>Documented proof points</h3>
+              <ul>
+                <li>95% field accuracy in production with a 97% target on deck.【F:README.md†L225-L239】</li>
+                <li>~2.2 second Architect → Extractor responses measured across the API.【F:README.md†L225-L239】</li>
+                <li>≈70% token savings over single-pass prompting across docs and SDK messaging.【F:README.md†L1-L26】【F:IMMEDIATE_FIXES_GUIDE.md†L135-L144】</li>
+              </ul>
+            </article>
+            <article class="context-card" data-reveal data-tilt>
+              <h3>EMA alignment</h3>
+              <ul>
+                <li>Freedom-to-leave posture reinforced by diagnostic transparency and portable SDKs.【F:essential-context/EMA_WHITE_PAPER.md†L13-L218】</li>
+                <li>Telemetry-first design so operators can audit every extraction before shipping downstream.【F:claude/architecture.md†L1-L112】</li>
+                <li>Clear Seas ecosystem keeps migrations reversible across Nimbus Guardian and DomusGPT Clear Seas Enhanced.</li>
+              </ul>
+            </article>
+            <article class="context-card" data-reveal data-tilt>
+              <h3>Compare next steps</h3>
+              <ul>
+                <li>Call the production REST endpoint or plug in the Node SDK within minutes.【F:README.md†L200-L240】</li>
+                <li>Jump into the hosted dashboard for live instrumentation and job replay.</li>
+                <li>Email <a href="mailto:chairman@parserator.com">chairman@parserator.com</a> for launch coordination.</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer" id="footer">
+        <div class="brand-stack" data-reveal>
+          <div class="logo-lockup">
+            <svg viewBox="0 0 64 64" role="img" aria-label="Clear Seas logo">
+              <defs>
+                <linearGradient id="clearSeasGradient" x1="0%" x2="100%" y1="0%" y2="100%">
+                  <stop offset="0%" stop-color="#60f8ff" />
+                  <stop offset="100%" stop-color="#3d7bff" />
+                </linearGradient>
+              </defs>
+              <rect x="6" y="6" width="52" height="52" rx="18" fill="rgba(96, 248, 255, 0.1)" />
+              <path
+                d="M14 34c6 5.4 12.4 8 18.2 8 6 0 11.9-2.3 17.8-7l-4.4-5.6c-4.2 3.5-8.5 5-13.2 5-4.9 0-9.3-1.7-13.5-5.3z"
+                fill="url(#clearSeasGradient)"
+              />
+              <path
+                d="M19 24.5c4.5 3.6 9 5.3 13.4 5.3 4.6 0 8.8-1.5 13-4.8L41 19c-2.6 1.9-5.2 2.8-8.5 2.8-3.4 0-6.5-1-9.8-3.2z"
+                fill="#ffffff"
+                opacity="0.55"
+              />
+            </svg>
+            <div>
+              <strong>Clear Seas Network</strong>
+              <p class="footer-note">Parserator · Nimbus Guardian · Reposiologist · DomusGPT Clear Seas Enhanced</p>
+            </div>
+          </div>
+          <div class="badges">
+            <span>Architect → Extractor</span>
+            <span>EMA compliant</span>
+            <span>Freedom to leave</span>
+          </div>
+        </div>
+        <div class="footer-links" data-reveal>
+          <a href="https://parserator-production.web.app/" target="_blank" rel="noreferrer">Parserator Dashboard</a>
+          <a href="https://parserator-production.web.app/docs" target="_blank" rel="noreferrer">Parserator Docs</a>
+          <a href="https://nimbus-guardian.web.app/" target="_blank" rel="noreferrer">Nimbus Guardian</a>
+          <a href="https://reposiologist-beta.web.app/" target="_blank" rel="noreferrer">Reposiologist Beta</a>
+          <a href="https://domusgpt.github.io/ClearSeas-Enhanced/" target="_blank" rel="noreferrer">DomusGPT Clear Seas Enhanced</a>
+        </div>
+        <div class="footer-links" data-reveal>
+          <strong>Contact</strong>
+          <a href="mailto:chairman@parserator.com">chairman@parserator.com</a>
+          <a href="https://parserator.com" target="_blank" rel="noreferrer">Legacy Parserator.com</a>
+        </div>
+        <div class="footer-links" data-reveal>
+          <strong>Brand marks</strong>
+          <svg viewBox="0 0 64 64" role="img" aria-label="CSS3 logo">
+            <defs>
+              <linearGradient id="cssShield" x1="0%" x2="0%" y1="0%" y2="100%">
+                <stop offset="0%" stop-color="#2965f1" />
+                <stop offset="100%" stop-color="#1c3fc7" />
+              </linearGradient>
+            </defs>
+            <path d="M12 6h40l-4 45-16 7-16-7z" fill="url(#cssShield)" />
+            <path d="M32 54.3l12.3-5.4 3.4-36H32z" fill="#1a2f80" opacity="0.45" />
+            <path
+              d="M32 18h14l-.6 6H32zm0 12h13.4l-.9 9.3-12.5 5.6zM32 42.1v7.1l-8-3.5-.5-6H32zm0-12.1H20.7l.4 4.4H32zm0-12H19l.4 6H32z"
+              fill="#fff"
+            />
+          </svg>
+          <p class="footer-note">
+            CSS3 badge retained per request. Parserator variants stay aligned with the Clear Seas aesthetic system.
+          </p>
+          <p class="footer-note">© <span data-current-year></span> Parserator · Clear Seas Initiative</p>
+        </div>
+      </footer>
+    </div>
+    <script src="assets/js/common.js"></script>
+    <script src="assets/js/index.js"></script>
+  </body>
+</html>

@@ -1,0 +1,574 @@
+:root {
+  color-scheme: dark;
+  --bg: radial-gradient(circle at 15% 15%, rgba(48, 72, 148, 0.7), rgba(5, 8, 20, 0.95) 65%);
+  --text: #f1f5ff;
+  --muted: rgba(210, 220, 255, 0.78);
+  --accent: linear-gradient(130deg, #61b4ff, #9f5dff 55%, #3fe8ff 100%);
+  --surface: rgba(10, 14, 36, 0.84);
+  --border: rgba(118, 140, 224, 0.32);
+  --radius: 24px;
+  --transition: 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover,
+a:focus-visible {
+  text-decoration: underline;
+}
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.mast {
+  position: sticky;
+  top: 0;
+  backdrop-filter: blur(18px);
+  background: rgba(6, 8, 22, 0.88);
+  border-bottom: 1px solid rgba(118, 140, 224, 0.28);
+  z-index: 12;
+}
+
+.mast-inner {
+  width: min(1180px, 92vw);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  justify-content: space-between;
+  padding: 1rem 0;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 1rem;
+}
+
+.brand svg {
+  width: 44px;
+  height: 44px;
+  filter: drop-shadow(0 0 20px rgba(97, 180, 255, 0.6));
+}
+
+.mast-nav {
+  display: flex;
+  gap: 1.1rem;
+}
+
+.mast-nav a {
+  font-weight: 500;
+  opacity: 0.8;
+  transition: opacity var(--transition);
+}
+
+.mast-nav a:hover,
+.mast-nav a:focus-visible {
+  opacity: 1;
+}
+
+.mobile-toggle {
+  display: none;
+  padding: 0.45rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(118, 140, 224, 0.35);
+  background: rgba(16, 20, 48, 0.8);
+  color: var(--text);
+}
+
+.mast-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.35rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.button.primary {
+  background: var(--accent);
+  color: #050510;
+  box-shadow: 0 18px 40px rgba(97, 180, 255, 0.34);
+}
+
+.button.outline {
+  background: transparent;
+  border-color: rgba(118, 140, 224, 0.4);
+  color: var(--text);
+}
+
+.button.ghost {
+  background: rgba(12, 16, 38, 0.72);
+  border-color: rgba(118, 140, 224, 0.35);
+  color: var(--text);
+}
+
+.button:hover,
+.button:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(90, 150, 255, 0.3);
+}
+
+main {
+  flex: 1;
+}
+
+.hero,
+.spotlights,
+.workflow,
+.integration,
+.ema,
+.ecosystem,
+.cta {
+  width: min(1180px, 92vw);
+  margin: 0 auto;
+  padding: 4rem 0;
+}
+
+.hero {
+  display: grid;
+  gap: 2.5rem;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2.5rem;
+  align-items: center;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.78rem;
+  color: rgba(204, 214, 255, 0.8);
+}
+
+.hero h1 {
+  margin: 0.4rem 0 1.4rem;
+  font-family: 'Orbitron', 'Inter', sans-serif;
+  font-size: clamp(2.6rem, 3.8vw + 1rem, 3.5rem);
+  line-height: 1.1;
+}
+
+.hero p {
+  color: var(--muted);
+  margin-bottom: 2rem;
+}
+
+.hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.metric {
+  padding: 1.25rem;
+  border-radius: var(--radius);
+  background: rgba(9, 13, 32, 0.88);
+  border: 1px solid rgba(118, 140, 224, 0.3);
+  box-shadow: 0 28px 52px rgba(8, 11, 26, 0.56);
+  display: grid;
+  gap: 0.2rem;
+  text-align: center;
+}
+
+.metric span {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.metric label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: rgba(204, 214, 255, 0.72);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.hero-visual {
+  display: grid;
+  gap: 1.5rem;
+  justify-items: center;
+}
+
+.signal {
+  display: grid;
+  grid-template-columns: repeat(4, 12px);
+  gap: 12px;
+  height: 160px;
+  align-items: end;
+}
+
+.signal span {
+  display: block;
+  width: 12px;
+  border-radius: 8px;
+  background: var(--accent);
+  animation: pulse-bars 2s ease-in-out infinite;
+}
+
+.signal span:nth-child(2) {
+  animation-delay: -0.4s;
+}
+
+.signal span:nth-child(3) {
+  animation-delay: -0.8s;
+}
+
+.signal span:nth-child(4) {
+  animation-delay: -1.2s;
+}
+
+.hero-card {
+  padding: 1.75rem;
+  border-radius: var(--radius);
+  background: rgba(9, 13, 32, 0.88);
+  border: 1px solid rgba(120, 142, 224, 0.3);
+  box-shadow: 0 28px 52px rgba(8, 11, 26, 0.56);
+  width: min(320px, 100%);
+}
+
+.hero-card h3 {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+}
+
+.hero-card ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+
+.spotlights header,
+.workflow header,
+.integration header,
+.ema header,
+.ecosystem header {
+  max-width: 720px;
+  margin-bottom: 2rem;
+}
+
+.spotlights h2,
+.workflow h2,
+.integration h2,
+.ema h2,
+.ecosystem h2,
+.cta h2 {
+  margin: 0 0 0.75rem;
+  font-family: 'Orbitron', 'Inter', sans-serif;
+  font-size: clamp(2.1rem, 2.6vw + 1rem, 2.8rem);
+}
+
+.spotlights p,
+.workflow p,
+.integration p,
+.ema p,
+.ecosystem p,
+.cta p {
+  color: var(--muted);
+}
+
+.spotlight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.spotlight {
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  background: rgba(9, 13, 32, 0.88);
+  border: 1px solid rgba(118, 140, 224, 0.3);
+  box-shadow: 0 24px 48px rgba(8, 11, 26, 0.52);
+}
+
+.workflow-inner {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  align-items: start;
+}
+
+.workflow-copy ol {
+  margin: 1.5rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--muted);
+  display: grid;
+  gap: 1rem;
+}
+
+.workflow-copy strong {
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.workflow-card {
+  padding: 1.8rem;
+  border-radius: var(--radius);
+  background: rgba(9, 13, 32, 0.88);
+  border: 1px solid rgba(118, 140, 224, 0.3);
+  box-shadow: 0 24px 50px rgba(8, 11, 26, 0.52);
+}
+
+.workflow-card dl {
+  margin: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.workflow-card dt {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.workflow-card dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+.integration-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.integration-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+
+.integration-panel {
+  padding: 1.6rem;
+  border-radius: var(--radius);
+  background: rgba(8, 12, 30, 0.9);
+  border: 1px solid rgba(118, 140, 224, 0.3);
+  box-shadow: 0 26px 52px rgba(8, 11, 26, 0.52);
+}
+
+.integration-tabs {
+  display: inline-flex;
+  padding: 0.3rem;
+  border-radius: 999px;
+  border: 1px solid rgba(118, 140, 224, 0.32);
+  background: rgba(12, 16, 36, 0.9);
+  margin-bottom: 1rem;
+}
+
+.tab {
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  border: none;
+  background: transparent;
+  color: rgba(204, 214, 255, 0.8);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.tab.is-active {
+  background: var(--accent);
+  color: #04040f;
+}
+
+.code {
+  margin: 0;
+  padding: 1.25rem;
+  border-radius: calc(var(--radius) - 6px);
+  background: rgba(6, 10, 26, 0.92);
+  border: 1px solid rgba(116, 138, 220, 0.28);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: rgba(224, 234, 255, 0.92);
+  overflow-x: auto;
+}
+
+.integration-cta {
+  padding: 1.6rem;
+  border-radius: var(--radius);
+  background: rgba(9, 13, 32, 0.88);
+  border: 1px solid rgba(118, 140, 224, 0.3);
+  box-shadow: 0 24px 48px rgba(8, 11, 26, 0.5);
+  display: grid;
+  gap: 1rem;
+}
+
+.ema-grid,
+.ecosystem-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.ema-card,
+.ecosystem-card {
+  padding: 1.4rem;
+  border-radius: var(--radius);
+  background: rgba(9, 13, 32, 0.88);
+  border: 1px solid rgba(118, 140, 224, 0.3);
+  box-shadow: 0 24px 48px rgba(8, 11, 26, 0.5);
+}
+
+.ecosystem-card ul {
+  margin: 0.8rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+
+.cta-card {
+  padding: 2rem;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(97, 180, 255, 0.24), rgba(9, 12, 30, 0.92));
+  border: 1px solid rgba(118, 140, 224, 0.32);
+  box-shadow: 0 30px 56px rgba(8, 11, 26, 0.55);
+  display: grid;
+  gap: 1.25rem;
+  text-align: center;
+}
+
+.cta-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cta-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 480ms ease, transform 480ms ease;
+}
+
+[data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes pulse-bars {
+  0%,
+  100% {
+    height: 40px;
+    opacity: 0.6;
+  }
+  50% {
+    height: 120px;
+    opacity: 1;
+  }
+}
+
+@media (max-width: 900px) {
+  .mobile-toggle {
+    display: inline-flex;
+  }
+
+  .mast-nav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: rgba(6, 8, 22, 0.95);
+    border-bottom: 1px solid rgba(118, 140, 224, 0.3);
+    flex-direction: column;
+    padding: 1rem 1.5rem 1.5rem;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height var(--transition);
+  }
+
+  .mast-nav[aria-expanded='true'] {
+    max-height: 320px;
+  }
+
+  .mast-actions {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero,
+  .spotlights,
+  .workflow,
+  .integration,
+  .ema,
+  .ecosystem,
+  .cta {
+    padding: 3rem 0;
+  }
+
+  .hero-actions,
+  .cta-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
