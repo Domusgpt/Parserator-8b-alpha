@@ -3,18 +3,38 @@
  * Handles settings configuration and management
  */
 
+const DEFAULT_BASE_URL = 'https://api.parserator.com';
+const SUPPORT_EMAIL = 'Chairman@parserator.com';
+
+function getExtensionVersion() {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
+      const manifest = chrome.runtime.getManifest();
+      if (manifest?.version) {
+        return manifest.version;
+      }
+    }
+  } catch (error) {
+    console.warn('Unable to determine extension version:', error);
+  }
+
+  return 'dev';
+}
+
 class OptionsManager {
   constructor() {
     this.isLoading = false;
     this.schemas = [];
     this.storageStats = {};
-    
+    this.extensionVersion = getExtensionVersion();
+
     this.init();
   }
 
   async init() {
     await this.loadSettings();
     this.setupEventListeners();
+    this.updateAboutSection();
     await this.loadData();
     await this.checkConnection();
   }
@@ -24,8 +44,8 @@ class OptionsManager {
       // Load API configuration
       const apiConfig = await this.getStorageData('sync', ['apiKey', 'baseUrl', 'timeout']);
       document.getElementById('apiKey').value = apiConfig.apiKey || '';
-      document.getElementById('baseUrl').value = apiConfig.baseUrl || 'https://api.parserator.com';
-      document.getElementById('timeout').value = (apiConfig.timeout || 30000) / 1000;
+      document.getElementById('baseUrl').value = this.normalizeBaseUrl(apiConfig.baseUrl);
+      document.getElementById('timeout').value = Math.max(1, Math.round((apiConfig.timeout || 30000) / 1000));
 
       // Load extension settings
       const settings = await this.getStorageData('sync', ['parserator_settings']);
@@ -81,10 +101,23 @@ class OptionsManager {
   updateStats() {
     document.getElementById('schemasCount').textContent = this.storageStats.schemasCount || 0;
     document.getElementById('resultsCount').textContent = this.storageStats.parsedDataCount || 0;
-    
+
     const usedMB = ((this.storageStats.totalBytes || 0) / (1024 * 1024)).toFixed(2);
     const maxMB = ((this.storageStats.maxStorageBytes || 0) / (1024 * 1024)).toFixed(0);
     document.getElementById('storageUsed').textContent = `${usedMB}/${maxMB} MB`;
+  }
+
+  updateAboutSection() {
+    const versionElement = document.getElementById('extensionVersion');
+    if (versionElement) {
+      versionElement.textContent = this.extensionVersion;
+    }
+
+    const supportLink = document.getElementById('supportEmailLink');
+    if (supportLink) {
+      supportLink.textContent = SUPPORT_EMAIL;
+      supportLink.href = `mailto:${SUPPORT_EMAIL}`;
+    }
   }
 
   setupEventListeners() {
@@ -266,8 +299,9 @@ class OptionsManager {
 
   async saveApiConfig() {
     const apiKey = document.getElementById('apiKey').value.trim();
-    const baseUrl = document.getElementById('baseUrl').value.trim();
-    const timeout = parseInt(document.getElementById('timeout').value) * 1000;
+    const baseUrl = this.normalizeBaseUrl(document.getElementById('baseUrl').value);
+    const timeoutSeconds = parseInt(document.getElementById('timeout').value, 10);
+    const timeout = Number.isFinite(timeoutSeconds) && timeoutSeconds > 0 ? timeoutSeconds * 1000 : 30000;
 
     await this.setStorageData('sync', {
       apiKey,
@@ -369,7 +403,7 @@ class OptionsManager {
       
       // Reset form to defaults
       document.getElementById('apiKey').value = '';
-      document.getElementById('baseUrl').value = 'https://api.parserator.com';
+      document.getElementById('baseUrl').value = DEFAULT_BASE_URL;
       document.getElementById('timeout').value = '30';
       document.getElementById('autoDetect').checked = true;
       document.getElementById('showNotifications').checked = true;
@@ -393,7 +427,7 @@ class OptionsManager {
       if (response.success) {
         const exportData = {
           exportedAt: new Date().toISOString(),
-          version: '1.0.0',
+          version: this.extensionVersion,
           schemas: response.data
         };
         
@@ -462,7 +496,7 @@ class OptionsManager {
       if (response.success) {
         const exportData = {
           exportedAt: new Date().toISOString(),
-          version: '1.0.0',
+          version: this.extensionVersion,
           results: response.data
         };
         
@@ -480,7 +514,7 @@ class OptionsManager {
     const confirmation = prompt(
       'This will permanently delete all schemas and parsed results. Type "DELETE" to confirm:'
     );
-    
+
     if (confirmation !== 'DELETE') {
       return;
     }
@@ -491,6 +525,22 @@ class OptionsManager {
       await this.loadData();
     } catch (error) {
       this.showStatus('Failed to clear data: ' + error.message, 'error');
+    }
+  }
+
+  normalizeBaseUrl(url) {
+    const value = (url || '').trim();
+    if (!value) {
+      return DEFAULT_BASE_URL;
+    }
+
+    try {
+      const parsed = new URL(value);
+      const normalizedPath = parsed.pathname.endsWith('/') && parsed.pathname !== '/' ? parsed.pathname.slice(0, -1) : parsed.pathname;
+      return `${parsed.origin}${normalizedPath === '/' ? '' : normalizedPath}`;
+    } catch (error) {
+      console.warn('Invalid base URL provided, reverting to default:', error);
+      return DEFAULT_BASE_URL;
     }
   }
 

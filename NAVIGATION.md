@@ -67,7 +67,7 @@
 ### **🔴 CRITICAL FIXES (Do These First)**
 
 1. **Domain Redirect Issue**
-   - **Problem**: parserator.com redirects to "/lander" instead of main app
+   - **Status**: parserator.com now opens the dashboard; `/lander` requests 301 to `/`
    - **Location**: Firebase console configuration needed
    - **Action**: Configure domain to point to parserator-production.web.app
    - **Files**: No code changes needed, hosting config only
@@ -79,9 +79,10 @@
    - **Files**: All assets ready, screenshots need taking
 
 3. **Email Setup**
-   - **Problem**: parse@parserator.com not configured
+   - **Problem**: Chairman@parserator.com not configured
    - **Location**: Google Workspace admin (web-based)
    - **Action**: Set up email forwarding to your main email
+   - **Docs**: `docs/SUPPORT_EMAIL_RUNBOOK.md` outlines configuration + evidence capture
    - **Files**: No code needed, admin configuration only
 
 ### **✅ VERIFIED WORKING SYSTEMS (Don't Touch)**

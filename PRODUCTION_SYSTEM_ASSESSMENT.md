@@ -68,7 +68,7 @@
 - ✅ **Complete Code**: Popup, sidepanel, content scripts, background
 - ✅ **Professional Icons**: 16x16, 32x32, 48x48, 128x128 PNG + SVG
 - ✅ **Screenshots**: 4 professional screenshots ready for Web Store
-- ✅ **Built Package**: `parserator-chrome-extension-v1.0.1.zip` ready to upload
+- ✅ **Packaging Script**: Run `npm run package` to emit `parserator-chrome-extension-v1.0.1.zip` (artifact kept outside Git)
 - ✅ **Documentation**: Complete installation and usage guides
 
 **Submission Ready**:
@@ -161,18 +161,17 @@
 
 ### **Priority 1: Infrastructure Fixes** (2 hours total)
 
-**1. Domain Redirect** (30 min) - CRITICAL
-- Firebase Console → Hosting → Add custom domain
-- Configure parserator.com → parserator-production.web.app
-- **Impact**: Unblocks ALL marketing campaigns
+**1. Domain Redirect** (complete)
+- Firebase Hosting now serves parserator.com directly with `/lander` issuing a 301 back to `/`.
+- **Impact**: Marketing campaigns are unblocked.
 
 **2. Chrome Extension** (1 hour) - HIGH
 - Copy extension from `/mnt/c/Users/millz/Parserator/chrome-extension/`
-- Upload `parserator-chrome-extension-v1.0.1.zip` to Chrome Web Store
+- Generate the ZIP with `npm run package` and upload `parserator-chrome-extension-v1.0.1.zip` to the Chrome Web Store
 - **Impact**: Enables extension-based user acquisition
 
 **3. Email Setup** (30 min) - MEDIUM
-- Configure parse@parserator.com Google Workspace forwarding
+- Configure Chairman@parserator.com Google Workspace forwarding
 - **Impact**: Enables customer support
 
 ### **Priority 2: Integration Work** (4-6 hours)
