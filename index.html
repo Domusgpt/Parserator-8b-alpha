@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parserator Landing Experiments</title>
+    <meta
+      name="description"
+      content="Compare four Parserator marketing landing page explorations and route to the preferred Clear Seas deployment."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles/master.css" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g'%3E%3Cstop offset='0' stop-color='%2339d3ff'/%3E%3Cstop offset='1' stop-color='%238340ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%23101b3a'/%3E%3Cpath fill='url(%23g)' d='M22 14h14c10 0 16 6 16 15s-6 15-16 15h-8v6H22zm12 8h-8v14h8c6 0 10-4 10-7s-4-7-10-7Z'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <svg class="visually-hidden" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="parserator-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#39d3ff" />
+          <stop offset="100%" stop-color="#8340ff" />
+        </linearGradient>
+        <linearGradient id="clearseas-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#1ecfff" />
+          <stop offset="100%" stop-color="#5cf8c1" />
+        </linearGradient>
+        <linearGradient id="css-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ffe66d" />
+          <stop offset="100%" stop-color="#ff6ec7" />
+        </linearGradient>
+      </defs>
+      <symbol id="logo-parserator" viewBox="0 0 64 64">
+        <rect width="64" height="64" rx="14" fill="#101b3a" />
+        <path
+          fill="url(#parserator-gradient)"
+          d="M22 14h14c10 0 16 6 16 15s-6 15-16 15h-8v6H22V14Zm12 8h-8v14h8c6 0 10-4 10-7s-4-7-10-7Z"
+        />
+        <circle cx="24" cy="48" r="4" fill="#39d3ff" opacity="0.4" />
+      </symbol>
+      <symbol id="logo-clearseas" viewBox="0 0 72 32">
+        <rect x="1" y="1" width="70" height="30" rx="8" ry="8" fill="#0b1b33" stroke="url(#clearseas-gradient)" />
+        <path
+          fill="none"
+          stroke="url(#clearseas-gradient)"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M12 20c6-5 10-8 24-8s18 3 24 8"
+        />
+        <path
+          fill="none"
+          stroke="#ffffff"
+          stroke-opacity="0.6"
+          stroke-width="2"
+          d="M12 14c6 5 10 8 24 8s18-3 24-8"
+        />
+        <text x="36" y="22" text-anchor="middle" fill="#ecf6ff" font-size="10" font-family="'Inter', sans-serif">
+          Clear Seas
+        </text>
+      </symbol>
+      <symbol id="logo-css" viewBox="0 0 64 64">
+        <rect width="64" height="64" rx="16" fill="#140929" />
+        <path fill="url(#css-gradient)" d="M20 18h20c7 0 12 5 12 14s-5 14-12 14H20z" />
+        <path fill="#140929" d="M26 26h12c3 0 5 2 5 6s-2 6-5 6H26z" />
+        <text x="32" y="56" text-anchor="middle" fill="#ffeefc" font-size="12" font-family="'Orbitron', sans-serif">
+          CSS
+        </text>
+      </symbol>
+    </svg>
+    <header class="site-header">
+      <div class="container header-grid">
+        <div class="header-brand" data-tilt>
+          <svg aria-hidden="true" class="logo-icon">
+            <use href="#logo-parserator"></use>
+          </svg>
+          <div>
+            <p class="eyebrow">Clear Seas Launchpad</p>
+            <h1>Parserator landing explorations</h1>
+            <p>
+              Review four high-fidelity marketing treatments that keep the Nimbus / Reposiologist motion while focusing every
+              storyline on Parserator’s proven Architect → Extractor pipeline.
+            </p>
+          </div>
+        </div>
+        <div class="header-meta">
+          <div class="meta-card" data-tilt>
+            <h2>What to look for</h2>
+            <ul>
+              <li>Marketing clarity on the 95% accuracy · ~2.2s latency narrative.</li>
+              <li>Clear integration paths via REST and the Node SDK.</li>
+              <li>EMA positioning and Clear Seas network cross-links.</li>
+            </ul>
+          </div>
+          <div class="meta-card" data-tilt>
+            <h2>Contact</h2>
+            <p>Questions or approvals route to <a href="mailto:chairman@parserator.com">chairman@parserator.com</a>.</p>
+            <div class="footer-logos">
+              <svg aria-hidden="true" class="footer-logo">
+                <use href="#logo-clearseas"></use>
+              </svg>
+              <svg aria-hidden="true" class="footer-logo">
+                <use href="#logo-css"></use>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main>
+      <section class="variant-gallery">
+        <div class="container">
+          <div class="section-head">
+            <p class="eyebrow">Compare layouts</p>
+            <h2>Pick a variant to open the full landing page</h2>
+            <p>
+              Each option includes identical copy sourced from the active Parserator documentation set and updates the look and
+              feel to explore different Clear Seas inspired aesthetics.
+            </p>
+          </div>
+          <div class="variant-grid">
+            <article class="variant-card" data-tilt>
+              <h3>Variant Alpha</h3>
+              <p>Glassmorphic panels with tilt micro-interactions and gradient momentum proof points.</p>
+              <a class="button" href="variants/variant-alpha/index.html">Open Variant Alpha</a>
+            </article>
+            <article class="variant-card" data-tilt>
+              <h3>Variant Beta</h3>
+              <p>Stacked neon ribbons with scroll-triggered reveals and timeline-centered storytelling.</p>
+              <a class="button" href="variants/variant-beta/index.html">Open Variant Beta</a>
+            </article>
+            <article class="variant-card" data-tilt>
+              <h3>Variant Gamma</h3>
+              <p>Split-screen hero, animated metrics carousel, and modular integration tabs.</p>
+              <a class="button" href="variants/variant-gamma/index.html">Open Variant Gamma</a>
+            </article>
+            <article class="variant-card" data-tilt>
+              <h3>Variant Delta</h3>
+              <p>Editorial narrative layout with layered parallax cards and gradient separators.</p>
+              <a class="button" href="variants/variant-delta/index.html">Open Variant Delta</a>
+            </article>
+          </div>
+        </div>
+      </section>
+      <section class="network-panel">
+        <div class="container network-grid" data-tilt>
+          <div>
+            <h2>Clear Seas ecosystem anchors</h2>
+            <p>
+              Parserator plugs into the same operational lane as Nimbus Guardian and Reposiologist—everything honors EMA freedom
+              to leave while sharing a design language.
+            </p>
+          </div>
+          <ul>
+            <li><a href="https://domusgpt.github.io/ClearSeas-Enhanced/" target="_blank" rel="noreferrer">Clear Seas HQ</a></li>
+            <li><a href="https://nimbus-guardian.web.app/" target="_blank" rel="noreferrer">Nimbus Guardian</a></li>
+            <li><a href="https://reposiologist-beta.web.app/" target="_blank" rel="noreferrer">Reposiologist</a></li>
+            <li><a href="https://parserator-production.web.app/" target="_blank" rel="noreferrer">Parserator Dashboard</a></li>
+          </ul>
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <div class="container footer-bar">
+        <p>&copy; <span data-current-year></span> Clear Seas · Exoditical Moral Architecture</p>
+        <a class="button ghost" href="mailto:chairman@parserator.com">Contact Parserator</a>
+      </div>
+    </footer>
+    <script src="scripts/master.js" defer></script>
+  </body>
+</html>
