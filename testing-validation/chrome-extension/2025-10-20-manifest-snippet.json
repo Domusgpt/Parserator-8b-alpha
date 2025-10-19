@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Parserator",
+  "version": "1.0.1",
+  "description": "Transform unstructured text into structured JSON using AI-powered parsing",
+  "author": "Paul Phillips <phillips.paul.email@gmail.com>",
+  
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "activeTab",
+    "sidePanel",
+    "scripting"
+  ],
+  
+  "host_permissions": [
+    "https://app-5108296280.us-central1.run.app/*",
+    "https://api.parserator.com/*",
+    "http://localhost/*",
+    "https://*/*",

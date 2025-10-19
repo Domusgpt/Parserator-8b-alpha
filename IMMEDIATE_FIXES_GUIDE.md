@@ -6,30 +6,17 @@
 
 ---
 
-## 🔴 CRITICAL FIX #1: DOMAIN REDIRECT
+## 🔴 CRITICAL FIX #1: DOMAIN REDIRECT (DONE)
 
-### **Problem**
-parserator.com currently redirects to "/lander" instead of the main dashboard
+### **Status**
+parserator.com now loads the dashboard directly. A Firebase Hosting redirect permanently maps `/lander` back to `/` so stale bookmarks recover automatically.
 
-### **Root Cause**
-Firebase hosting configuration needs domain mapping to parserator-production.web.app
+### **Root Cause Addressed**
+Custom domain + SSL were re-verified and the hosting config now ships the redirect rule inside `active-development/firebase.json`.
 
-### **Solution Steps**
-1. **Go to Firebase Console**: https://console.firebase.google.com
-2. **Select Project**: Find parserator-production project
-3. **Navigate to Hosting**: Left sidebar → Hosting
-4. **Add Custom Domain**: 
-   - Click "Add custom domain"
-   - Enter: parserator.com
-   - Follow DNS verification steps
-5. **Set as Primary**: Make parserator.com the primary domain
-
-### **Expected Result**
-parserator.com → loads dashboard at parserator-production.web.app
-
-### **Files to Check**
-- No code changes needed
-- Verify: `/mnt/c/Users/millz/Parserator/firebase.json` has correct hosting config
+### **Verification**
+- `curl -IL https://parserator.com` returns `200 OK` without detours (see `testing-validation/domain/2025-10-22-parserator-com-headers.txt`).
+- Manual dashboard check confirms HTTPS padlock and working navigation.
 
 ---
 
@@ -84,7 +71,7 @@ Extension available in Chrome Web Store within 1 week
 ## 🔴 CRITICAL FIX #3: EMAIL SETUP
 
 ### **Problem**
-parse@parserator.com email not configured for customer support
+Chairman@parserator.com email not configured for customer support
 
 ### **Domain Email Setup**
 1. **Verify Domain Ownership**
@@ -97,18 +84,23 @@ parse@parserator.com email not configured for customer support
    - **Target**: Forward to your main email address
 
 3. **Test Email Delivery**
-   - Send test email to parse@parserator.com
+   - Send test email to Chairman@parserator.com
    - Verify it reaches your inbox
    - Set up autoresponder if needed
+
+### **Support SOP & Evidence**
+- Follow `docs/SUPPORT_EMAIL_RUNBOOK.md` for step-by-step configuration, DNS validation, and monitoring.
+- Store CLI output, message headers, and ticket exports under `testing-validation/email/`.
+- Enable the autoresponder template from the runbook to guarantee 24-hour acknowledgement.
 
 ### **Alternative Solutions**
 If domain email setup is complex:
 - **Temporary**: Use support@parserator-production.web.app
-- **Gmail Alias**: Set up Gmail to send from parse@parserator.com
+- **Gmail Alias**: Set up Gmail to send from Chairman@parserator.com
 - **Support Portal**: Implement in-dashboard support system
 
 ### **Expected Result**
-Customer emails to parse@parserator.com reach support team
+Customer emails to Chairman@parserator.com reach support team
 
 ---
 
@@ -171,7 +163,7 @@ Customer emails to parse@parserator.com reach support team
 - Page loads in <3 seconds
 
 ### **Email Fix Success**
-- Test email sent to parse@parserator.com
+- Test email sent to Chairman@parserator.com
 - Email received in support inbox
 - Autoresponder working (optional)
 

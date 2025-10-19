@@ -162,7 +162,7 @@ const result = await client.parse({
 
 ---
 Powered by Parserator - Intelligent Data Parsing
-🌐 https://parserator.com | 📧 parse@parserator.com`;
+🌐 https://parserator.com | 📧 Chairman@parserator.com`;
 
   } else {
     return `❌ PARSERATOR PARSING FAILED
@@ -190,7 +190,7 @@ curl -X POST "https://app-5108296280.us-central1.run.app/v1/parse" \\
 
 ---
 Powered by Parserator - Intelligent Data Parsing  
-🌐 https://parserator.com | 📧 parse@parserator.com`;
+🌐 https://parserator.com | 📧 Chairman@parserator.com`;
   }
 }
 

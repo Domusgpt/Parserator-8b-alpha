@@ -63,7 +63,7 @@ class ParseratorService {
     return {
       'Authorization': `Bearer ${this.apiKey}`,
       'Content-Type': 'application/json',
-      'User-Agent': 'parserator-chrome-extension/1.0.0'
+      'User-Agent': 'parserator-chrome-extension/1.0.1'
     };
   }
 
