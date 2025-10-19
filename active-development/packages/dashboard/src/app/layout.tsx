@@ -45,27 +45,28 @@ export default function RootLayout({
     <html lang="en" className="h-full">
       <body className={`${inter.className} h-full bg-gray-50`}>
         {children}
-        <Toaster 
+        <Toaster
           position="top-right"
           toastOptions={{
             duration: 4000,
             style: {
-              background: '#fff',
-              color: '#374151',
-              border: '1px solid #e5e7eb',
-              borderRadius: '8px',
+              background: 'rgba(15, 23, 42, 0.92)',
+              color: '#f8fafc',
+              border: '1px solid rgba(148, 163, 184, 0.25)',
+              borderRadius: '14px',
+              boxShadow: '0 18px 45px -25px rgba(79,70,229,0.65)',
               fontSize: '14px',
             },
             success: {
               iconTheme: {
-                primary: '#10b981',
-                secondary: '#fff',
+                primary: '#7c3aed',
+                secondary: '#f8fafc',
               },
             },
             error: {
               iconTheme: {
                 primary: '#ef4444',
-                secondary: '#fff',
+                secondary: '#f8fafc',
               },
             },
           }}

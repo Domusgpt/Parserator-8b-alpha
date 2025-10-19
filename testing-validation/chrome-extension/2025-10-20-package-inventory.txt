@@ -1,0 +1,39 @@
+# Note: ZIP generated locally; not committed to Git. Path below reflects the workspace location when evidence was captured.
+Archive:  active-development/chrome-extension/parserator-chrome-extension-v1.0.1.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+     2403  2025-10-18 23:13   manifest.json
+        0  2025-10-18 22:02   assets/
+        0  2025-10-18 22:02   assets/icons/
+      252  2025-10-18 22:02   assets/icons/icon-32.svg
+      474  2025-10-18 22:02   assets/icons/icon-16.png
+     1951  2025-10-18 22:02   assets/icons/icon-48.png
+      251  2025-10-18 22:02   assets/icons/icon-16.svg
+      258  2025-10-18 22:02   assets/icons/icon-128.svg
+      251  2025-10-18 22:02   assets/icons/icon-24.svg
+     1112  2025-10-18 22:02   assets/icons/icon-32.png
+     9051  2025-10-18 22:02   assets/icons/icon-128.png
+      252  2025-10-18 22:02   assets/icons/icon-48.svg
+     2348  2025-10-18 22:02   assets/icons/icon.svg
+        0  2025-10-18 22:02   src/
+        0  2025-10-18 22:02   src/options/
+    18074  2025-10-18 22:02   src/options/options.js
+    12356  2025-10-18 22:02   src/options/options.html
+     7770  2025-10-18 22:02   src/options/options.css
+        0  2025-10-18 22:02   src/popup/
+     8682  2025-10-18 22:02   src/popup/popup.html
+     8620  2025-10-18 22:02   src/popup/popup.css
+    19020  2025-10-18 22:02   src/popup/popup.js
+        0  2025-10-18 22:02   src/sidepanel/
+    10249  2025-10-18 22:02   src/sidepanel/sidepanel.css
+     9710  2025-10-18 22:02   src/sidepanel/sidepanel.html
+    15178  2025-10-18 22:02   src/sidepanel/sidepanel.js
+        0  2025-10-18 22:02   src/lib/
+     8425  2025-10-18 22:02   src/lib/storage.js
+     5164  2025-10-18 22:02   src/lib/parserator-service.js
+        0  2025-10-18 22:02   src/background/
+    15593  2025-10-18 22:02   src/background/background.js
+        0  2025-10-18 22:02   src/content/
+    17969  2025-10-18 22:02   src/content/content.js
+---------                     -------
+   175413                     33 files

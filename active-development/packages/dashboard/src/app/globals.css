@@ -6,12 +6,23 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @layer base {
+  :root {
+    --brand-primary-400: #a78bfa;
+    --brand-primary-500: #8b5cf6;
+    --brand-primary-600: #7c3aed;
+    --brand-primary-700: #4f46e5;
+    --brand-surface: #0f172a;
+    --brand-surface-soft: rgba(15, 23, 42, 0.85);
+    --brand-accent: #fbbf24;
+    --brand-muted: #e0e7ff;
+  }
+
   html {
     font-family: 'Inter', system-ui, sans-serif;
   }
-  
+
   body {
-    @apply antialiased text-gray-900;
+    @apply antialiased text-gray-900 bg-gray-50;
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -39,11 +50,11 @@
   }
   
   .btn-primary {
-    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+    @apply btn bg-primary-600 text-white shadow-lg shadow-primary-600/30 hover:bg-primary-700 focus:ring-primary-500;
   }
-  
+
   .btn-secondary {
-    @apply btn bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500;
+    @apply btn bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 focus:ring-primary-500;
   }
   
   .btn-danger {
@@ -63,7 +74,7 @@
   }
   
   .card {
-    @apply bg-white rounded-lg shadow border border-gray-200;
+    @apply bg-white/95 rounded-2xl border border-white/60 shadow-[0_25px_55px_-30px_rgba(79,70,229,0.6)];
   }
   
   .card-header {
@@ -101,11 +112,39 @@
 
 @layer utilities {
   .text-gradient {
-    @apply bg-gradient-to-r from-primary-600 to-primary-700 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-primary-500 via-primary-600 to-primary-700 bg-clip-text text-transparent;
   }
-  
+
   .shadow-glow {
-    box-shadow: 0 0 20px rgba(14, 165, 233, 0.15);
+    box-shadow: 0 0 40px rgba(79, 70, 229, 0.22);
+  }
+
+  .bg-brand-gradient {
+    background: linear-gradient(135deg, var(--brand-primary-700) 0%, var(--brand-primary-600) 55%, #9333ea 100%);
+  }
+
+  .bg-brand-surface {
+    background: var(--brand-surface);
+  }
+
+  .border-brand-accent {
+    border-color: var(--brand-accent);
+  }
+
+  .text-brand-primary {
+    color: var(--brand-primary-700);
+  }
+
+  .text-brand-accent {
+    color: var(--brand-accent);
+  }
+
+  .brand-badge {
+    @apply inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white backdrop-blur;
+  }
+
+  .brand-metric-card {
+    @apply rounded-2xl border border-white/20 bg-white/10 p-4 text-white backdrop-blur;
   }
   
   .animate-fade-in {

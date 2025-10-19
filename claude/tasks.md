@@ -5,12 +5,11 @@
 ### 🔴 CRITICAL FIXES (Week 1)
 
 #### 1. Domain Redirect Fix
-- **Status**: URGENT - Blocks marketing launch
-- **Problem**: parserator.com redirects to "/lander" instead of dashboard
+- **Status**: ✅ Complete – parserator.com now loads the dashboard; `/lander` requests redirect home
 - **Solution**: Firebase hosting domain configuration
 - **Files**: No code changes needed, Firebase console configuration
 - **Expected Result**: parserator.com loads dashboard correctly
-- **Definition of Done**: 
+- **Definition of Done**:
   - parserator.com loads dashboard without redirect
   - SSL certificate valid
   - Page loads in <3 seconds
@@ -27,7 +26,7 @@
 
 #### 3. Email Configuration
 - **Status**: HIGH - Customer support needed
-- **Problem**: parse@parserator.com not configured
+- **Problem**: Chairman@parserator.com not configured
 - **Solution**: Google Workspace setup or email forwarding
 - **Alternative**: Use support@parserator-production.web.app temporarily
 - **Definition of Done**: Test email sent and received successfully

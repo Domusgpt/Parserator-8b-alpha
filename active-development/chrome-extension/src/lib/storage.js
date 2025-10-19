@@ -3,6 +3,21 @@
  * Handles schemas, parsed data, and settings
  */
 
+const EXPORT_VERSION = (() => {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
+      const manifest = chrome.runtime.getManifest();
+      if (manifest?.version) {
+        return manifest.version;
+      }
+    }
+  } catch (error) {
+    console.warn('Unable to determine export version:', error);
+  }
+
+  return 'dev';
+})();
+
 class StorageManager {
   constructor() {
     this.SCHEMAS_KEY = 'parserator_schemas';
@@ -151,7 +166,7 @@ class StorageManager {
     const parsedData = await this.getParsedData();
     const exportData = {
       exportedAt: new Date().toISOString(),
-      version: '1.0.0',
+      version: EXPORT_VERSION,
       data: parsedData
     };
     
@@ -249,7 +264,7 @@ class StorageManager {
     const schemas = await this.getSchemas();
     const exportData = {
       exportedAt: new Date().toISOString(),
-      version: '1.0.0',
+      version: EXPORT_VERSION,
       schemas: schemas
     };
     

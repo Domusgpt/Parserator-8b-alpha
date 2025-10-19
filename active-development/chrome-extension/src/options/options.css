@@ -10,8 +10,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  color: #374151;
-  background: #f9fafb;
+  color: #1f2937;
+  background: linear-gradient(180deg, #f5f3ff 0%, #faf5ff 45%, #f9fafb 100%);
   min-height: 100vh;
 }
 
@@ -25,10 +25,11 @@ body {
 
 /* Header */
 .header {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  background: linear-gradient(140deg, rgba(79, 70, 229, 0.96) 0%, rgba(124, 58, 237, 0.95) 60%, rgba(168, 85, 247, 0.9) 100%);
   color: white;
-  padding: 24px 32px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 28px 32px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 30px 65px -40px rgba(79, 70, 229, 0.8);
 }
 
 .header-brand {
@@ -44,14 +45,14 @@ body {
 }
 
 .brand-title {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 26px;
+  font-weight: 700;
   margin: 0;
 }
 
 .brand-subtitle {
   margin: 4px 0 0 0;
-  opacity: 0.9;
+  opacity: 0.85;
   font-size: 16px;
 }
 
@@ -145,7 +146,7 @@ select,
 textarea {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #d8d8f3;
   border-radius: 6px;
   font-size: 14px;
   font-family: inherit;
@@ -160,8 +161,8 @@ input[type="number"]:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
 }
 
 textarea {
@@ -198,7 +199,7 @@ textarea {
 }
 
 .help-text a {
-  color: #3b82f6;
+  color: #7c3aed;
   text-decoration: none;
 }
 
@@ -237,25 +238,25 @@ textarea {
 
 /* Button Variants */
 .btn.primary {
-  background: #3b82f6;
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
   color: white;
-  border-color: #3b82f6;
+  border-color: transparent;
+  box-shadow: 0 18px 35px -18px rgba(79, 70, 229, 0.7);
 }
 
 .btn.primary:hover {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: linear-gradient(135deg, #6d28d9 0%, #4338ca 100%);
 }
 
 .btn.secondary {
   background: white;
-  color: #374151;
-  border-color: #d1d5db;
+  color: #1f2937;
+  border-color: #e0e7ff;
 }
 
 .btn.secondary:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
+  background: #f8f5ff;
+  border-color: #c7d2fe;
 }
 
 .btn.danger {
@@ -278,8 +279,8 @@ textarea {
 }
 
 .stat-card {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: #f5f3ff;
+  border: 1px solid #e0e7ff;
   border-radius: 6px;
   padding: 16px;
   text-align: center;
@@ -362,7 +363,7 @@ kbd {
 }
 
 .about-item a {
-  color: #3b82f6;
+  color: #7c3aed;
   text-decoration: none;
 }
 
@@ -372,8 +373,8 @@ kbd {
 
 /* Usage Info */
 .usage-info {
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
   border-radius: 6px;
   padding: 16px;
 }
@@ -382,13 +383,13 @@ kbd {
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: #075985;
+  color: #4f46e5;
 }
 
 .usage-info p {
   margin: 0;
   font-size: 13px;
-  color: #0c4a6e;
+  color: #312e81;
 }
 
 #usageDetails {
@@ -403,8 +404,8 @@ kbd {
   justify-content: space-between;
   align-items: center;
   padding: 24px 32px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border-top: 1px solid #ede9fe;
+  background: #f8f5ff;
 }
 
 .footer-actions {
@@ -418,7 +419,7 @@ kbd {
 }
 
 .footer-status.success {
-  color: #059669;
+  color: #16a34a;
 }
 
 .footer-status.error {

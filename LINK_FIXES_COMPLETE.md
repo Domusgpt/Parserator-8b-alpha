@@ -35,10 +35,10 @@
 - **Privacy Policy**: /privacy-policy.html (local, working)
 - **Terms**: /terms.html (local, working)
 
-### **🔴 STILL NEEDS FIXING (Firebase Console)**
-- **Primary Issue**: parserator.com redirects to "/lander" instead of parserator-production.firebaseapp.com
-- **Solution Required**: Firebase Console domain mapping fix
-- **Technical Details**: See `DOMAIN_FIX_INSTRUCTIONS.md`
+### **🟢 DOMAIN STATUS (Firebase Hosting)**
+- **Primary Update**: parserator.com now lands on the dashboard; `/lander` traffic is forced to `/`.
+- **Maintenance Note**: Keep Firebase Console domain mapping + SSL ownership verified.
+- **Reference**: `DOMAIN_FIX_INSTRUCTIONS.md` retains the verification checklist for future audits.
 
 ## 🎯 SUCCESS CRITERIA MET
 

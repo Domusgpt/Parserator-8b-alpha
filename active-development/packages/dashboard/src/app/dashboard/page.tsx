@@ -1,22 +1,51 @@
 'use client';
 
+import Image from 'next/image';
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { 
-  Key, 
-  BarChart3, 
-  Zap, 
-  Plus, 
-  Eye, 
-  EyeOff, 
+import {
+  Key,
+  BarChart3,
+  Zap,
+  Plus,
+  Eye,
+  EyeOff,
   Copy,
   Trash2,
   ExternalLink,
   AlertCircle,
   CheckCircle,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Sparkles,
+  ShieldCheck,
+  PlayCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const heroHighlights = [
+  {
+    title: 'Two-stage architect → extractor core',
+    description: 'Plans first, executes second so you ship 95%+ accuracy without runaway spend.',
+    icon: Sparkles
+  },
+  {
+    title: 'Enterprise-ready guardrails',
+    description: 'Deterministic fallbacks, audit trails, and live support at Chairman@parserator.com.',
+    icon: ShieldCheck
+  },
+  {
+    title: 'Instant operational wins',
+    description: 'JSON, CSV, and CRM exports wired into workflows with 70% token savings out of the box.',
+    icon: Zap
+  }
+] as const;
+
+const heroMetrics = [
+  { label: 'Accuracy', value: '95%+', hint: 'Production-validated parses' },
+  { label: 'Token savings', value: '70%', hint: 'vs. single-shot LLM calls' },
+  { label: 'Median latency', value: '2.2s', hint: 'Across live customer traffic' }
+] as const;
 
 // Mock data - in production, this would come from your API
 const mockUser = {
@@ -78,6 +107,9 @@ export default function DashboardPage() {
 
   const usagePercentage = Math.round((mockUser.monthlyUsage.count / mockUser.monthlyUsage.limit) * 100);
   const remainingRequests = mockUser.monthlyUsage.limit - mockUser.monthlyUsage.count;
+  const demoVideoUrl =
+    process.env.NEXT_PUBLIC_DEMO_VIDEO_URL ??
+    'https://storage.googleapis.com/parserator-static-assets/demo/parserator-quick-tour.mp4';
 
   const toggleKeyVisibility = (keyId: string) => {
     const newRevealed = new Set(revealedKeys);
@@ -144,48 +176,142 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <h1 className="text-2xl font-bold text-gradient">Parserator</h1>
+      <div className="relative overflow-hidden bg-brand-gradient pb-24 text-white">
+        <div className="absolute inset-0 opacity-40" style={{ backgroundImage: 'radial-gradient(circle at top left, rgba(255,255,255,0.45), transparent 55%)' }} />
+        <div className="relative border-b border-white/10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-center justify-between gap-6 py-6">
+              <div className="flex items-center gap-3">
+                <Image src="/brand/parserator-logo.svg" alt="Parserator" width={40} height={40} className="h-10 w-10" priority />
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-widest text-white/70">Architect → Extractor</p>
+                  <h1 className="text-2xl font-bold leading-tight">Parserator Launch Control</h1>
+                </div>
               </div>
-              <div className="ml-8">
-                <nav className="flex space-x-8">
-                  <a href="#" className="text-primary-600 border-b-2 border-primary-600 py-2 px-1 text-sm font-medium">
-                    Dashboard
-                  </a>
-                  <a href="#" className="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">
-                    Documentation
-                  </a>
-                  <a href="#" className="text-gray-500 hover:text-gray-700 py-2 px-1 text-sm font-medium">
-                    Pricing
-                  </a>
-                </nav>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <div className="text-sm text-gray-500">Signed in as</div>
-                <div className="text-sm font-medium text-gray-900">{mockUser.email}</div>
-              </div>
-              <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">
+
+              <div className="flex items-center gap-6">
+                <div className="hidden md:flex flex-col text-right text-sm text-white/80">
+                  <span className="font-medium text-white">{mockUser.email}</span>
+                  <span className="text-white/60">Production access</span>
+                </div>
+                <div className="h-10 w-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center font-semibold">
                   {mockUser.email.charAt(0).toUpperCase()}
-                </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </header>
+
+        <section className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
+          <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center">
+            <div className="space-y-8">
+              <div className="brand-badge">
+                <PlayCircle className="h-4 w-4" />
+                Ready for the marketing spotlight
+              </div>
+              <div>
+                <h2 className="text-4xl font-bold sm:text-5xl leading-tight">
+                  Bring the Parserator revolution to every customer touchpoint.
+                </h2>
+                <p className="mt-6 max-w-xl text-lg text-white/80">
+                  Launch with unified branding, a two-minute product tour, and messaging that keeps the EMA mystique intact while telling the Architect → Extractor story.
+                </p>
+              </div>
+
+              <div className="grid gap-6 sm:grid-cols-2">
+                {heroHighlights.map(({ title, description, icon: Icon }) => (
+                  <div key={title} className="rounded-2xl border border-white/20 bg-white/5 p-4 backdrop-blur-lg">
+                    <div className="flex items-start gap-3">
+                      <span className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <h3 className="text-base font-semibold text-white">{title}</h3>
+                        <p className="mt-2 text-sm text-white/70">{description}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-4">
+                <Link href="#api-keys" className="btn-primary">Generate API key</Link>
+                <a
+                  href={demoVideoUrl}
+                  className="btn-secondary text-white hover:text-white"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Watch the 2-min demo
+                </a>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl shadow-2xl">
+                <div className="aspect-video w-full overflow-hidden rounded-2xl border border-white/20 bg-black/50 shadow-xl">
+                  <video
+                    key={demoVideoUrl}
+                    controls
+                    className="h-full w-full object-cover"
+                    preload="metadata"
+                  >
+                    <source src={demoVideoUrl} type="video/mp4" />
+                    Your browser does not support the Parserator launch video.
+                  </video>
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                  {heroMetrics.map(metric => (
+                    <div key={metric.label} className="brand-metric-card">
+                      <div className="text-xs uppercase text-white/70">{metric.label}</div>
+                      <div className="mt-1 text-2xl font-semibold">{metric.value}</div>
+                      <div className="mt-1 text-xs text-white/70">{metric.hint}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <main className="relative z-10 -mt-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_20px_45px_-25px_rgba(79,70,229,0.4)]">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Messaging check</p>
+            <p className="mt-2 text-lg font-semibold text-brand-primary">EMA narrative aligned</p>
+            <p className="mt-3 text-sm text-gray-500">
+              Marketing copy references Architect → Extractor benefits without leaking PPP/MVEP details.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_20px_45px_-25px_rgba(79,70,229,0.4)]">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Chrome extension</p>
+            <p className="mt-2 text-lg font-semibold text-brand-primary">Assets refreshed</p>
+            <p className="mt-3 text-sm text-gray-500">
+              Icons, promo tiles, and support links now match the new purple + gold identity for the Web Store listing.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_20px_45px_-25px_rgba(79,70,229,0.4)]">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Demo touchpoints</p>
+            <p className="mt-2 text-lg font-semibold text-brand-primary">Video embedded</p>
+            <p className="mt-3 text-sm text-gray-500">
+              Dashboard, marketing docs, and extension highlight the same two-minute walkthrough.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-[0_20px_45px_-25px_rgba(79,70,229,0.4)]">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Support readiness</p>
+            <p className="mt-2 text-lg font-semibold text-brand-primary">Chairman@parserator.com</p>
+            <p className="mt-3 text-sm text-gray-500">
+              Centralized mailer routes live responses and marketing CTA footers share the new address.
+            </p>
+          </div>
+        </div>
+
+        <section className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-8" id="api-keys">
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {/* Usage Card */}
           <div className="card">
             <div className="card-body">
@@ -276,8 +402,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Usage Chart */}
-        <div className="card mb-8">
+            {/* Usage Chart */}
+            <div className="card mb-8">
           <div className="card-header">
             <h3 className="text-lg font-medium text-gray-900">Usage Trends</h3>
             <p className="text-sm text-gray-500">Daily API requests over the past week</p>
@@ -303,8 +429,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* API Keys Section */}
-        <div className="card">
+            {/* API Keys Section */}
+            <div className="card">
           <div className="card-header">
             <div className="flex justify-between items-center">
               <div>
@@ -406,8 +532,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Quick Start Guide */}
-        <div className="mt-8 card">
+            {/* Quick Start Guide */}
+            <div className="mt-8 card">
           <div className="card-header">
             <h3 className="text-lg font-medium text-gray-900">Quick Start</h3>
             <p className="text-sm text-gray-500">Get started with Parserator in minutes</p>
@@ -458,7 +584,104 @@ export default function DashboardPage() {
               </a>
             </div>
           </div>
-        </div>
+            </div>
+          </div>
+
+          <aside className="space-y-6">
+            <div className="card bg-white/95">
+              <div className="card-header">
+                <h3 className="text-lg font-medium text-gray-900">Launch timeline</h3>
+                <p className="text-sm text-gray-500">Phase 4 marketing sequence</p>
+              </div>
+              <div className="card-body space-y-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="mt-1 h-5 w-5 text-green-500" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Day 0 – Brand sync</p>
+                    <p className="text-sm text-gray-500">Dashboard, Chrome extension, and collateral now ship the purple + gold Parserator identity.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Clock className="mt-1 h-5 w-5 text-primary-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Day 1 – Demo amplification</p>
+                    <p className="text-sm text-gray-500">Share the two-minute walkthrough, push the Chrome Web Store submission, and point support CTAs to Chairman@parserator.com.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <TrendingUp className="mt-1 h-5 w-5 text-brand-primary" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Day 2–7 – Momentum</p>
+                    <p className="text-sm text-gray-500">Roll out blog posts, community drops, and partner outreach while tracking engagement inside the marketing checklist.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card bg-white/95">
+              <div className="card-header">
+                <h3 className="text-lg font-medium text-gray-900">Messaging guardrails</h3>
+                <p className="text-sm text-gray-500">Keep EMA + PPP promises intact</p>
+              </div>
+              <div className="card-body space-y-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-1 h-5 w-5 text-brand-primary" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Lead with outcomes</p>
+                    <p className="text-sm text-gray-500">Highlight 95% accuracy, 70% savings, and real usage metrics—skip internal implementation specifics.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Sparkles className="mt-1 h-5 w-5 text-brand-primary" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Maintain mystique</p>
+                    <p className="text-sm text-gray-500">Reference PPP/MVEP vision, audio demos, and the EMA charter without revealing restricted code paths.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-1 h-5 w-5 text-primary-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Route support centrally</p>
+                    <p className="text-sm text-gray-500">Chairman@parserator.com is the canonical contact for launch communications and customer escalations.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card bg-white/95">
+              <div className="card-header">
+                <h3 className="text-lg font-medium text-gray-900">Brand kit quick links</h3>
+              </div>
+              <div className="card-body space-y-3 text-sm text-gray-600">
+                <a
+                  href="https://parserator.com/brand"
+                  className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3 hover:border-primary-500 hover:text-primary-600 transition-colors"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span>Logo & icon exports</span>
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+                <a
+                  href={demoVideoUrl}
+                  className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3 hover:border-primary-500 hover:text-primary-600 transition-colors"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span>Two-minute demo reel</span>
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+                <a
+                  href="mailto:Chairman@parserator.com"
+                  className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3 hover:border-primary-500 hover:text-primary-600 transition-colors"
+                >
+                  <span>Support & launch approvals</span>
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </div>
+            </div>
+          </aside>
+        </section>
       </main>
 
       {/* Create API Key Modal */}
