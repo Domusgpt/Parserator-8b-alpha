@@ -1,0 +1,22 @@
+HTTP/1.1 200 OK
+date: Sun, 19 Oct 2025 00:58:33 GMT
+server: envoy
+
+HTTP/1.1 200 OK
+cache-control: max-age=3600
+content-type: text/html; charset=utf-8
+etag: "83ab167645692320c89aaf5074ce93ca5e9d123210db8e0bfce0aff5c3d29adf"
+last-modified: Sat, 14 Jun 2025 20:28:56 GMT
+strict-transport-security: max-age=31556926
+accept-ranges: bytes
+date: Sun, 19 Oct 2025 00:58:34 GMT
+x-served-by: cache-dfw-kdfw8210065-DFW
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1760835515.505764,VS0,VE2
+vary: x-fh-requested-host, accept-encoding
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+content-length: 83830
+x-envoy-upstream-service-time: 59
+server: envoy
+

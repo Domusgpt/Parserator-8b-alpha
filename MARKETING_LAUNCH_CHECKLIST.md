@@ -19,6 +19,7 @@
 - [ ] **Refresh social media profiles** with consistent visuals
 
 ### **3. Chrome Store Launch**
+- [x] **Verify submission ZIP & assets** (2025-10-20 evidence in `testing-validation/chrome-extension/`)
 - [ ] **Submit extension to Web Store** (requires working domain first)
 - [ ] **Monitor review status** (3-7 business days)
 - [ ] **Prepare launch announcement** for when approved
