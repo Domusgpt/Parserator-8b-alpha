@@ -2,8 +2,24 @@
 // A simpler approach using email forwarding rules
 
 const functions = require('firebase-functions');
-const nodemailer = require('nodemailer');
+const fetch = require('node-fetch');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const {
+  createSupportMailer,
+  defaultHtmlWrapper
+} = require('./lib/support-mailer');
+
+const supportMailer = createSupportMailer();
+const mailboxConfig = supportMailer.config;
+
+if (!mailboxConfig.geminiApiKey) {
+  throw new Error(
+    'Missing Gemini API key. Set GEMINI_API_KEY or firebase functions config `gemini.api_key`.'
+  );
+}
+
+const genAI = new GoogleGenerativeAI(mailboxConfig.geminiApiKey);
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // Simple email processor that can be called via webhook
 exports.processEmailData = functions.https.onRequest(async (req, res) => {
@@ -33,10 +49,6 @@ exports.processEmailData = functions.https.onRequest(async (req, res) => {
     }
 
     console.log(`Processing email from: ${senderEmail}`);
-
-    // Initialize Gemini
-    const genAI = new GoogleGenerativeAI(functions.config().gemini.api_key);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     // Step 1: Analyze data and suggest optimal schema
     const schemaPrompt = `Analyze this email content and create the most useful JSON schema for parsing it.
@@ -78,16 +90,23 @@ Return ONLY valid JSON in this format:
     const schemaAnalysis = JSON.parse(schemaResponse.trim());
 
     // Step 2: Parse the data using our Parserator API
-    const parseResponse = await fetch('https://app-5108296280.us-central1.run.app/v1/parse', {
+    const parseResponse = await fetch(mailboxConfig.parseratorApiUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Parserator-Client': mailboxConfig.userAgent
       },
       body: JSON.stringify({
         inputData: emailContent,
         outputSchema: schemaAnalysis.suggestedSchema
       })
     });
+
+    if (!parseResponse.ok) {
+      throw new Error(
+        `Parserator API returned ${parseResponse.status} ${parseResponse.statusText}`
+      );
+    }
 
     const parseResult = await parseResponse.json();
 
@@ -105,12 +124,30 @@ Return ONLY valid JSON in this format:
       emailBody: formatEmailResponse(schemaAnalysis, parseResult)
     };
 
+    await supportMailer.sendMail({
+      to: senderEmail,
+      subject: response.emailSubject,
+      text: response.emailBody,
+      html: defaultHtmlWrapper(response.emailBody)
+    });
+
     res.json(response);
 
   } catch (error) {
     console.error('Email processing error:', error);
-    res.status(500).json({ 
-      success: false, 
+
+    try {
+      await supportMailer.sendMail({
+        to: senderEmail,
+        subject: '❌ Parserator Error',
+        text: `Sorry, there was an error processing your data: ${error.message}\n\nPlease try again with clearer data formatting.\n\n---\nPowered by Parserator`
+      });
+    } catch (mailError) {
+      console.error('Failed to send error notification email:', mailError);
+    }
+
+    res.status(500).json({
+      success: false,
       error: error.message,
       emailSubject: '❌ Parserator Error',
       emailBody: `Sorry, there was an error processing your data: ${error.message}\n\nPlease try again with clearer data formatting.\n\n---\nPowered by Parserator`
@@ -143,7 +180,7 @@ ${JSON.stringify(schemaAnalysis.suggestedSchema, null, 2)}
 
 🚀 INTEGRATE THIS PARSING:
 
-curl -X POST "https://app-5108296280.us-central1.run.app/v1/parse" \\
+  curl -X POST "${mailboxConfig.parseratorApiUrl}" \\
   -H "Content-Type: application/json" \\
   -d '${JSON.stringify({
     inputData: "your data here",
@@ -162,7 +199,7 @@ const result = await client.parse({
 
 ---
 Powered by Parserator - Intelligent Data Parsing
-🌐 https://parserator.com | 📧 parse@parserator.com`;
+🌐 https://parserator.com | 📧 Chairman@parserator.com`;
 
   } else {
     return `❌ PARSERATOR PARSING FAILED
@@ -181,7 +218,7 @@ ${JSON.stringify(schemaAnalysis.suggestedSchema, null, 2)}
 🔧 MANUAL PARSING:
 You can still use the suggested schema above with our API:
 
-curl -X POST "https://app-5108296280.us-central1.run.app/v1/parse" \\
+  curl -X POST "${mailboxConfig.parseratorApiUrl}" \\
   -H "Content-Type: application/json" \\
   -d '${JSON.stringify({
     inputData: "your cleaned data",
@@ -190,7 +227,7 @@ curl -X POST "https://app-5108296280.us-central1.run.app/v1/parse" \\
 
 ---
 Powered by Parserator - Intelligent Data Parsing  
-🌐 https://parserator.com | 📧 parse@parserator.com`;
+🌐 https://parserator.com | 📧 Chairman@parserator.com`;
   }
 }
 

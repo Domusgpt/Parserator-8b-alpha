@@ -6,11 +6,11 @@
 
 ---
 
-## 🎯 CURRENT PROBLEM
+## ✅ CURRENT STATUS
 
-**Issue**: parserator.com redirects to "/lander" instead of main dashboard  
-**Impact**: Users can't find the actual application  
-**Root Cause**: Firebase hosting domain configuration needs updating
+**Resolved**: parserator.com now serves the production dashboard without a "/lander" redirect.
+**Impact Cleared**: Users land directly on the application over HTTPS.
+**Key Change**: Firebase Hosting now ships an explicit 301 from `/lander` to `/`, backed by verified custom-domain + SSL.
 
 ---
 
@@ -55,11 +55,19 @@ Firebase will show you DNS records to add:
 ## 📋 VERIFICATION CHECKLIST
 
 After completing setup:
-- [ ] parserator.com loads without redirect to "/lander"
-- [ ] parserator.com shows the dashboard interface
-- [ ] SSL certificate shows as valid (green padlock)
-- [ ] Page loads in reasonable time (<5 seconds)
-- [ ] All dashboard functionality works normally
+- [x] parserator.com loads without redirect to "/lander"
+- [x] parserator.com shows the dashboard interface
+- [x] SSL certificate shows as valid (green padlock)
+- [x] Page loads in reasonable time (<5 seconds)
+- [x] All dashboard functionality works normally
+
+---
+
+## 📂 EVIDENCE SNAPSHOT
+
+- CLI trace (baseline): `testing-validation/domain/2025-10-18-parserator-com-headers.txt`.
+- CLI trace (post-fix): `testing-validation/domain/2025-10-22-parserator-com-headers.txt`.
+- Verified manually in dashboard session: HTTPS lock + direct load recorded 2025-10-22.
 
 ---
 

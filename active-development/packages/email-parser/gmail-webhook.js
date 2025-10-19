@@ -3,9 +3,12 @@
 
 const { google } = require('googleapis');
 const functions = require('firebase-functions');
+const fetch = require('node-fetch');
+const { getSupportMailboxConfig } = require('./lib/support-config');
 
 const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'];
-const PARSERATOR_EMAIL = 'parse@parserator.com'; // The email people send to
+const mailboxConfig = getSupportMailboxConfig();
+const PARSERATOR_EMAIL = mailboxConfig.supportEmail;
 
 // Gmail API setup
 const auth = new google.auth.GoogleAuth({
@@ -95,10 +98,11 @@ async function processEmailMessage(messageId) {
     const attachments = await extractAttachments(message.payload, messageId);
 
     // Call our email parsing function
-    const parseResponse = await fetch('https://us-central1-parserator-production.cloudfunctions.net/emailToSchema', {
+    const parseResponse = await fetch(mailboxConfig.emailWebhookUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Parserator-Client': mailboxConfig.userAgent
       },
       body: JSON.stringify({
         from,
@@ -117,7 +121,7 @@ async function processEmailMessage(messageId) {
         userId: 'me',
         id: messageId,
         requestBody: {
-          addLabelIds: ['PROCESSED'] // Custom label
+          removeLabelIds: ['UNREAD']
         }
       });
       

@@ -2,21 +2,66 @@
 // Send any data via email and get back structured JSON
 
 const functions = require('firebase-functions');
-const nodemailer = require('nodemailer');
+const fetch = require('node-fetch');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const {
+  createSupportMailer,
+  defaultHtmlWrapper
+} = require('./lib/support-mailer');
 
-// Email configuration
-const EMAIL_CONFIG = {
-  service: 'gmail',
-  auth: {
-    user: 'parserator@gmail.com',
-    pass: process.env.GMAIL_APP_PASSWORD
-  }
-};
+const { config: mailboxConfig, sendMail } = createSupportMailer();
 
-const transporter = nodemailer.createTransporter(EMAIL_CONFIG);
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+if (!mailboxConfig.geminiApiKey) {
+  throw new Error(
+    'Missing Gemini API key. Set GEMINI_API_KEY or firebase functions config `gemini.api_key`.'
+  );
+}
+
+const genAI = new GoogleGenerativeAI(mailboxConfig.geminiApiKey);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+function formatCurlExample(schema) {
+  return `curl -X POST "${mailboxConfig.parseratorApiUrl}" \\\n+  -H "Content-Type: application/json" \\\n+  -d '${JSON.stringify(
+    {
+      inputData: 'your data here',
+      outputSchema: schema
+    },
+    null,
+    2
+  )}'`;
+}
+
+function summarizeMetadata(parseResult) {
+  const metadata = parseResult.metadata || {};
+  const parsedData = parseResult.parsedData || {};
+  const architectPlan = metadata.architectPlan || {};
+
+  const confidence =
+    typeof metadata.confidence === 'number'
+      ? `${Math.round(metadata.confidence * 100)}%`
+      : 'N/A';
+
+  const processingTime =
+    metadata.processingTimeMs !== undefined
+      ? `${metadata.processingTimeMs}ms`
+      : 'N/A';
+
+  const tokensUsed =
+    metadata.tokensUsed !== undefined ? `${metadata.tokensUsed}` : 'N/A';
+
+  const steps = Array.isArray(architectPlan.steps)
+    ? architectPlan.steps.length
+    : 0;
+
+  return {
+    confidence,
+    processingTime,
+    tokensUsed,
+    strategy: architectPlan.strategy || 'N/A',
+    fieldsDetected: Object.keys(parsedData).length,
+    steps
+  };
+}
 
 exports.emailToSchema = functions.https.onRequest(async (req, res) => {
   // This will be triggered by Gmail API webhook or email service
@@ -33,7 +78,7 @@ exports.emailToSchema = functions.https.onRequest(async (req, res) => {
     console.log(`Subject: ${subject}`);
     
     // Extract data from email body and attachments
-    let inputData = body;
+    let inputData = body || '';
     
     if (attachments && attachments.length > 0) {
       // Handle text attachments (CSV, TXT, etc.)
@@ -85,10 +130,11 @@ Create a comprehensive schema that captures all the important fields. Return ONL
     const schemaAnalysis = JSON.parse(cleanSchemaResponse.trim());
 
     // Step 2: Parse the data using Parserator API
-    const parseResponse = await fetch('https://app-5108296280.us-central1.run.app/v1/parse', {
+    const parseResponse = await fetch(mailboxConfig.parseratorApiUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Parserator-Client': mailboxConfig.userAgent
       },
       body: JSON.stringify({
         inputData: inputData,
@@ -96,12 +142,19 @@ Create a comprehensive schema that captures all the important fields. Return ONL
       })
     });
 
+    if (!parseResponse.ok) {
+      throw new Error(
+        `Parserator API returned ${parseResponse.status} ${parseResponse.statusText}`
+      );
+    }
+
     const parseResult = await parseResponse.json();
 
     // Step 3: Format email response
     let replyBody = '';
     
     if (parseResult.success) {
+      const summary = summarizeMetadata(parseResult);
       replyBody = `📊 PARSERATOR RESULTS
 
 ✅ Successfully parsed your ${schemaAnalysis.dataType || 'data'}!
@@ -113,24 +166,19 @@ ${JSON.stringify(parseResult.parsedData, null, 2)}
 ${JSON.stringify(schemaAnalysis.suggestedSchema, null, 2)}
 
 📈 METADATA:
-• Confidence: ${Math.round(parseResult.metadata.confidence * 100)}%
-• Processing Time: ${parseResult.metadata.processingTimeMs}ms
-• Fields Detected: ${Object.keys(parseResult.parsedData).length}
-• Tokens Used: ${parseResult.metadata.tokensUsed}
+• Confidence: ${summary.confidence}
+• Processing Time: ${summary.processingTime}
+• Fields Detected: ${summary.fieldsDetected}
+• Tokens Used: ${summary.tokensUsed}
 
 🧠 EXTRACTION STRATEGY:
-• Steps: ${parseResult.metadata.architectPlan.steps.length} extraction steps
-• Strategy: ${parseResult.metadata.architectPlan.strategy}
+• Steps: ${summary.steps} extraction steps
+• Strategy: ${summary.strategy}
 
 🚀 API INTEGRATION:
 To integrate this parsing into your application:
 
-curl -X POST "https://app-5108296280.us-central1.run.app/v1/parse" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "inputData": "your data here",
-    "outputSchema": ${JSON.stringify(schemaAnalysis.suggestedSchema)}
-  }'
+${formatCurlExample(schemaAnalysis.suggestedSchema)}
 
 💡 SDK Usage (Node.js):
 const { ParseratorClient } = require('parserator-sdk');
@@ -167,12 +215,11 @@ https://parserator.com`;
       ? `✅ Parsed: ${schemaAnalysis.dataType || 'Data'} (${Object.keys(parseResult.parsedData || {}).length} fields)`
       : `❌ Parse Failed: ${schemaAnalysis.dataType || 'Data'}`;
 
-    await transporter.sendMail({
-      from: '"Parserator" <parserator@gmail.com>',
+    await sendMail({
       to: from,
       subject: replySubject,
       text: replyBody,
-      html: `<pre>${replyBody}</pre>`
+      html: defaultHtmlWrapper(replyBody)
     });
 
     console.log(`Reply sent to: ${from}`);
@@ -184,8 +231,7 @@ https://parserator.com`;
     // Send error email if we have sender info
     if (req.body.from) {
       try {
-        await transporter.sendMail({
-          from: '"Parserator" <parserator@gmail.com>',
+        await sendMail({
           to: req.body.from,
           subject: '❌ Parserator Processing Error',
           text: `Sorry, there was an error processing your data: ${error.message}

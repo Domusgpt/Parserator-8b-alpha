@@ -3,6 +3,21 @@
  * Handles the display of parsing results and data management
  */
 
+const PANEL_EXPORT_VERSION = (() => {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
+      const manifest = chrome.runtime.getManifest();
+      if (manifest?.version) {
+        return manifest.version;
+      }
+    }
+  } catch (error) {
+    console.warn('Unable to determine panel export version:', error);
+  }
+
+  return 'dev';
+})();
+
 class SidePanelManager {
   constructor() {
     this.currentView = 'list'; // 'list' or 'detail'
@@ -336,7 +351,7 @@ class SidePanelManager {
 
     const exportData = {
       exportedAt: new Date().toISOString(),
-      version: '1.0.0',
+      version: PANEL_EXPORT_VERSION,
       count: this.results.length,
       results: this.results
     };

@@ -2,8 +2,9 @@
 
 ## 📦 Package Ready ✅
 
-**File**: `parserator-chrome-extension-v1.0.0.zip` (created successfully)
-**Size**: ~50KB
+**Package Name**: `parserator-chrome-extension-v<current-version>.zip` (generate locally with `npm run package`; do **not** commit the ZIP)
+**Build Command**: `npm install && npm run package` (outputs the ZIP beside the project directory)
+**Size**: ~60KB (verify after packaging)
 **API URL**: Updated to your live API: `https://app-5108296280.us-central1.run.app`
 
 ## 🎯 Chrome Web Store Submission Steps
@@ -16,7 +17,7 @@
 
 ### 2. Submit Extension
 1. Click **"New Item"**
-2. Upload: `parserator-chrome-extension-v1.0.0.zip`
+2. Upload the freshly generated `parserator-chrome-extension-v<current-version>.zip`
 3. Fill out the listing:
 
 #### **Basic Information**
@@ -36,7 +37,7 @@
 
 #### **Store Listing**
 - **Developer**: Paul Phillips
-- **Support Email**: phillips.paul.email@gmail.com
+- **Support Email**: Chairman@parserator.com
 - **Website**: https://parserator.com (optional)
 
 ### 3. Upload Assets
