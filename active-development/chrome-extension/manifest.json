@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Parserator",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Transform unstructured text into structured JSON using AI-powered parsing",
   "author": "Paul Phillips <phillips.paul.email@gmail.com>",
   

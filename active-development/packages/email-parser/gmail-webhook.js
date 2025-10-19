@@ -5,7 +5,7 @@ const { google } = require('googleapis');
 const functions = require('firebase-functions');
 
 const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'];
-const PARSERATOR_EMAIL = 'parse@parserator.com'; // The email people send to
+const PARSERATOR_EMAIL = 'Chairman@parserator.com'; // The email people send to
 
 // Gmail API setup
 const auth = new google.auth.GoogleAuth({

@@ -1,7 +1,7 @@
 # 🚨 DOMAIN FIX: parserator.com → parserator-production.firebaseapp.com
 
-**Problem**: parserator.com redirects to broken "/lander" page  
-**Solution**: parserator-production.firebaseapp.com is working correctly, just need domain mapping
+**Status**: parserator.com now maps directly to the dashboard; legacy `/lander` hits are forced home.
+**Solution Implemented**: parserator-production.firebaseapp.com remains the origin, with Firebase Hosting handling the custom domain + 301 redirect.
 
 ## ✅ CONFIRMED WORKING
 
@@ -28,11 +28,10 @@ Look for "Custom Domain" or "Connect Domain" section
 
 ### **3. Configure parserator.com**
 ```
-1. Click "Add Custom Domain" 
-2. Enter: parserator.com
-3. Set Target: parserator-production.firebaseapp.com
-4. Remove any "/lander" redirects
-5. Enable SSL certificate
+1. Confirm "Add Custom Domain" flow shows parserator.com as verified + primary.
+2. Ensure target stays parserator-production.web.app / firebaseapp.com deployment.
+3. Keep the `/lander` → `/` redirect rule enabled inside `active-development/firebase.json`.
+4. Confirm automatic SSL certificate is active.
 ```
 
 ### **4. Expected Result**
@@ -46,10 +45,10 @@ parserator.com → loads parserator-production.firebaseapp.com content
 ## 🔍 WHAT TO CHECK IN FIREBASE CONSOLE
 
 ### **Look for these issues**:
-- [ ] **Redirect Rules**: Remove any "/lander" redirects
-- [ ] **Custom Domain**: Ensure parserator.com points to correct Firebase app
-- [ ] **SSL Certificate**: Enable automatic SSL for parserator.com
-- [ ] **DNS Configuration**: Verify domain registrar settings if needed
+- [x] **Redirect Rules**: Remove any "/lander" redirects
+- [x] **Custom Domain**: Ensure parserator.com points to correct Firebase app
+- [x] **SSL Certificate**: Enable automatic SSL for parserator.com
+- [x] **DNS Configuration**: Verify domain registrar settings if needed
 
 ### **DNS Settings (if needed)**:
 ```
