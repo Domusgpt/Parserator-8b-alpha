@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parserator Landing Gallery</title>
+    <meta
+      name="description"
+      content="Browse four Parserator landing-page explorations and compare visual directions aligned to the Clear Seas Systems network."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/gallery.css" />
+    <link rel="icon" type="image/svg+xml" href="assets/images/parserator-logo.svg" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <span class="hero-badge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path
+              d="M12 3l2.2 4.46 4.92.7-3.56 3.53.84 4.91L12 14.77l-4.4 2.33.84-4.91-3.56-3.53 4.92-.7L12 3z"
+              stroke="#8c55ff"
+              stroke-width="1.4"
+              stroke-linejoin="round"
+            />
+          </svg>
+          Parserator Design Studies
+        </span>
+        <h1 class="hero-title">Compare four Parserator landing experiences</h1>
+        <p class="hero-description">
+          Each build keeps the documented Parserator value proposition, EMA guardrails, and Clear Seas network touchpoints while
+          exploring different layout, motion, and storytelling treatments. Use the quick launch links below to review every
+          direction before picking the branch to ship.
+        </p>
+        <div class="hero-actions">
+          <a class="primary" href="https://parserator-production.web.app/docs">View product docs</a>
+          <a class="ghost" href="mailto:chairman@parserator.com">Contact marketing</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="variant-grid container" aria-label="Parserator landing page variants">
+      <article class="variant-card" data-variant-card="nebula">
+        <h3>Nebula Circuit</h3>
+        <div class="variant-meta">
+          <span class="variant-pill">Glassmorphic</span>
+          <span class="variant-pill">Tilt motion</span>
+          <span class="variant-pill">Timeline workflow</span>
+        </div>
+        <p>
+          The original neon-led take with architect → extractor storytelling, reveal-on-scroll choreography, and card bending
+          micro-interactions inspired by the Nimbus Guardian and Reposiologist surfaces.
+        </p>
+        <button type="button" class="variant-peek" data-variant-trigger="nebula">Preview this direction</button>
+        <div class="variant-actions">
+          <a class="primary" href="variants/nebula/index.html">Open build</a>
+          <a class="secondary" href="variants/nebula/index.html#overview">Jump to hero</a>
+        </div>
+      </article>
+
+      <article class="variant-card" data-variant-card="aurora">
+        <h3>Aurora Panels</h3>
+        <div class="variant-meta">
+          <span class="variant-pill">Split hero</span>
+          <span class="variant-pill">Metric stack</span>
+          <span class="variant-pill">Code first</span>
+        </div>
+        <p>
+          A columnar marketing shell that leads with Parserator’s adoption proof, then pivots into side-by-side integration tabs
+          and EMA storytelling framed within frosted panels.
+        </p>
+        <button type="button" class="variant-peek" data-variant-trigger="aurora">Preview this direction</button>
+        <div class="variant-actions">
+          <a class="primary" href="variants/aurora/index.html">Open build</a>
+          <a class="secondary" href="variants/aurora/index.html#hero">Jump to hero</a>
+        </div>
+      </article>
+
+      <article class="variant-card" data-variant-card="horizon">
+        <h3>Horizon Flow</h3>
+        <div class="variant-meta">
+          <span class="variant-pill">Horizontal scroll</span>
+          <span class="variant-pill">Process bands</span>
+          <span class="variant-pill">Ecosystem ribbon</span>
+        </div>
+        <p>
+          A kinetic experience with lateral motion bands, sequential storytelling, and anchored CTAs designed to keep Parserator
+          front-and-center while echoing the Clear Seas gradients.
+        </p>
+        <button type="button" class="variant-peek" data-variant-trigger="horizon">Preview this direction</button>
+        <div class="variant-actions">
+          <a class="primary" href="variants/horizon/index.html">Open build</a>
+          <a class="secondary" href="variants/horizon/index.html#hero">Jump to hero</a>
+        </div>
+      </article>
+
+      <article class="variant-card" data-variant-card="quantum">
+        <h3>Quantum Grid</h3>
+        <div class="variant-meta">
+          <span class="variant-pill">Modular tiles</span>
+          <span class="variant-pill">Data cues</span>
+          <span class="variant-pill">Footer nav</span>
+        </div>
+        <p>
+          A structured tile grid featuring spotlight cards for momentum metrics, integration routes, EMA guarantees, and the
+          Clear Seas ecosystem, perfect for quick evaluation across stakeholders.
+        </p>
+        <button type="button" class="variant-peek" data-variant-trigger="quantum">Preview this direction</button>
+        <div class="variant-actions">
+          <a class="primary" href="variants/quantum/index.html">Open build</a>
+          <a class="secondary" href="variants/quantum/index.html#hero">Jump to hero</a>
+        </div>
+      </article>
+    </section>
+
+    <section class="variant-detail" data-variant-panel data-active-variant="nebula">
+      <div class="container">
+        <div class="variant-detail__header">
+          <span class="detail-badge">Interactive preview</span>
+          <div class="detail-controls" role="tablist" aria-label="Variant detail selector">
+            <button type="button" class="detail-control is-active" data-variant-control="nebula" role="tab" aria-selected="true">
+              Nebula
+            </button>
+            <button type="button" class="detail-control" data-variant-control="aurora" role="tab" aria-selected="false">
+              Aurora
+            </button>
+            <button type="button" class="detail-control" data-variant-control="horizon" role="tab" aria-selected="false">
+              Horizon
+            </button>
+            <button type="button" class="detail-control" data-variant-control="quantum" role="tab" aria-selected="false">
+              Quantum
+            </button>
+          </div>
+        </div>
+        <div class="variant-detail__body">
+          <div class="detail-copy" data-variant-copy>
+            <h3 data-variant-title>Nebula Circuit</h3>
+            <p data-variant-description>
+              A neon-forward hero with embedded product video and timeline storytelling that steps through the Architect →
+              Extractor workflow while surfacing Parserator’s production telemetry and EMA commitments.
+            </p>
+            <ul data-variant-highlights class="detail-highlights">
+              <li>Glassmorphic hero pairs the Parserator video loop with momentum metrics.</li>
+              <li>Architecture timeline explains Architect planning and deterministic Extractor passes.</li>
+              <li>Integration section exposes REST and Node SDK examples with live toggles.</li>
+            </ul>
+          </div>
+          <aside class="detail-visual" data-variant-preview-surface aria-live="polite">
+            <div class="preview-frame">
+              <div class="preview-orbit"></div>
+              <div class="preview-core"></div>
+              <div class="preview-grid"></div>
+              <span class="preview-name" data-variant-name>Nebula Circuit</span>
+            </div>
+            <div class="preview-actions">
+              <a class="primary" data-variant-action="primary" href="variants/nebula/index.html">Open build</a>
+              <a class="ghost" data-variant-action="secondary" href="variants/nebula/index.html#overview">View hero</a>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section class="matrix" aria-label="Production proof points">
+      <div class="container matrix-inner">
+        <div class="matrix-header">
+          <h2>Production telemetry that anchors every variant</h2>
+          <p>
+            These numbers come straight from the live Parserator stack: 95% accuracy, ~2.2 second response times, and roughly
+            70% token savings across API, dashboard, and SDK surfaces. Every design keeps those facts front-and-center.
+          </p>
+        </div>
+        <div class="matrix-grid">
+          <article class="matrix-card">
+            <span class="matrix-label">Accuracy</span>
+            <strong>95% field-level confidence</strong>
+            <p>Verified across the production API and dashboard telemetry.</p>
+          </article>
+          <article class="matrix-card">
+            <span class="matrix-label">Latency</span>
+            <strong>~2.2s mean response</strong>
+            <p>Deterministic Extractor passes keep dashboards and agents responsive.</p>
+          </article>
+          <article class="matrix-card">
+            <span class="matrix-label">Token spend</span>
+            <strong>≈70% saved</strong>
+            <p>Architect SearchPlans reuse work so long-form batches stay affordable.</p>
+          </article>
+          <article class="matrix-card">
+            <span class="matrix-label">Surfaces</span>
+            <strong>REST · SDK · MCP</strong>
+            <p>API, Node SDK, and Claude MCP all share the same safeguards and telemetry.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="container footer-inner">
+        <span class="logo-lockup">
+          <img src="assets/images/parserator-logo.svg" alt="Parserator" width="36" height="36" />
+          Parserator · Design gallery
+        </span>
+        <div class="footer-links">
+          <a href="https://parserator.com/">Live production site</a>
+          <a href="https://parserator-production.web.app/">Dashboard</a>
+          <a href="https://domusgpt.github.io/ClearSeas-Enhanced/">Clear Seas</a>
+          <a href="https://nimbus-guardian.web.app/">Nimbus Guardian</a>
+          <a href="https://reposiologist-beta.web.app/">Reposiologist</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

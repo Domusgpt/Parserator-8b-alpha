@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 36" role="img" aria-labelledby="title desc">
+  <title id="title">Clear Seas Systems logotype</title>
+  <desc id="desc">Wave inspired glyph with Clear Seas Systems wordmark for EMA ecosystem references.</desc>
+  <defs>
+    <linearGradient id="wave" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00f7ff" />
+      <stop offset="50%" stop-color="#4d7dff" />
+      <stop offset="100%" stop-color="#8c55ff" />
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <path
+      stroke="url(#wave)"
+      d="M10 25c4.8-6.8 8.4-10.2 12-10.2 5.6 0 9 7 14.4 7 4.6 0 7.2-4.4 9.6-9.6"
+    />
+    <path stroke="rgba(255,255,255,0.45)" d="M4 15c4.4 7.8 9.2 12.4 15 12.4 5.4 0 9.2-3.4 14.6-10.2" />
+  </g>
+  <text x="44" y="23" fill="#f6f6ff" font-family="'Orbitron', 'Inter', sans-serif" font-size="16" font-weight="600">
+    Clear Seas
+  </text>
+</svg>
