@@ -3,9 +3,26 @@
  * Handles all API communication with Parserator backend
  */
 
+const DEFAULT_BASE_URL = 'https://api.parserator.com';
+
+const CLIENT_IDENTIFIER = (() => {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
+      const manifest = chrome.runtime.getManifest();
+      if (manifest?.version) {
+        return `parserator-chrome-extension/${manifest.version}`;
+      }
+    }
+  } catch (error) {
+    console.warn('Unable to determine extension version:', error);
+  }
+
+  return 'parserator-chrome-extension/dev';
+})();
+
 class ParseratorService {
   constructor() {
-    this.baseUrl = 'https://app-5108296280.us-central1.run.app';
+    this.baseUrl = DEFAULT_BASE_URL;
     this.apiKey = null;
     this.timeout = 30000;
   }
@@ -15,9 +32,9 @@ class ParseratorService {
    */
   async initialize() {
     const config = await this.getStoredConfig();
-    this.apiKey = config.apiKey;
-    this.baseUrl = config.baseUrl || 'https://app-5108296280.us-central1.run.app';
-    this.timeout = config.timeout || 30000;
+    this.apiKey = (config.apiKey || '').trim();
+    this.baseUrl = this.normalizeBaseUrl(config.baseUrl);
+    this.timeout = Number.isFinite(config.timeout) ? config.timeout : 30000;
   }
 
   /**
@@ -26,10 +43,11 @@ class ParseratorService {
   async getStoredConfig() {
     return new Promise((resolve) => {
       chrome.storage.sync.get(['apiKey', 'baseUrl', 'timeout'], (result) => {
+        const storedTimeout = Number(result.timeout);
         resolve({
           apiKey: result.apiKey || '',
-          baseUrl: result.baseUrl || 'https://app-5108296280.us-central1.run.app',
-          timeout: result.timeout || 30000
+          baseUrl: this.normalizeBaseUrl(result.baseUrl),
+          timeout: Number.isFinite(storedTimeout) ? storedTimeout : 30000
         });
       });
     });
@@ -40,10 +58,18 @@ class ParseratorService {
    */
   async saveConfig(config) {
     return new Promise((resolve) => {
-      chrome.storage.sync.set(config, () => {
-        this.apiKey = config.apiKey;
-        this.baseUrl = config.baseUrl || this.baseUrl;
-        this.timeout = config.timeout || this.timeout;
+      const timeoutMs = Number(config.timeout);
+      const preparedConfig = {
+        ...config,
+        apiKey: (config.apiKey || '').trim(),
+        baseUrl: this.normalizeBaseUrl(config.baseUrl),
+        timeout: Number.isFinite(timeoutMs) ? timeoutMs : this.timeout
+      };
+
+      chrome.storage.sync.set(preparedConfig, () => {
+        this.apiKey = preparedConfig.apiKey;
+        this.baseUrl = preparedConfig.baseUrl;
+        this.timeout = preparedConfig.timeout;
         resolve();
       });
     });
@@ -59,12 +85,22 @@ class ParseratorService {
   /**
    * Create request headers
    */
-  getHeaders() {
-    return {
+  getHeaders(hasBody = false, extraHeaders = {}) {
+    const headers = {
       'Authorization': `Bearer ${this.apiKey}`,
-      'Content-Type': 'application/json',
-      'User-Agent': 'parserator-chrome-extension/1.0.0'
+      'X-Parserator-Client': CLIENT_IDENTIFIER,
+      ...extraHeaders
     };
+
+    const hasContentTypeOverride = Object.keys(extraHeaders)
+      .map(key => key.toLowerCase())
+      .includes('content-type');
+
+    if (hasBody && !hasContentTypeOverride) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    return headers;
   }
 
   /**
@@ -75,15 +111,27 @@ class ParseratorService {
       throw new Error('Parserator not configured. Please set your API key in options.');
     }
 
-    const url = `${this.baseUrl}${endpoint}`;
+    const {
+      headers: extraHeaders = {},
+      body: providedBody,
+      method = 'GET',
+      ...restOptions
+    } = options;
+
+    const url = this.buildUrl(endpoint);
+    const hasBody = providedBody !== undefined && providedBody !== null;
+    const isFormData = typeof FormData !== 'undefined' && providedBody instanceof FormData;
+
     const requestOptions = {
-      method: options.method || 'GET',
-      headers: this.getHeaders(),
-      ...options
+      method,
+      headers: this.getHeaders(hasBody && !isFormData, extraHeaders),
+      ...restOptions
     };
 
-    if (options.body) {
-      requestOptions.body = JSON.stringify(options.body);
+    if (hasBody) {
+      requestOptions.body = isFormData || typeof providedBody === 'string'
+        ? providedBody
+        : JSON.stringify(providedBody);
     }
 
     try {
@@ -107,6 +155,28 @@ class ParseratorService {
       }
       throw error;
     }
+  }
+
+  normalizeBaseUrl(url) {
+    const value = (url || '').trim();
+    if (!value) {
+      return DEFAULT_BASE_URL;
+    }
+
+    try {
+      const parsed = new URL(value);
+      const normalizedPath = parsed.pathname.endsWith('/') && parsed.pathname !== '/' ? parsed.pathname.slice(0, -1) : parsed.pathname;
+      return `${parsed.origin}${normalizedPath === '/' ? '' : normalizedPath}`;
+    } catch (error) {
+      console.warn('Invalid base URL provided, falling back to default:', error);
+      return DEFAULT_BASE_URL;
+    }
+  }
+
+  buildUrl(endpoint = '') {
+    const sanitizedBase = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
+    const sanitizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `${sanitizedBase}${sanitizedEndpoint}`;
   }
 
   /**

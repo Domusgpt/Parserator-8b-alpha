@@ -1,0 +1,2 @@
+# ZIP generated locally; keep the artifact outside Git.
+374d3a0256908a5174c3bcb347f79e15845e113a127f0f21d6ea8b859c759712  active-development/chrome-extension/parserator-chrome-extension-v1.0.1.zip

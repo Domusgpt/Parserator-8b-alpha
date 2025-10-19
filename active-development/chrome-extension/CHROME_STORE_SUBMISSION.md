@@ -2,9 +2,12 @@
 
 ## 📦 Package Ready ✅
 
-**File**: `parserator-chrome-extension-v1.0.0.zip` (created successfully)
-**Size**: ~50KB
+**Package Name**: `parserator-chrome-extension-v1.0.1.zip` (generate locally with `npm run package`; do **not** commit the ZIP)
+**Build Command**: `npm install && npm run package` (outputs the ZIP beside the project directory)
+**Size**: ~60KB (verify after packaging)
 **API URL**: Updated to your live API: `https://app-5108296280.us-central1.run.app`
+
+> 📂 Evidence: `testing-validation/chrome-extension/2025-10-20-package-inventory.txt` (file listing) + `2025-10-20-package-sha256.txt` (checksum) + `2025-10-20-manifest-snippet.json` (version confirmation).
 
 ## 🎯 Chrome Web Store Submission Steps
 
@@ -16,7 +19,7 @@
 
 ### 2. Submit Extension
 1. Click **"New Item"**
-2. Upload: `parserator-chrome-extension-v1.0.0.zip`
+2. Upload: `parserator-chrome-extension-v1.0.1.zip` generated from your local packaging run
 3. Fill out the listing:
 
 #### **Basic Information**
@@ -28,15 +31,16 @@
 
 #### **Privacy**
 - **Single Purpose**: Data parsing and extraction
-- **Permission Justification**: 
+- **Permission Justification**:
   - Storage: Save user preferences and API keys
   - Active Tab: Parse text from current page
   - Context Menus: Right-click parsing functionality
   - Scripting: Inject content scripts for text selection
+- **Privacy Policy URL**: `https://parserator.com/privacy` (confirm Phase 1 redirect fix before submitting)
 
 #### **Store Listing**
 - **Developer**: Paul Phillips
-- **Support Email**: phillips.paul.email@gmail.com
+- **Support Email**: Chairman@parserator.com
 - **Website**: https://parserator.com (optional)
 
 ### 3. Upload Assets

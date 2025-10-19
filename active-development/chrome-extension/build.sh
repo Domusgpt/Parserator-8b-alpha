@@ -34,6 +34,11 @@ for size in 16 32 48 128; do
   echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAGA8X7p/wAAAABJRU5ErkJggg==" | base64 -d > "dist/assets/icons/icon-${size}.png"
 done
 
+VERSION=$(jq -r '.version' manifest.json 2>/dev/null)
+if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+  VERSION="dev"
+fi
+
 echo "Build complete! Extension files are in the 'dist' directory."
 echo ""
 echo "To install:"
@@ -42,4 +47,4 @@ echo "2. Enable Developer mode"
 echo "3. Click 'Load unpacked' and select the 'dist' directory"
 echo ""
 echo "To package:"
-echo "cd dist && zip -r ../parserator-chrome-extension.zip ."
+echo "cd dist && zip -r ../parserator-chrome-extension-v${VERSION}.zip ."

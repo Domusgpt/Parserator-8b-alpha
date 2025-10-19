@@ -174,7 +174,7 @@ const result = await client.parse({
 
 ---
 Powered by Parserator - Intelligent Data Parsing
-🌐 https://parserator.com | 📧 parse@parserator.com`;
+🌐 https://parserator.com | 📧 Chairman@parserator.com`;
 
         console.log(emailReply);
 
@@ -201,7 +201,7 @@ ${JSON.stringify(schemaAnalysis.suggestedSchema, null, 2)}
 
 ---
 Powered by Parserator - Intelligent Data Parsing
-🌐 https://parserator.com | 📧 parse@parserator.com`;
+🌐 https://parserator.com | 📧 Chairman@parserator.com`;
 
         console.log(errorReply);
       }

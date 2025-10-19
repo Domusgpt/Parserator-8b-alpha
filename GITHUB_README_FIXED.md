@@ -189,7 +189,7 @@ const result = await parserator.parse({
 - **GitHub**: [github.com/Domusgpt/parserator](https://github.com/Domusgpt/parserator)
 - **Issues**: Report bugs and request features
 - **Discussions**: Community support and examples
-- **Email**: [parse@parserator.com](mailto:parse@parserator.com)
+- **Email**: [Chairman@parserator.com](mailto:Chairman@parserator.com)
 
 ## 📈 Roadmap
 

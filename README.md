@@ -99,7 +99,7 @@ console.log(session.snapshot());
 ### **Ready But Not Deployed** 🟡
 - **Chrome Extension**: Built, needs Web Store submission
 - **Marketing Campaigns**: 104 files ready to deploy
-- **Email Support**: parse@parserator.com needs configuration
+- **Email Support**: Chairman@parserator.com needs configuration
 
 ### **Critical Infrastructure Fixes Needed** 🔴
 1. **Domain Redirect**: parserator.com → dashboard (Firebase config)
@@ -152,11 +152,10 @@ active-development/
 
 ## 🚨 IMMEDIATE PRIORITIES
 
-### **1. Domain Redirect Fix** (CRITICAL - 30 min)
-**Problem**: parserator.com redirects to "/lander" instead of dashboard  
-**Solution**: Firebase hosting configuration  
-**Instructions**: See `DOMAIN_REDIRECT_FIX.md`  
-**Impact**: Unblocks ALL marketing campaigns
+### **1. Domain Redirect Fix** (COMPLETE)
+**Status**: parserator.com now lands on the dashboard with an explicit `/lander → /` 301 in Firebase Hosting.
+**Follow-up**: Keep `DOMAIN_REDIRECT_FIX.md` handy for future audits or if DNS/SSL ownership changes.
+**Impact**: Marketing traffic safely reaches the dashboard.
 
 ### **2. Chrome Extension** (HIGH - 1 hour)
 **Problem**: Built but not submitted to Web Store  
@@ -164,8 +163,9 @@ active-development/
 **Impact**: Enables extension-based user acquisition
 
 ### **3. Email Support** (MEDIUM - 30 min)
-**Problem**: parse@parserator.com not configured  
-**Solution**: Google Workspace email forwarding setup  
+**Problem**: Chairman@parserator.com not configured
+**Solution**: Google Workspace email forwarding setup
+**Instructions**: Follow `docs/SUPPORT_EMAIL_RUNBOOK.md` for configuration, testing, and evidence capture
 **Impact**: Enables customer support
 
 ---

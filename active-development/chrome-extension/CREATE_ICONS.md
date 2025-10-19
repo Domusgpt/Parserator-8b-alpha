@@ -36,8 +36,10 @@ Create simple colored PNG files:
 2. **Re-zip the extension:**
    ```bash
    cd /mnt/c/Users/millz/Parserator/chrome-extension
-   zip -r parserator-chrome-extension-v1.0.1.zip . -x "*.git*" "node_modules/*" "*.DS_Store" "build.sh" "INSTALLATION.md" "CREATE_ICONS.md"
+   VERSION=$(jq -r '.version' manifest.json)
+   zip -r "parserator-chrome-extension-v${VERSION}.zip" . -x "*.git*" "node_modules/*" "*.DS_Store" "build.sh" "INSTALLATION.md" "CREATE_ICONS.md"
    ```
+   > ⚠️ Keep the generated ZIP out of Git—store it in your release artifacts folder instead.
 3. **Re-upload to Chrome Web Store**
 
 ---

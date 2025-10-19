@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "deploy": "firebase deploy --only functions:emailToSchema",
-    "test": "node test.js"
+    "test": "node --test"
   },
   "dependencies": {
     "firebase-functions": "^4.5.0",
