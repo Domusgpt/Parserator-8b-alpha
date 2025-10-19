@@ -1,0 +1,22 @@
+# Dependency directories
+node_modules/
+**/node_modules/
+
+# Build outputs
+build/
+**/build/
+dist/
+**/dist/
+
+# IDE and tooling caches
+.gradle/
+**/.gradle/
+.DS_Store
+*.log
+
+# Environment files
+.env
+.env.*
+
+# Generated assets
+*.iml
