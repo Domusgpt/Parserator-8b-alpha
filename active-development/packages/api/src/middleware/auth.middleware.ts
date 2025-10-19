@@ -6,6 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as admin from 'firebase-admin';
 import * as bcrypt from 'bcrypt';
+import { generateApiKeyLookupToken } from '../utils/api-key-token';
 
 /**
  * User document structure in Firestore
@@ -28,6 +29,7 @@ export interface IUser {
 export interface IApiKey {
   userId: string;
   keyHash: string;
+  lookupToken?: string;
   createdAt: Date;
   lastUsed: Date;
   isActive: boolean;
@@ -194,18 +196,18 @@ async function validateApiKey(apiKey: string): Promise<{
 }> {
   const db = admin.firestore();
 
-  // Get all API keys (we'll need to check hashes)
-  const apiKeysSnapshot = await db.collection('api_keys')
+  const lookupToken = generateApiKeyLookupToken(apiKey);
+
+  const candidateSnapshot = await db.collection('api_keys')
+    .where('lookupToken', '==', lookupToken)
     .where('isActive', '==', true)
     .get();
 
   let matchedApiKeyDoc: any = null;
 
-  // Check each API key hash
-  for (const doc of apiKeysSnapshot.docs) {
+  for (const doc of candidateSnapshot.docs) {
     const apiKeyData = doc.data() as IApiKey;
-    
-    // Compare hash (bcrypt compare)
+
     if (await bcrypt.compare(apiKey, apiKeyData.keyHash)) {
       matchedApiKeyDoc = { id: doc.id, ...apiKeyData };
       break;

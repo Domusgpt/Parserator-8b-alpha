@@ -6,6 +6,7 @@
 import * as admin from 'firebase-admin';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
+import { generateApiKeyLookupToken } from './api-key-token';
 
 /**
  * Generate a new API key for a user
@@ -26,10 +27,13 @@ export async function generateApiKey(
   const saltRounds = 12;
   const keyHash = await bcrypt.hash(apiKey, saltRounds);
   
+  const lookupToken = generateApiKeyLookupToken(apiKey);
+
   // Create API key document
   const apiKeyDoc = {
     userId,
     keyHash,
+    lookupToken,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     lastUsed: null,
     isActive: true,
