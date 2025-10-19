@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-labelledby="title desc">
+  <title id="title">Parserator Monogram</title>
+  <desc id="desc">Stylized letter P inside a rounded hex frame.</desc>
+  <defs>
+    <linearGradient id="parseratorGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0df4ff" />
+      <stop offset="45%" stop-color="#7e5dff" />
+      <stop offset="100%" stop-color="#ff5ff7" />
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="108" height="108" rx="28" fill="#05121f" />
+  <path
+    fill="none"
+    stroke="url(#parseratorGradient)"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    d="M38 30h35c14 0 23 9 23 24s-9 24-23 24H38z"
+  />
+  <path
+    fill="url(#parseratorGradient)"
+    d="M38 62h22c8 0 12 4 12 12s-4 12-12 12H38z"
+  />
+</svg>

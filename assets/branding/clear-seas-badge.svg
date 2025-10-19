@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 80" role="img" aria-labelledby="title desc">
+  <title id="title">Clear Seas Collective Badge</title>
+  <desc id="desc">Wave badge representing the Clear Seas network.</desc>
+  <defs>
+    <linearGradient id="seaGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00f6ff" />
+      <stop offset="50%" stop-color="#5a8dff" />
+      <stop offset="100%" stop-color="#8c4dff" />
+    </linearGradient>
+  </defs>
+  <rect width="160" height="80" rx="18" fill="#04192e" />
+  <path
+    d="M16 52c12-10 24-10 36 0s24 10 36 0 24-10 36 0 24 10 36 0"
+    stroke="url(#seaGradient)"
+    stroke-width="6"
+    fill="none"
+    stroke-linecap="round"
+  />
+  <text x="50%" y="38" text-anchor="middle" font-family="'Orbitron', sans-serif" font-size="20" fill="#d5eaff">
+    CLEAR SEAS
+  </text>
+  <text x="50%" y="62" text-anchor="middle" font-family="'Inter', sans-serif" font-size="14" fill="#7fc4ff">
+    AUTONOMY NETWORK
+  </text>
+</svg>
