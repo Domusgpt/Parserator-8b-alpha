@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parserator · Quantum Grid</title>
+    <meta
+      name="description"
+      content="Preview the Quantum Grid variation of Parserator’s marketing site with modular tiles, integration callouts, and EMA transparency."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../../assets/css/variant-quantum.css" />
+    <link rel="icon" type="image/svg+xml" href="../../assets/images/parserator-logo.svg" />
+  </head>
+  <body id="top">
+    <nav class="site-nav" data-reveal>
+      <div class="container nav-inner">
+        <a class="brand" href="#top" data-tilt>
+          <img src="../../assets/images/parserator-logo.svg" alt="Parserator" />
+          <span>Parserator</span>
+        </a>
+        <button class="mobile-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" data-mobile-toggle>
+          <span class="sr-only">Toggle navigation</span>
+          &#9776;
+        </button>
+        <ul class="nav-links" id="primary-navigation" aria-expanded="false" data-nav-links>
+          <li><a href="#hero">Overview</a></li>
+          <li><a href="#momentum">Momentum</a></li>
+          <li><a href="#workflow">Workflow</a></li>
+          <li><a href="#core">Lean core</a></li>
+          <li><a href="#guardrails">Guardrails</a></li>
+          <li><a href="#integrate">Integrate</a></li>
+          <li><a href="#ema">EMA</a></li>
+          <li><a href="#ecosystem">Ecosystem</a></li>
+          <li><a href="#demo">Demo</a></li>
+        </ul>
+        <div class="nav-actions">
+          <a class="button secondary" href="https://parserator-production.web.app/" data-tilt>Dashboard</a>
+          <a class="button primary" href="https://parserator-production.web.app/docs" data-tilt>Product Docs</a>
+        </div>
+      </div>
+    </nav>
+
+    <main>
+      <header id="hero" class="hero" data-reveal data-section>
+        <div class="container hero-grid">
+          <div data-tilt>
+            <span class="hero-tag">Architect → Extractor</span>
+            <h1>Parserator turns unstructured threads into structured intelligence you can trust.</h1>
+            <p>
+              Plug Parserator into transcripts, forms, or support tickets to receive 95% accurate JSON in about 2.2 seconds, saving
+              roughly 70% of the tokens you’d otherwise spend on single-pass prompts.
+            </p>
+            <div class="hero-cta">
+              <a class="button primary" href="https://app-5108296280.us-central1.run.app/v1/parse" data-tilt>Call the API</a>
+              <a class="button secondary" href="https://www.npmjs.com/package/parserator-sdk" data-tilt>Install the SDK</a>
+            </div>
+            <div class="hero-metrics">
+              <article class="metric-tile" data-tilt>
+                <span>Accuracy</span>
+                <strong>95% field-level confidence</strong>
+              </article>
+              <article class="metric-tile" data-tilt>
+                <span>Latency</span>
+                <strong>~2.2 second mean response</strong>
+              </article>
+              <article class="metric-tile" data-tilt>
+                <span>Token spend</span>
+                <strong>≈70% savings vs. baseline prompts</strong>
+              </article>
+              <article class="metric-tile" data-tilt>
+                <span>Surfaces</span>
+                <strong>REST · Node SDK · MCP</strong>
+              </article>
+            </div>
+          </div>
+          <div class="hero-media" data-tilt data-tilt-max="4">
+            <video autoplay muted loop playsinline poster="../../assets/images/parserator-logo.svg">
+              <source src="https://parserator.com/videos/neon-p-hero.mp4" type="video/mp4" />
+            </video>
+            <p class="caption">Architect plans the SearchPlan, Extractor executes deterministic passes, arbitration fills the edges.</p>
+          </div>
+        </div>
+      </header>
+
+      <section id="momentum" class="grid-section" data-reveal data-section>
+        <div class="container">
+          <div class="grid-title">
+            <h2>Momentum grounded in production telemetry</h2>
+            <p>Parserator already powers the dashboard, REST API, and Node SDK—teams adopt it to automate grooming without losing transparency.</p>
+          </div>
+          <div class="tile-grid">
+            <article class="tile" data-tilt>
+              <h3>95% accuracy in production</h3>
+              <p>Every parse shares metadata and reason codes so reviewers understand why a field landed where it did.</p>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>~2.2 second responses</h3>
+              <p>Deterministic preprocessors keep SLAs predictable for dashboards, agent loops, and automations.</p>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>≈70% token savings</h3>
+              <p>Reusable SearchPlans shrink arbitration requests so large batches stay affordable.</p>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>Ready surfaces</h3>
+              <p>REST, Node SDK, and Claude MCP all run the same kernel, safeguards, and telemetry.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="workflow" class="grid-section" data-reveal data-section>
+        <div class="container">
+          <div class="grid-title">
+            <h2>How the pipeline protects trust</h2>
+            <p>Architect and Extractor align deterministic work before arbitration ever touches an LLM.</p>
+          </div>
+          <div class="tile-grid">
+            <article class="tile" data-tilt>
+              <h3>Plan · Architect</h3>
+              <p>Gemini 1.5 Flash builds the SearchPlan, mapping schema fields to deterministic sourcing tactics.</p>
+              <ul>
+                <li>Instructions stored with the request</li>
+                <li>Reason codes ready for audits</li>
+              </ul>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>Execute · Extractor</h3>
+              <p>Pattern libraries, validators, and cached lookups capture most fields instantly.</p>
+              <ul>
+                <li>Predictable latency across workloads</li>
+                <li>Token savings from skipping redundant prompts</li>
+              </ul>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>Arbitrate · LLM</h3>
+              <p>Only unresolved spans go to arbitration, which double-checks outputs and adds confidence scores.</p>
+              <ul>
+                <li>Telemetry returns with every response</li>
+                <li>Fallback hooks for human or agent review</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="core" class="grid-section core" data-reveal data-section>
+        <div class="container">
+          <div class="grid-title">
+            <h2>Lean core you can embed anywhere</h2>
+            <p>ParseratorCore exports the Architect → Extractor pipeline for local agents, ops tooling, and partner stacks.</p>
+          </div>
+          <div class="tile-grid">
+            <article class="tile" data-tilt>
+              <h3>Reusable SearchPlans</h3>
+              <p>
+                Cache Architect output using <code>createInMemoryPlanCache</code> and reuse it with <code>parseMany</code>
+                across batches, API calls, and sessions.
+              </p>
+              <ul>
+                <li><code>session.exportInit()</code> keeps plans portable</li>
+                <li>Shared cache across SDK and API</li>
+              </ul>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>Sessions &amp; guardrails</h3>
+              <p>
+                <code>ParseratorSession</code> captures telemetry, confidence history, and <code>getAutoRefreshState()</code>
+                so you know when plans regenerate after dips.
+              </p>
+              <ul>
+                <li>Seed once, stream many parses</li>
+                <li>Confidence + token stats for ops teams</li>
+              </ul>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>Profiles &amp; interceptors</h3>
+              <p>
+                Toggle presets such as <em>lean-agent</em>, <em>vibe-coder</em>, or <em>sensor-grid</em> via
+                <code>applyProfile</code> and attach analytics through <code>core.use()</code>.
+              </p>
+              <ul>
+                <li>Swap Architect/Extractor implementations</li>
+                <li>Emit custom diagnostics per parse</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="guardrails" class="grid-section guardrails" data-reveal data-section>
+        <div class="container">
+          <div class="grid-title">
+            <h2>Operational guardrails keep teams confident</h2>
+            <p>
+              Parserator mirrors telemetry across the API, SDK, and dashboard so every parse can be traced—from the Architect’s
+              SearchPlan to the Extractor’s deterministic passes and lean fallbacks.
+            </p>
+          </div>
+          <div class="tile-grid">
+            <article class="tile guardrail" data-tilt>
+              <h3>Confidence metadata</h3>
+              <p>
+                Responses include <code>metadata.confidence</code>, token usage, and <code>field:fallback</code> events that match
+                what Clear Seas dashboards display, making field-level audits straightforward.
+              </p>
+              <ul>
+                <li>Check provenance for every extracted field</li>
+                <li>Share telemetry downstream via custom listeners</li>
+              </ul>
+            </article>
+            <article class="tile guardrail" data-tilt>
+              <h3>Session snapshots</h3>
+              <p>
+                <code>ParseratorSession</code> records <code>session.snapshot()</code> history, automatically refreshes plans when
+                confidence dips, and exposes <code>getAutoRefreshState()</code> so ops teams see when recalibration triggered.
+              </p>
+              <ul>
+                <li>Keep plan caches aligned across deployments</li>
+                <li>Export snapshots for compliance or incident reviews</li>
+              </ul>
+            </article>
+            <article class="tile guardrail" data-tilt>
+              <h3>Lean queue diagnostics</h3>
+              <p>
+                Async resolvers publish queue metrics, cooldown timers, and last-error metadata via
+                <code>getLeanOrchestrationSnapshot()</code>, so fallbacks stay transparent and controllable.
+              </p>
+              <ul>
+                <li>Monitor fallback health in Clear Seas dashboards</li>
+                <li>Trigger alerts when queues approach limits</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="integrate" class="grid-section" data-reveal data-section>
+        <div class="container">
+          <div class="grid-title">
+            <h2>Integrate Parserator quickly</h2>
+            <p>Use the REST endpoint or the Node SDK. Both expose the same safeguards and EMA commitments.</p>
+          </div>
+          <div class="tile-grid">
+            <article class="tile code-tile" data-tilt>
+              <h3>REST endpoint</h3>
+              <pre><code class="language-bash">curl -X POST "https://app-5108296280.us-central1.run.app/v1/parse" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer pk_live_your_api_key" \
+  -d '{
+    "inputData": "Acme Co. Contract Signed 3/12/24",
+    "outputSchema": {
+      "company": "string",
+      "event": "string",
+      "date": "date"
+    }
+  }'</code></pre>
+            </article>
+            <article class="tile code-tile" data-tilt>
+              <h3>Node SDK</h3>
+              <pre><code class="language-javascript">npm install parserator-sdk
+
+import { ParseratorClient } from 'parserator-sdk';
+
+const client = new ParseratorClient({ apiKey: 'pk_live_your_api_key_here' });
+
+const result = await client.parse({
+  inputData: `John Smith\nSenior Developer\njohn@techcorp.com\n(555) 123-4567`,
+  outputSchema: {
+    name: 'string',
+    title: 'string',
+    email: 'email',
+    phone: 'phone'
+  }
+});
+
+console.log(result.parsedData);</code></pre>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>Telemetry everywhere</h3>
+              <p>Confidence scores, token usage, and latency metrics ride along with every response so ops can forecast costs.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="ema" class="grid-section" data-reveal data-section>
+        <div class="container">
+          <div class="grid-title">
+            <h2>EMA keeps you portable</h2>
+            <p>Clear Seas’ Exoditical Moral Architecture ensures you can leave with your data whenever you need.</p>
+          </div>
+          <div class="tile-grid">
+            <article class="tile" data-tilt>
+              <h3>Transparent exits</h3>
+              <p>Export SearchPlans, extraction steps, and telemetry so you can rehost Parserator anywhere.</p>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>Predictable spend</h3>
+              <p>Token and latency metrics land in every response so finance and ops teams can plan in real time.</p>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>Choice of surfaces</h3>
+              <p>REST, Node SDK, and Claude MCP ship the same kernel and guardrails to honour portability.</p>
+            </article>
+            <article class="tile" data-tilt>
+              <h3>Direct support</h3>
+              <p>Reach the team at <a href="mailto:chairman@parserator.com">chairman@parserator.com</a> for enterprise onboarding.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="ecosystem" class="band" data-reveal data-section>
+        <div class="container">
+          <h2>Clear Seas ecosystem</h2>
+          <p>Parserator is part of the Clear Seas network alongside Nimbus Guardian and Reposiologist.</p>
+          <div class="band-logos">
+            <a href="https://domusgpt.github.io/ClearSeas-Enhanced/">
+              <img src="../../assets/images/clear-seas-logo.svg" alt="Clear Seas" width="40" height="40" />
+              Clear Seas HQ
+            </a>
+            <a href="https://nimbus-guardian.web.app/">
+              <img src="../../assets/images/css-monogram.svg" alt="Nimbus Guardian" width="40" height="40" />
+              Nimbus Guardian
+            </a>
+            <a href="https://reposiologist-beta.web.app/">
+              <img src="../../assets/images/css-monogram.svg" alt="Reposiologist" width="40" height="40" />
+              Reposiologist
+            </a>
+            <a href="https://parserator-production.web.app/">
+              <img src="../../assets/images/parserator-logo.svg" alt="Parserator dashboard" width="40" height="40" />
+              Parserator Dashboard
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section id="demo" class="grid-section" data-reveal data-section>
+        <div class="container demo-panel" data-tilt>
+          <div>
+            <h2>See Parserator in action</h2>
+            <p>Run the CLI demo to watch Parserator emit JSON, confidence scores, and telemetry.</p>
+          </div>
+          <pre><code class="language-bash">npm install -g parserator-cli
+parserator parse sample-invoice.txt --schema schemas/invoice.json
+# Inspect structured JSON plus telemetry in ./output</code></pre>
+          <div class="hero-cta">
+            <a class="button primary" href="https://parserator-production.web.app/" data-tilt>Launch dashboard</a>
+            <a class="button secondary" href="https://parserator-production.web.app/docs" data-tilt>Read documentation</a>
+          </div>
+        </div>
+      </section>
+
+      <aside class="floating-dock" data-reveal>
+        <div class="dock-inner" data-tilt>
+          <p class="dock-eyebrow">Looking for a deeper sync?</p>
+          <h2 class="dock-title">Connect directly with the Parserator team</h2>
+          <p class="dock-body">
+            Dive into the live documentation or reach out at <a href="mailto:chairman@parserator.com">chairman@parserator.com</a>
+            for an Architect → Extractor strategy session.
+          </p>
+          <div class="dock-actions">
+            <a class="button primary" href="https://parserator-production.web.app/docs">Open documentation</a>
+            <a class="button secondary" href="mailto:chairman@parserator.com">Contact Parserator</a>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="cta-footer" data-reveal>
+      <div class="container cta-inner">
+        <img src="../../assets/images/parserator-logo.svg" alt="Parserator" width="48" height="48" style="margin: 0 auto" />
+        <h2>Ready to orchestrate your unstructured data?</h2>
+        <p>Parserator delivers 95% accuracy, ~2.2s latency, and ≈70% token savings while honoring EMA portability.</p>
+        <div class="hero-cta">
+          <a class="button primary" href="https://app-5108296280.us-central1.run.app/v1/parse" data-tilt>Call the API</a>
+          <a class="button secondary" href="https://www.npmjs.com/package/parserator-sdk" data-tilt>Install Node SDK</a>
+        </div>
+        <div class="footer-links">
+          <a href="https://parserator-production.web.app/">Dashboard</a>
+          <a href="https://parserator-production.web.app/docs">Docs</a>
+          <a href="https://parserator.com/">Production site</a>
+          <a href="https://domusgpt.github.io/ClearSeas-Enhanced/">Clear Seas</a>
+          <a href="https://nimbus-guardian.web.app/">Nimbus Guardian</a>
+          <a href="https://reposiologist-beta.web.app/">Reposiologist</a>
+          <a href="mailto:chairman@parserator.com">Contact</a>
+        </div>
+        <div class="footer-bottom">&copy; <span data-current-year></span> Clear Seas · Exoditical Moral Architecture</div>
+      </div>
+    </footer>
+
+    <script src="../../assets/js/main.js" defer></script>
+  </body>
+</html>
