@@ -393,7 +393,7 @@ class OptionsManager {
       if (response.success) {
         const exportData = {
           exportedAt: new Date().toISOString(),
-          version: '1.0.0',
+          version: '1.0.1',
           schemas: response.data
         };
         
@@ -462,7 +462,7 @@ class OptionsManager {
       if (response.success) {
         const exportData = {
           exportedAt: new Date().toISOString(),
-          version: '1.0.0',
+          version: '1.0.1',
           results: response.data
         };
         

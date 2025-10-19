@@ -1,15 +1,15 @@
 {
   "name": "parserator-chrome-extension",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Chrome extension for Parserator AI-powered text parsing",
   "author": "Paul Phillips <phillips.paul.email@gmail.com>",
   "license": "PRIVATE",
   "scripts": {
     "build": "echo 'Building Chrome extension...' && npm run copy-assets",
     "copy-assets": "mkdir -p dist && cp -r src dist/ && cp -r assets dist/ && cp manifest.json dist/",
-    "package": "npm run build && cd dist && zip -r ../parserator-chrome-extension.zip .",
+    "package": "npm run build && cd dist && zip -r ../parserator-chrome-extension-v$npm_package_version.zip .",
     "dev": "echo 'Load the extension in Chrome from the root directory'",
-    "clean": "rm -rf dist parserator-chrome-extension.zip"
+    "clean": "rm -rf dist parserator-chrome-extension-v*.zip"
   },
   "dependencies": {
     "parserator-sdk": "^1.0.0"

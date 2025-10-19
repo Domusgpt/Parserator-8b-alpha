@@ -151,7 +151,7 @@ class StorageManager {
     const parsedData = await this.getParsedData();
     const exportData = {
       exportedAt: new Date().toISOString(),
-      version: '1.0.0',
+      version: '1.0.1',
       data: parsedData
     };
     
@@ -249,7 +249,7 @@ class StorageManager {
     const schemas = await this.getSchemas();
     const exportData = {
       exportedAt: new Date().toISOString(),
-      version: '1.0.0',
+      version: '1.0.1',
       schemas: schemas
     };
     

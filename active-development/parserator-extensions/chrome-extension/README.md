@@ -179,7 +179,7 @@ Private/Proprietary - All rights reserved by Paul Phillips
 
 ## Changelog
 
-### Version 1.0.0
+### Version 1.0.1
 - Initial release
 - Context menu integration
 - Popup interface
