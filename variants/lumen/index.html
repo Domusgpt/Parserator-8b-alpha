@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parserator | Variant Lumen</title>
+    <meta
+      name="description"
+      content="Variant Lumen introduces a modular grid inspired by Reposiologist card bending, pairing Parserator metrics with integration toggles and CTA focus."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="canvas">
+      <nav class="top" data-reveal>
+        <div class="top-inner">
+          <a class="brand" href="#top" data-tilt>
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <defs>
+                <linearGradient id="lumenBrand" x1="0%" x2="100%" y1="0%" y2="100%">
+                  <stop offset="0%" stop-color="#5fa8ff" />
+                  <stop offset="50%" stop-color="#8b5bff" />
+                  <stop offset="100%" stop-color="#33e5ff" />
+                </linearGradient>
+              </defs>
+              <rect x="6" y="6" width="52" height="52" rx="18" fill="rgba(95, 168, 255, 0.15)" />
+              <path
+                d="M20.2 47.4c7.7-1.7 13.7-7.6 15.2-13.9 1.5-6.2-1.2-12.9-7.8-15.4l3.2-8.4c9.8 2.5 16.1 11.7 13.9 20.6C42.2 39.5 34.4 48.4 23 50z"
+                fill="url(#lumenBrand)"
+              />
+            </svg>
+            <span>Parserator</span>
+          </a>
+          <button class="mobile-toggle" type="button" aria-expanded="false" aria-controls="top-nav" data-mobile-toggle>
+            <span class="sr-only">Toggle navigation</span>
+            ☰
+          </button>
+          <div class="top-links" id="top-nav" aria-expanded="false" data-nav-links>
+            <a href="#overview">Overview</a>
+            <a href="#grid">Highlights</a>
+            <a href="#workflow">Workflow</a>
+            <a href="#integration">Integrations</a>
+            <a href="#ema">EMA</a>
+            <a href="#network">Network</a>
+            <a href="#cta">Contact</a>
+          </div>
+          <div class="top-actions">
+            <a class="button ghost" href="https://parserator-production.web.app/" target="_blank" rel="noreferrer" data-tilt>
+              Dashboard
+            </a>
+            <a class="button primary" href="https://parserator-production.web.app/docs" target="_blank" rel="noreferrer" data-tilt>
+              Docs
+            </a>
+          </div>
+        </div>
+      </nav>
+
+      <main id="top">
+        <section id="overview" class="hero" data-reveal>
+          <div class="hero-inner">
+            <div class="hero-text" data-tilt>
+              <p class="eyebrow">Architect → Extractor</p>
+              <h1>Parserator: production parsing with EMA guarantees.</h1>
+              <p>
+                This grid-first layout surfaces metrics, workflow steps, integrations, and CTA options in a single view so teams
+                can benchmark Parserator against internal requirements.
+              </p>
+              <div class="hero-metrics">
+                <div class="metric" data-tilt>
+                  <strong>95%</strong>
+                  <span>Accuracy today · 97% target</span>
+                </div>
+                <div class="metric" data-tilt>
+                  <strong>~2.2s</strong>
+                  <span>Average API latency</span>
+                </div>
+                <div class="metric" data-tilt>
+                  <strong>≈70%</strong>
+                  <span>Token savings vs. single-pass</span>
+                </div>
+              </div>
+              <div class="hero-actions">
+                <a class="button primary" href="https://app-5108296280.us-central1.run.app/v1/parse" target="_blank" rel="noreferrer" data-tilt>
+                  Call the API
+                </a>
+                <a class="button outline" href="https://www.npmjs.com/package/parserator-sdk" target="_blank" rel="noreferrer" data-tilt>
+                  Install SDK
+                </a>
+              </div>
+            </div>
+            <div class="hero-card" data-tilt>
+              <h3>Telemetry snapshot</h3>
+              <ul>
+                <li>REST · Node SDK · MCP parity</li>
+                <li>Trace IDs + confidence scores included</li>
+                <li>Token usage + heuristics in every response</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="grid" class="grid" data-reveal>
+          <div class="grid-layout">
+            <article class="tile spotlight" data-tilt>
+              <h3>Traceable accuracy</h3>
+              <p>Deterministic Extractor steps expose decision metadata for each field.【F:claude/architecture.md†L1-L112】</p>
+            </article>
+            <article class="tile spotlight" data-tilt>
+              <h3>Predictable latency</h3>
+              <p>Gemini Architect planning keeps responses around ~2.2 seconds.【F:README.md†L225-L239】【F:docs/AGENTIC_RELAUNCH.md†L41-L53】</p>
+            </article>
+            <article class="tile spotlight" data-tilt>
+              <h3>Token efficiency</h3>
+              <p>Two-stage orchestration cuts roughly 70% of tokens compared with single-pass prompting.【F:IMMEDIATE_FIXES_GUIDE.md†L135-L144】</p>
+            </article>
+            <article class="tile spotlight" data-tilt>
+              <h3>Ecosystem ready</h3>
+              <p>API, dashboard, SDK, and MCP deliver the same pipeline for reversible integrations.【F:README.md†L200-L240】</p>
+            </article>
+            <article class="tile workflow" id="workflow" data-tilt>
+              <h3>Workflow</h3>
+              <ol>
+                <li>
+                  <strong>Architect</strong>
+                  <span>Gemini 1.5 Flash maps schema bindings, risk spans, and plan reuse.【F:claude/architecture.md†L1-L112】</span>
+                </li>
+                <li>
+                  <strong>Extractor</strong>
+                  <span>Heuristics and validators resolve fields deterministically before any LLM call.【F:docs/HEURISTIC_STACK_REVIEW.md†L1-L120】</span>
+                </li>
+                <li>
+                  <strong>Telemetry</strong>
+                  <span>Confidence, tokens, and trace IDs keep operators in control.【F:claude/architecture.md†L1-L112】</span>
+                </li>
+              </ol>
+            </article>
+            <article class="tile integration" id="integration" data-tilt>
+              <div class="integration-header">
+                <h3 data-copy-heading>Send JSON via REST</h3>
+                <div class="tab-group" role="tablist">
+                  <button class="tab is-active" role="tab" type="button" aria-selected="true" data-code-toggle="rest">REST</button>
+                  <button class="tab" role="tab" type="button" aria-selected="false" data-code-toggle="node">Node SDK</button>
+                </div>
+              </div>
+              <p data-copy-body>
+                POST transcripts and schema definitions to receive structured JSON plus telemetry covering every decision.
+              </p>
+              <ul class="integration-list" data-usage-copy>
+                <li>One call for schema + raw input</li>
+                <li>Confidence and token metadata returned</li>
+                <li>95% accuracy · ~2.2s latency</li>
+              </ul>
+              <pre class="code" data-code-block><code class="language-bash">curl -X POST "https://app-5108296280.us-central1.run.app/v1/parse" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer pk_live_your_api_key" \
+  -d '{
+    "inputData": "Acme Co. Contract Signed 3/12/24",
+    "outputSchema": {
+      "company": "string",
+      "event": "string",
+      "date": "date"
+    }
+  }'</code></pre>
+            </article>
+            <article class="tile ema" id="ema" data-tilt>
+              <h3>EMA commitments</h3>
+              <ul>
+                <li>Transparent diagnostics for every extraction.【F:claude/architecture.md†L1-L112】</li>
+                <li>Portable surfaces across REST, SDK, and MCP.【F:README.md†L200-L240】</li>
+                <li>Clear Seas doctrine documents freedom to leave.【F:essential-context/EMA_WHITE_PAPER.md†L13-L218】</li>
+              </ul>
+              <a class="button ghost" href="https://domusgpt.github.io/ClearSeas-Enhanced/" target="_blank" rel="noreferrer">Clear Seas white paper</a>
+            </article>
+            <article class="tile ecosystem" id="network" data-tilt>
+              <h3>Clear Seas network</h3>
+              <ul>
+                <li><a href="https://nimbus-guardian.web.app/" target="_blank" rel="noreferrer">Nimbus Guardian</a></li>
+                <li><a href="https://reposiologist-beta.web.app/" target="_blank" rel="noreferrer">Reposiologist Beta</a></li>
+                <li><a href="https://domusgpt.github.io/ClearSeas-Enhanced/" target="_blank" rel="noreferrer">DomusGPT Clear Seas Enhanced</a></li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section id="cta" class="cta" data-reveal>
+          <div class="cta-card" data-tilt>
+            <h2>Pick your next step</h2>
+            <p>Email <a href="mailto:chairman@parserator.com">chairman@parserator.com</a> for launch coordination or dive into the docs below.</p>
+            <div class="cta-actions">
+              <a class="button primary" href="https://parserator-production.web.app/docs" target="_blank" rel="noreferrer">Review docs</a>
+              <a class="button outline" href="https://parserator-production.web.app/" target="_blank" rel="noreferrer">Open dashboard</a>
+              <a class="button ghost" href="https://parserator.com" target="_blank" rel="noreferrer">Legacy parserator.com</a>
+            </div>
+            <p class="cta-note">© <span data-current-year></span> Parserator · Clear Seas Initiative</p>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="../../assets/js/common.js"></script>
+    <script src="./script.js"></script>
+  </body>
+</html>
