@@ -5,6 +5,7 @@
 
 import { GeminiService } from '../services/llm.service';
 import { ParseService, IParseRequest } from '../services/parse.service';
+import { SYSTEM_CONTEXT_DEFINITIONS } from '../services/system-context-detector';
 
 // Mock Gemini service for testing
 class MockGeminiService extends GeminiService {
@@ -105,6 +106,11 @@ describe('ParseService Integration Tests', () => {
       expect(result.metadata.confidence).toBeGreaterThan(0.8);
       expect(result.metadata.tokensUsed).toBeGreaterThan(0);
       expect(result.metadata.architectPlan.steps).toHaveLength(2);
+      expect(result.metadata.systemContext.type).toBe('crm');
+      expect(result.metadata.systemContext.confidence).toBeGreaterThanOrEqual(0.2);
+      expect(result.metadata.systemContext.metrics.rawScore).toBeGreaterThanOrEqual(0);
+      expect(result.metadata.systemContext.metrics.sourceBreakdown.schema).toBeGreaterThanOrEqual(0);
+      expect(result.metadata.systemContext.metrics.domainHintsProvided).toBe(0);
     });
 
     it('should handle validation errors gracefully', async () => {
@@ -121,6 +127,28 @@ describe('ParseService Integration Tests', () => {
       expect(result.error).toBeDefined();
       expect(result.error!.code).toBe('EMPTY_INPUT_DATA');
       expect(result.error!.stage).toBe('validation');
+      expect(result.metadata.systemContext.metrics.lowConfidenceFallback).toBe(true);
+    });
+
+    it('preserves hint telemetry when validation fails before detection', async () => {
+      const request: IParseRequest = {
+        inputData: '',
+        outputSchema: {
+          name: 'string'
+        },
+        systemContextHint: 'crm',
+        domainHints: ['Salesforce sync']
+      };
+
+      const result = await parseService.parse(request);
+
+      expect(result.success).toBe(false);
+      expect(result.error?.stage).toBe('validation');
+      expect(result.metadata.systemContext.type).toBe('crm');
+      expect(result.metadata.systemContext.summary.toLowerCase()).toContain('crm');
+      expect(result.metadata.systemContext.metrics.explicitHintProvided).toBe(true);
+      expect(result.metadata.systemContext.metrics.explicitHintMatchedFinalContext).toBe(true);
+      expect(result.metadata.systemContext.metrics.domainHintsProvided).toBe(1);
     });
 
     it('should provide detailed metadata', async () => {
@@ -140,6 +168,49 @@ describe('ParseService Integration Tests', () => {
       expect(result.metadata.stageBreakdown.extractor.tokens).toBeGreaterThan(0);
       expect(result.metadata.architectTokens + result.metadata.extractorTokens)
         .toBe(result.metadata.tokensUsed);
+      expect(result.metadata.systemContext.summary).toContain('General-purpose');
+      expect(result.metadata.systemContext.metrics).toBeDefined();
+      expect(result.metadata.systemContext.metrics.explicitHintProvided).toBe(false);
+    });
+
+    it('respects custom context detector options when provided', async () => {
+      const customParseService = new ParseService(
+        new MockGeminiService(),
+        undefined,
+        console,
+        {
+          definitions: {
+            marketing: {
+              ...SYSTEM_CONTEXT_DEFINITIONS.marketing,
+              keywords: [...SYSTEM_CONTEXT_DEFINITIONS.marketing.keywords, 'newsletter']
+            }
+          },
+          weights: {
+            sample: 2.2,
+            instructions: 0.5
+          }
+        }
+      );
+
+      const request: IParseRequest = {
+        inputData:
+          'Weekly newsletter performance report: newsletter open rate 45%, newsletter CTR climbing.',
+        outputSchema: {
+          newsletterId: 'string'
+        },
+        instructions: 'Summarize newsletter performance metrics'
+      };
+
+      const result = await customParseService.parse(request);
+
+      expect(result.success).toBe(true);
+      expect(result.metadata.systemContext.type).toBe('marketing');
+      expect(result.metadata.systemContext.metrics.sourceBreakdown.sample).toBeGreaterThan(
+        result.metadata.systemContext.metrics.sourceBreakdown.instructions
+      );
+      expect(
+        result.metadata.systemContext.signals.some(signal => signal.includes('newsletter'))
+      ).toBe(true);
     });
   });
 
