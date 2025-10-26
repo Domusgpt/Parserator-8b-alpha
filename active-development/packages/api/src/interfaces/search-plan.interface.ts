@@ -6,16 +6,47 @@
 /**
  * Validation types supported by the parsing engine
  */
-export type ValidationTypeEnum = 
-  | 'string' 
-  | 'email' 
-  | 'number' 
-  | 'iso_date' 
-  | 'string_array' 
+export type ValidationTypeEnum =
+  | 'string'
+  | 'email'
+  | 'number'
+  | 'iso_date'
+  | 'string_array'
   | 'boolean'
   | 'url'
   | 'phone'
   | 'json_object';
+
+/**
+ * Downstream systems the parser can optimize for
+ */
+export type SystemContextType =
+  | 'generic'
+  | 'crm'
+  | 'ecommerce'
+  | 'finance'
+  | 'healthcare'
+  | 'legal'
+  | 'logistics'
+  | 'marketing'
+  | 'real_estate';
+
+/**
+ * Structured description of the detected downstream system context
+ */
+export interface ISystemContext {
+  /** The inferred downstream system */
+  type: SystemContextType;
+
+  /** Confidence score for the chosen context (0.0 – 1.0) */
+  confidence: number;
+
+  /** Signals/keywords that influenced the classification */
+  signals: string[];
+
+  /** Human-readable explanation of the context */
+  summary: string;
+}
 
 /**
  * Individual step in a SearchPlan
@@ -83,6 +114,9 @@ export interface ISearchPlan {
     
     /** User-provided instructions that influenced the plan */
     userInstructions?: string;
+
+    /** Optional downstream system context guidance */
+    systemContext?: ISystemContext;
   };
 }
 
@@ -166,10 +200,13 @@ export interface IParseResult {
   metadata: {
     /** The SearchPlan that was generated and used */
     architectPlan: ISearchPlan;
-    
+
     /** Overall confidence score (0.0 to 1.0) */
     confidence: number;
-    
+
+    /** Detected downstream system context */
+    systemContext: ISystemContext;
+
     /** Total tokens used across both stages */
     tokensUsed: number;
     

@@ -10,6 +10,7 @@ import cors from 'cors';
 import { z } from 'zod';
 import { GeminiService } from './services/llm.service';
 import { ParseService, IParseRequest } from './services/parse.service';
+import { ConsoleParseMetricsRecorder } from './services/metrics.service';
 import { 
   authenticateApiKey, 
   incrementUsage, 
@@ -37,16 +38,38 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' })); // Support large input data
 
 // Request validation schemas
+const SystemContextEnum = z.enum([
+  'generic',
+  'crm',
+  'ecommerce',
+  'finance',
+  'healthcare',
+  'legal',
+  'logistics',
+  'marketing',
+  'real_estate'
+] as const);
+
 const ParseRequestSchema = z.object({
   inputData: z.string()
     .min(1, 'Input data cannot be empty')
     .max(100000, 'Input data too large (max 100KB)'),
-  
+
   outputSchema: z.object({})
     .refine(obj => Object.keys(obj).length > 0, 'Output schema cannot be empty')
     .refine(obj => Object.keys(obj).length <= 50, 'Output schema too complex (max 50 fields)'),
-  
-  instructions: z.string().optional()
+
+  instructions: z.string().optional(),
+  systemContextHint: SystemContextEnum.optional(),
+  domainHints: z
+    .array(
+      z
+        .string()
+        .min(1, 'Domain hints cannot be empty')
+        .max(64, 'Domain hints must be 64 characters or fewer')
+    )
+    .max(10, 'Provide no more than 10 domain hints')
+    .optional()
 });
 
 type ParseRequestBody = z.infer<typeof ParseRequestSchema>;
@@ -85,6 +108,8 @@ async function initializeServices(): Promise<void> {
       console.warn('Gemini connection test failed, but continuing...');
     }
 
+    const metricsRecorder = new ConsoleParseMetricsRecorder(console);
+
     // Initialize parse service
     parseService = new ParseService(
       geminiService,
@@ -96,7 +121,8 @@ async function initializeServices(): Promise<void> {
         architectSampleSize: 1000,
         minOverallConfidence: 0.5
       },
-      console
+      console,
+      metricsRecorder
     );
 
     isInitialized = true;
@@ -292,6 +318,8 @@ app.post('/v1/parse',
         inputData: validatedBody.inputData,
         outputSchema: validatedBody.outputSchema,
         instructions: validatedBody.instructions,
+        systemContextHint: validatedBody.systemContextHint,
+        domainHints: validatedBody.domainHints,
         requestId,
         userId: authReq.user.uid
       };
