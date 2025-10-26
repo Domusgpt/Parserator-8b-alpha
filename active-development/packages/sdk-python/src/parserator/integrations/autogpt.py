@@ -1,10 +1,9 @@
-"""
-AutoGPT Integration for Parserator
-Provides plugin for AutoGPT agents to parse unstructured data
-"""
+"""AutoGPT integration helpers built on the async Parserator SDK."""
 
-from typing import Any, Dict, List, Optional, Tuple
+from __future__ import annotations
+
 import json
+from typing import Any, Dict, List, Optional
 
 try:
     from autogpt.agent import Agent
@@ -15,11 +14,12 @@ except ImportError:
     AUTOGPT_AVAILABLE = False
     command = lambda *args, **kwargs: lambda func: func
 
-from ..services import ParseatorClient
-from ..types import ParseResult
+from ..client import ParseratorClient
+from ..types import ParseResponse
+from ._async_utils import run_async
 
 
-class ParseatorPlugin:
+class ParseratorPlugin:
     """
     AutoGPT plugin for parsing unstructured data using Parserator.
     
@@ -28,7 +28,7 @@ class ParseatorPlugin:
     
     Installation:
         1. Place this file in your AutoGPT plugins directory
-        2. Add "ParseatorPlugin" to your enabled plugins list
+        2. Add "ParseratorPlugin" to your enabled plugins list
         3. Set PARSERATOR_API_KEY in your environment variables
         
     Example usage:
@@ -47,7 +47,7 @@ class ParseatorPlugin:
             
         self.config = config
         self.api_key = self._get_api_key()
-        self.client = ParseatorClient(api_key=self.api_key) if self.api_key else None
+        self.client = ParseratorClient(api_key=self.api_key) if self.api_key else None
         
     def _get_api_key(self) -> Optional[str]:
         """Get API key from environment or config."""
@@ -109,25 +109,29 @@ class ParseatorPlugin:
             })
         
         try:
-            result = self.client.parse(
-                input_data=text,
-                output_schema=schema,
-                instructions=instructions
+            response: ParseResponse = run_async(
+                lambda: self.client.parse(
+                    input_data=text,
+                    output_schema=schema,
+                    instructions=instructions,
+                )
             )
-            
-            if result.success:
-                return json.dumps({
-                    "success": True,
-                    "parsed_data": result.parsed_data,
-                    "confidence": result.metadata.get("confidence", 0.0),
-                    "processing_time_ms": result.metadata.get("processingTimeMs", 0)
-                }, indent=2)
-            else:
-                return json.dumps({
-                    "success": False,
-                    "error": result.error_message
-                })
-                
+
+            if response.success:
+                return json.dumps(
+                    {
+                        "success": True,
+                        "parsed_data": response.parsed_data,
+                        "confidence": response.metadata.get("confidence", 0.0),
+                        "processing_time_ms": response.metadata.get(
+                            "processingTimeMs", 0
+                        ),
+                    },
+                    indent=2,
+                )
+
+            return json.dumps({"success": False, "error": response.error_message})
+
         except Exception as e:
             return json.dumps({
                 "success": False,
@@ -371,9 +375,9 @@ class ParseatorPlugin:
 
 
 # Plugin registration for AutoGPT
-def register() -> ParseatorPlugin:
+def register() -> ParseratorPlugin:
     """Register the Parserator plugin with AutoGPT."""
-    return ParseatorPlugin()
+    return ParseratorPlugin()
 
 
 # Helper functions for plugin usage
